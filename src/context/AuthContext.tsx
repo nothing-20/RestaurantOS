@@ -34,7 +34,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRole(parsed.role);
         setTenantId(parsed.tenantId);
         setIsLoading(false);
-        return;
       } catch (e) {
         console.error('Failed to restore mock user session', e);
       }
@@ -45,31 +44,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setFirebaseUser(fUser);
 
       if (fUser) {
-        try {
-          // 1. Attempt to resolve role and tenantId from JWT Custom Claims
-          let claims = await authService.getUserClaims(fUser);
-          let userRole = claims.role;
-          let userTenantId = claims.tenantId;
+        // Clear mock session since we have a real firebase user
+        localStorage.removeItem('mock_user_session');
 
-          // 2. Fallback to Firestore user profile document if claims are not populated yet
-          if (!userRole || userTenantId === undefined) {
+        try {
+          // STEP 1: Firestore is the authoritative source for role and tenantId.
+          // We fetch it FIRST so that stale JWT claims cannot override it.
+          let userRole: TUserRole | null = null;
+          let userTenantId: string | null = null;
+          let resolvedName = fUser.displayName;
+          let resolvedPhone = '';
+
+          try {
             const userDocRef = doc(db, 'users', fUser.uid);
             const userDoc = await getDoc(userDocRef);
-            
+
             if (userDoc.exists()) {
               const data = userDoc.data();
-              userRole = data.role as TUserRole;
-              userTenantId = data.tenantId as string;
+              userRole = (data.role as TUserRole) || null;
+              userTenantId = (data.tenantId as string) || null;
+              resolvedName = data.fullName || data.displayName || resolvedName;
+              resolvedPhone = data.phoneNumber || '';
+            }
+          } catch (firestoreErr) {
+            console.warn('Failed to fetch user profile from Firestore:', firestoreErr);
+          }
+
+          // STEP 2: If Firestore had no role, fall back to JWT custom claims.
+          // This handles Super Admin accounts set up via Firebase Admin SDK.
+          if (!userRole) {
+            try {
+              const claims = await authService.getUserClaims(fUser) as any;
+              if (claims?.role) userRole = claims.role as TUserRole;
+              if (claims?.tenantId && !userTenantId) userTenantId = claims.tenantId;
+            } catch (claimsErr) {
+              console.warn('Failed to retrieve JWT custom claims:', claimsErr);
             }
           }
 
+          // STEP 3: Build the resolved user object.
           const resolvedUser: IUser = {
             uid: fUser.uid,
             email: fUser.email || '',
-            displayName: fUser.displayName || fUser.email?.split('@')[0] || 'Staff Member',
+            displayName: resolvedName || fUser.email?.split('@')[0] || 'Staff',
             tenantId: userTenantId || '',
-            role: userRole || 'customer', // fallback to customer
+            role: userRole || 'customer',
             status: 'active',
+            phoneNumber: resolvedPhone,
             createdAt: fUser.metadata.creationTime || new Date().toISOString()
           };
 
@@ -83,9 +104,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setTenantId(null);
         }
       } else {
-        setUser(null);
-        setRole(null);
-        setTenantId(null);
+        // Only clear the session if there's no mock session in localStorage
+        if (!localStorage.getItem('mock_user_session')) {
+          setUser(null);
+          setRole(null);
+          setTenantId(null);
+        }
       }
       setIsLoading(false);
     });

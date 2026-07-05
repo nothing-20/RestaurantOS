@@ -1,70 +1,89 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { IOrderItem, IMenuItem, ISelectedChoice } from '../types';
+import { IOrderItem, IMenuItem } from '../types';
 
 interface ICartContextType {
   cartItems: IOrderItem[];
-  addItem: (item: IMenuItem, count: number, selections: ISelectedChoice[], notes: string) => void;
-  removeItem: (itemId: string, selectionsHash: string) => void;
+  addItem: (item: IMenuItem, count: number, notes?: string) => void;
+  updateQuantity: (itemId: string, count: number) => void;
+  updateNotes: (itemId: string, notes: string) => void;
+  removeItem: (itemId: string) => void;
   clearCart: () => void;
-  cartTotal: number; // in cents
+  cartSubtotal: number; // in cents
+  cartTax: number;      // in cents
+  cartTotal: number;    // in cents
 }
 
 const CartContext = createContext<ICartContextType | undefined>(undefined);
 
+const TAX_RATE = 0.08; // 8% sales tax parameter
+
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cartItems, setCartItems] = useState<IOrderItem[]>([]);
 
-  // Load cart from storage on mount
+  // Hydrate cart from localStorage
   useEffect(() => {
     const savedCart = localStorage.getItem('restaurantos_cart');
     if (savedCart) {
       try {
         setCartItems(JSON.parse(savedCart));
       } catch (e) {
-        console.error('Failed to parse cart items', e);
+        console.error('Failed to parse cart local cache', e);
       }
     }
   }, []);
 
-  // Save cart modifications
   const saveCart = (items: IOrderItem[]) => {
     setCartItems(items);
     localStorage.setItem('restaurantos_cart', JSON.stringify(items));
   };
 
-  const addItem = (item: IMenuItem, count: number, selections: ISelectedChoice[], notes: string) => {
-    // calculate actual price including price modifiers
-    const modifierSum = selections.reduce((acc, curr) => acc + curr.priceModifier, 0);
-    const pricePerUnit = item.price + modifierSum;
-
-    const newCartItem: IOrderItem = {
-      itemId: item.id,
-      name: item.name,
-      count,
-      notes,
-      selectedChoices: selections,
-      pricePerUnit
-    };
-
-    // For simplicity, check if the exact configuration exists
-    const selectionsHash = JSON.stringify(selections);
-    const existingIndex = cartItems.findIndex(
-      ci => ci.itemId === item.id && JSON.stringify(ci.selectedChoices) === selectionsHash
-    );
+  const addItem = (item: IMenuItem, count: number, notes: string = '') => {
+    const existingIndex = cartItems.findIndex(ci => ci.itemId === item.id);
+    
+    // Choose active price (take discount price if configured)
+    const activePrice = item.discountPrice && item.discountPrice < item.price 
+      ? item.discountPrice 
+      : item.price;
 
     if (existingIndex > -1) {
       const updated = [...cartItems];
       updated[existingIndex].count += count;
+      if (notes) {
+        updated[existingIndex].notes = notes; // append or overwrite
+      }
       saveCart(updated);
     } else {
+      const newCartItem: IOrderItem = {
+        itemId: item.id,
+        name: item.name,
+        count,
+        notes,
+        pricePerUnit: activePrice
+      };
       saveCart([...cartItems, newCartItem]);
     }
   };
 
-  const removeItem = (itemId: string, selectionsHash: string) => {
-    const filtered = cartItems.filter(
-      ci => !(ci.itemId === itemId && JSON.stringify(ci.selectedChoices) === selectionsHash)
+  const updateQuantity = (itemId: string, count: number) => {
+    if (count <= 0) {
+      removeItem(itemId);
+      return;
+    }
+    const updated = cartItems.map(ci => 
+      ci.itemId === itemId ? { ...ci, count } : ci
     );
+    saveCart(updated);
+  };
+
+  const updateNotes = (itemId: string, notes: string) => {
+    const updated = cartItems.map(ci => 
+      ci.itemId === itemId ? { ...ci, notes } : ci
+    );
+    saveCart(updated);
+  };
+
+  const removeItem = (itemId: string) => {
+    const filtered = cartItems.filter(ci => ci.itemId !== itemId);
     saveCart(filtered);
   };
 
@@ -72,10 +91,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     saveCart([]);
   };
 
-  const cartTotal = cartItems.reduce((acc, item) => acc + item.pricePerUnit * item.count, 0);
+  // Computations
+  const cartSubtotal = cartItems.reduce((acc, item) => acc + item.pricePerUnit * item.count, 0);
+  const cartTax = Math.round(cartSubtotal * TAX_RATE);
+  const cartTotal = cartSubtotal + cartTax;
 
   return (
-    <CartContext.Provider value={{ cartItems, addItem, removeItem, clearCart, cartTotal }}>
+    <CartContext.Provider value={{
+      cartItems,
+      addItem,
+      updateQuantity,
+      updateNotes,
+      removeItem,
+      clearCart,
+      cartSubtotal,
+      cartTax,
+      cartTotal
+    }}>
       {children}
     </CartContext.Provider>
   );
@@ -88,3 +120,4 @@ export const useCart = () => {
   }
   return context;
 };
+export default CartContext;

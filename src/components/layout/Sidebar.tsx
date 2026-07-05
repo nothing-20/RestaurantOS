@@ -99,12 +99,23 @@ export const Sidebar: React.FC = () => {
       </nav>
 
       {/* Footer Settings options */}
-      <div className="p-4 border-t border-slate-800/40 bg-slate-950/20">
-        <button className="flex items-center space-x-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-mutedAsh hover:text-textPearl hover:bg-slate-900/60 transition-all">
-          <Settings className="w-4 h-4" />
-          <span>Profile Settings</span>
-        </button>
-      </div>
+      {(role === 'owner' || role === 'admin') && (
+        <div className="p-4 border-t border-slate-800/40 bg-slate-950/20">
+          <NavLink 
+            to="/dashboard/owner/settings"
+            className={({ isActive }) => 
+              `flex items-center space-x-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                isActive 
+                  ? 'bg-primary text-background font-bold shadow-lg shadow-primary/10' 
+                  : 'text-mutedAsh hover:text-textPearl hover:bg-slate-900/60'
+              }`
+            }
+          >
+            <Settings className="w-4 h-4" />
+            <span>Profile Settings</span>
+          </NavLink>
+        </div>
+      )}
     </aside>
   );
 };

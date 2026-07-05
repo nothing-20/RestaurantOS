@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { WorkspaceProvider } from './context/WorkspaceContext';
 import { TenantProvider } from './context/TenantContext';
 import { RestaurantProvider } from './context/RestaurantContext';
 import { UserProvider } from './context/UserContext';
@@ -13,21 +14,23 @@ export const App: React.FC = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <UserProvider>
-          <RestaurantProvider>
-            <TenantProvider>
-              <CartProvider>
-                <ThemeProvider>
-                  {/* Master Application Routing */}
-                  <AppRoutes />
-                  
-                  {/* Global toast notification system overlay */}
-                  <ToastContainer />
-                </ThemeProvider>
-              </CartProvider>
-            </TenantProvider>
-          </RestaurantProvider>
-        </UserProvider>
+        <WorkspaceProvider>
+          <UserProvider>
+            <RestaurantProvider>
+              <TenantProvider>
+                <CartProvider>
+                  <ThemeProvider>
+                    {/* Master Application Routing */}
+                    <AppRoutes />
+                    
+                    {/* Global toast notification system overlay */}
+                    <ToastContainer />
+                  </ThemeProvider>
+                </CartProvider>
+              </TenantProvider>
+            </RestaurantProvider>
+          </UserProvider>
+        </WorkspaceProvider>
       </AuthProvider>
     </BrowserRouter>
   );

@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper to check if user profile document exists
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Helper to get user profile data
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Helper to check role matching
+    function hasRole(role) {
+      return isAuth() && userExists() && getUserData().role == role;
+    }
+
+    // Helper to check tenant alignment
+    function isTenant(tenantId) {
+      return isAuth() && userExists() && getUserData().tenantId == tenantId;
+    }
+
+    // Global settings & system features
+    match /systemSettings/{settingsId} {
+      allow read: if isAuth();
+      allow write: if hasRole('super-admin');
+    }
+
+    match /featureFlags/{flagId} {
+      allow read: if isAuth();
+      allow write: if hasRole('super-admin');
+    }
+
+    // Customer support ticketing
+    match /supportTickets/{ticketId} {
+      allow read: if hasRole('super-admin') || (isAuth() && resource.data.tenantId == getUserData().tenantId);
+      allow create: if isAuth();
+      allow update: if hasRole('super-admin') || (isAuth() && resource.data.tenantId == getUserData().tenantId);
+      allow delete: if hasRole('super-admin');
+    }
+
+    // Audit logs - Immutable audit logs protection
+    match /auditLogs/{logId} {
+      allow read: if hasRole('super-admin');
+      allow create: if isAuth();
+      allow update, delete: if false; // Immutable protection
+    }
+
+    // Root-level User accounts
+    // A user can always read/write their own document (by UID).
+    // Owners can manage staff users in their tenant.
+    // Super-admins have full access.
+    // IMPORTANT: We avoid calling getUserData() here to prevent recursive rule evaluation
+    // when the user document does not yet exist (e.g. during first account activation).
+    match /users/{userId} {
+      allow read: if isAuth() && (
+        request.auth.uid == userId ||
+        hasRole('super-admin') ||
+        hasRole('owner')
+      );
+      // Users can always write their own doc.
+      // Owners can write other users' docs (for staff management).
+      allow write: if isAuth() && (
+        request.auth.uid == userId ||
+        hasRole('super-admin') ||
+        hasRole('owner')
+      );
+    }
+
+    // Root-level Employee invitation records
+    // Readable by any authenticated user (needed for activation lookup by email).
+    // Writable by owners (invite/suspend/archive) and by the activating user themselves.
+    match /employees/{employeeId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && (hasRole('owner') || hasRole('super-admin'));
+      allow update: if isAuth() && (
+        hasRole('owner') ||
+        hasRole('super-admin') ||
+        // Allow the employee themselves to update their own doc during activation
+        (userExists() && getUserData().email == resource.data.email)
+      );
+      allow delete: if isAuth() && (hasRole('owner') || hasRole('super-admin'));
+    }
+
+    // Tenants base metadata profiles
+    match /tenants/{tenantId} {
+      allow read: if isAuth();
+      allow write: if hasRole('super-admin') || (isTenant(tenantId) && hasRole('owner'));
+    }
+
+    // Merchant Restaurant hierarchy (scoping subcollections)
+    match /restaurants/{tenantId} {
+      allow read: if isAuth();
+      allow write: if hasRole('super-admin') || (isTenant(tenantId) && hasRole('owner'));
+
+      // Universal rule for subcollections inside matching tenant workspace
+      match /{subcollection}/{docId} {
+        allow read: if isAuth() && isTenant(tenantId);
+        allow write: if isAuth() && isTenant(tenantId) && (
+          // Admin/owners have full write permissions
+          hasRole('owner') || 
+          hasRole('admin') ||
+          // Waiter & Kitchen staff can update orders tickets
+          (subcollection == 'orders' && (hasRole('waiter') || hasRole('kitchen') || hasRole('customer'))) ||
+          // Customers and service staff can create/mark requests alerts
+          (subcollection == 'requests' && (hasRole('waiter') || hasRole('customer')))
+        );
+      }
+    }
+  }
+}

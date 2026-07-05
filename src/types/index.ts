@@ -1,4 +1,4 @@
-export type TUserRole = 'super-admin' | 'owner' | 'admin' | 'waiter' | 'kitchen' | 'customer';
+export type TUserRole = 'super-admin' | 'owner' | 'admin' | 'manager' | 'waiter' | 'kitchen' | 'cashier' | 'reception' | 'customer';
 
 export interface IUser {
   uid: string;
@@ -7,6 +7,7 @@ export interface IUser {
   tenantId: string;
   role: TUserRole;
   status: 'active' | 'inactive';
+  phoneNumber?: string;
   createdAt: string;
 }
 
@@ -20,32 +21,38 @@ export interface ITenant {
     street: string;
     city: string;
     zipCode: string;
-  };
+  } | string;
   stripeCustomerId: string;
   stripeSubscriptionId: string;
   createdAt: string;
   updatedAt: string;
+
+  // Discovery Redesign fields
+  tenantId?: string;
+  restaurantName?: string;
+  logo?: string;
+  coverImage?: string;
+  phone?: string;
+  cuisine?: string;
+  rating?: number;
+  description?: string;
+  waitingTime?: string;
 }
 
-export interface IMenu {
+export interface IMenuItem {
   id: string;
-  tenantId: string;
   name: string;
-  isActive: boolean;
+  description: string;
+  category: string;
+  price: number; // in cents
+  discountPrice?: number; // in cents
+  imageUrl: string;
+  veg: boolean;
+  available: boolean;
+  preparationTime: number; // in minutes
+  tags: string[];
   createdAt: string;
-}
-
-export interface ICategory {
-  id: string;
-  name: string;
-  orderIndex: number;
-  isActive: boolean;
-}
-
-export interface ISelectedChoice {
-  optionName: string;
-  choiceName: string;
-  priceModifier: number; // in cents
+  updatedAt: string;
 }
 
 export interface IOrderItem {
@@ -53,25 +60,20 @@ export interface IOrderItem {
   name: string;
   count: number;
   notes: string;
-  selectedChoices: ISelectedChoice[];
-  pricePerUnit: number; // in cents
+  pricePerUnit: number; // in cents snapshotted at purchase
 }
 
 export interface IOrder {
-  id: string;
-  tenantId: string;
-  tableId: string;
-  customerId?: string;
-  waiterId?: string;
+  orderId: string;
+  tableNumber: string;
+  customerName: string;
+  phone: string;
   items: IOrderItem[];
   subtotal: number; // in cents
   tax: number; // in cents
   total: number; // in cents
-  status: 'placed' | 'preparing' | 'ready' | 'served' | 'cancelled';
-  paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
-  paymentMethod: 'stripe' | 'cash' | 'card_terminal';
+  status: 'PLACED' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'DELIVERED' | 'CANCELLED';
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface ITable {

@@ -1,240 +1,95 @@
 import React from 'react';
-import { Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import ProtectedRoute from './ProtectedRoute';
-import PublicRoute from './PublicRoute';
+import OwnerGuard from './OwnerGuard';
+import AdminGuard from './AdminGuard';
+import CustomerGuard from './CustomerGuard';
+import PublicGuard from './PublicGuard';
+import WorkspaceGuard from './WorkspaceGuard';
+import RoleGuard from './RoleGuard';
 import AuthLayout from '../components/layout/AuthLayout';
 import DashboardLayout from '../components/layout/DashboardLayout';
 
 // Import newly created Authentication module components
 import LoginForm from '../features/auth/components/LoginForm';
+import StaffLogin from '../features/auth/components/StaffLogin';
+import StaffActivate from '../features/auth/components/StaffActivate';
+import WorkspaceError from '../features/auth/components/WorkspaceError';
 import RegisterForm from '../features/auth/components/RegisterForm';
 import ForgotPasswordForm from '../features/auth/components/ForgotPasswordForm';
 import VerifyEmail from '../features/auth/components/VerifyEmail';
 import SessionExpired from '../features/auth/components/SessionExpired';
 import Maintenance from '../features/auth/components/Maintenance';
 
+// Import newly created Menu and Ordering features
+import MenuManagement from '../features/owner-dashboard/components/MenuManagement';
+import CustomerPortal from '../features/customer-portal/components/CustomerPortal';
+
+// Import newly created Kitchen features
+import KitchenQueue from '../features/kitchen-dashboard/components/KitchenQueue';
+import KitchenMenuControl from '../features/kitchen-dashboard/components/KitchenMenuControl';
+
+// Import newly created Waiter features
+import WaiterMatrix from '../features/waiter-dashboard/components/WaiterMatrix';
+import WaiterAlerts from '../features/waiter-dashboard/components/WaiterAlerts';
+
+// Import newly created Owner dashboard features
+import OwnerOverview from '../features/owner-dashboard/components/OwnerOverview';
+import OwnerStaffManager from '../features/owner-dashboard/components/OwnerStaffManager';
+import OwnerTablesManager from '../features/owner-dashboard/components/OwnerTablesManager';
+import OwnerInventoryManager from '../features/owner-dashboard/components/OwnerInventoryManager';
+import OwnerSettings from '../features/owner-dashboard/components/OwnerSettings';
+
+// Import newly created Super Admin features
+import SuperAdminOverview from '../features/super-admin/components/SuperAdminOverview';
+import SuperAdminTenants from '../features/super-admin/components/SuperAdminTenants';
+
+import LandingPage from '../features/landing-page/LandingPage';
+import CustomerLogin from '../features/customer-portal/components/CustomerLogin';
+import CustomerRegister from '../features/customer-portal/components/CustomerRegister';
+import RestaurantDiscovery from '../features/customer-portal/components/RestaurantDiscovery';
+import RestaurantDetails from '../features/customer-portal/components/RestaurantDetails';
+import CustomerMenu from '../features/customer-portal/components/CustomerMenu';
+import OrderTracking from '../features/customer-portal/components/OrderTracking';
+
 // Mock UI Pages (Operational Dashboards)
-
-// 1. Home / Marketing page with Role Switcher for verification
-const Home: React.FC = () => {
-  const { loginAsMockRole, logout, user } = useAuth();
-  const navigate = useNavigate();
-
-  const handleRoleSelect = (role: any, path: string) => {
-    loginAsMockRole(role, 'gourmet-bistro');
-    navigate(path);
-  };
-
-  return (
-    <div className="min-h-screen bg-background relative flex flex-col items-center justify-center p-6 text-center overflow-hidden">
-      <div className="absolute top-[-10%] w-[600px] h-[600px] rounded-full bg-primary/10 blur-[150px] pointer-events-none" />
-      
-      <div className="max-w-3xl z-10 space-y-6">
-        <div className="w-16 h-16 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-primary/5">
-          <span className="text-primary font-display font-extrabold text-3xl">R</span>
-        </div>
-        <h1 className="text-4xl md:text-5xl font-display font-extrabold tracking-tight text-textPearl">
-          Welcome to <span className="text-primary">RestaurantOS</span>
-        </h1>
-        <p className="text-mutedAsh max-w-xl mx-auto text-base">
-          A production-grade SaaS Restaurant Management System. Use the switchboard below to authenticate as mock roles and explore the dashboard interfaces.
-        </p>
-
-        {user ? (
-          <div className="glass-panel p-4 rounded-xl flex items-center justify-between max-w-md mx-auto border-slate-800/40">
-            <div className="text-left">
-              <span className="text-xs text-mutedAsh">Logged in as:</span>
-              <h3 className="text-sm font-semibold text-textPearl">{user.displayName}</h3>
-            </div>
-            <div className="space-x-2">
-              <Link to={user.role === 'super-admin' ? '/super-admin' : '/dashboard/' + user.role} className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover text-background text-xs font-bold rounded-lg transition-all">
-                Go to Dashboard
-              </Link>
-              <button onClick={logout} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-all">
-                Logout
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto pt-6 text-left">
-          {/* Customer QR Ordering */}
-          <div className="glass-panel p-5 rounded-2xl border-slate-800/50 hover:border-primary/30 transition-all flex flex-col justify-between">
-            <div>
-              <h3 className="text-sm font-display font-bold text-textPearl">Customer QR Order</h3>
-              <p className="text-xs text-mutedAsh mt-1 mb-4">Simulate a diner scanning QR code at Table 4.</p>
-            </div>
-            <Link to="/r/gourmet-bistro/table/4" className="w-full text-center px-4 py-2 border border-slate-700 hover:border-primary text-slate-300 hover:text-primary text-xs font-bold rounded-xl transition-all">
-              Scan Table QR Link
-            </Link>
-          </div>
-
-          {/* Waiter Portal */}
-          <div className="glass-panel p-5 rounded-2xl border-slate-800/50 hover:border-primary/30 transition-all flex flex-col justify-between">
-            <div>
-              <h3 className="text-sm font-display font-bold text-textPearl">Waiter Dashboard</h3>
-              <p className="text-xs text-mutedAsh mt-1 mb-4">Monitor table states, requests, and billing splits.</p>
-            </div>
-            <button onClick={() => handleRoleSelect('waiter', '/dashboard/waiter')} className="w-full px-4 py-2 bg-slate-900 border border-slate-800 hover:border-primary text-slate-300 hover:text-primary text-xs font-bold rounded-xl transition-all">
-              Enter Waiter Panel
-            </button>
-          </div>
-
-          {/* Kitchen Queue */}
-          <div className="glass-panel p-5 rounded-2xl border-slate-800/50 hover:border-primary/30 transition-all flex flex-col justify-between">
-            <div>
-              <h3 className="text-sm font-display font-bold text-textPearl">Kitchen Workspace</h3>
-              <p className="text-xs text-mutedAsh mt-1 mb-4">Manage orders cooking tickets and ingredient availability.</p>
-            </div>
-            <button onClick={() => handleRoleSelect('kitchen', '/dashboard/kitchen')} className="w-full px-4 py-2 bg-slate-900 border border-slate-800 hover:border-primary text-slate-300 hover:text-primary text-xs font-bold rounded-xl transition-all">
-              Enter Kitchen Panel
-            </button>
-          </div>
-
-          {/* Owner Suite */}
-          <div className="glass-panel p-5 rounded-2xl border-slate-800/50 hover:border-primary/30 transition-all flex flex-col justify-between">
-            <div>
-              <h3 className="text-sm font-display font-bold text-textPearl">Restaurant Owner</h3>
-              <p className="text-xs text-mutedAsh mt-1 mb-4">CRUD menu lists, manage team members, check analytics reports.</p>
-            </div>
-            <button onClick={() => handleRoleSelect('owner', '/dashboard/owner')} className="w-full px-4 py-2 bg-slate-900 border border-slate-800 hover:border-primary text-slate-300 hover:text-primary text-xs font-bold rounded-xl transition-all">
-              Enter Owner Panel
-            </button>
-          </div>
-
-          {/* Manager / Admin */}
-          <div className="glass-panel p-5 rounded-2xl border-slate-800/50 hover:border-primary/30 transition-all flex flex-col justify-between">
-            <div>
-              <h3 className="text-sm font-display font-bold text-textPearl">Branch Administrator</h3>
-              <p className="text-xs text-mutedAsh mt-1 mb-4">Coordinate physical branches, review security logs.</p>
-            </div>
-            <button onClick={() => handleRoleSelect('admin', '/dashboard/admin')} className="w-full px-4 py-2 bg-slate-900 border border-slate-800 hover:border-primary text-slate-300 hover:text-primary text-xs font-bold rounded-xl transition-all">
-              Enter Admin Panel
-            </button>
-          </div>
-
-          {/* Super Admin */}
-          <div className="glass-panel p-5 rounded-2xl border-slate-800/50 hover:border-primary/30 transition-all flex flex-col justify-between">
-            <div>
-              <h3 className="text-sm font-display font-bold text-textPearl">Super Admin SaaS</h3>
-              <p className="text-xs text-mutedAsh mt-1 mb-4">View aggregate SaaS ARR, manage active merchant workspaces.</p>
-            </div>
-            <button onClick={() => handleRoleSelect('super-admin', '/super-admin')} className="w-full px-4 py-2 bg-slate-900 border border-slate-800 hover:border-primary text-slate-300 hover:text-primary text-xs font-bold rounded-xl transition-all">
-              Enter SaaS Admin Panel
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Customer Portal components
-const CustomerPortal: React.FC = () => (
-  <div className="min-h-screen bg-background p-6">
-    <div className="max-w-2xl mx-auto glass-panel p-6 rounded-2xl border-slate-800/40">
-      <h2 className="text-2xl font-display font-extrabold text-textPearl">Gourmet Bistro</h2>
-      <p className="text-xs text-primary mt-0.5">Scanning Table #4</p>
-      <div className="mt-6 p-12 text-center border border-dashed border-slate-800 rounded-xl">
-        <p className="text-sm text-mutedAsh">Active QR Ordering Portal is ready for menu injection.</p>
-      </div>
+const ManagerDashboard: React.FC = () => (
+  <div className="space-y-4 text-left">
+    <h1 className="text-2xl font-display font-extrabold text-textPearl">Manager Workspace</h1>
+    <div className="glass-panel p-6 rounded-2xl border border-slate-800/50">
+      <p className="text-sm text-mutedAsh">Operational branch analytics and dashboard panels are loading...</p>
     </div>
   </div>
 );
+
+const CashierDashboard: React.FC = () => (
+  <div className="space-y-4 text-left">
+    <h1 className="text-2xl font-display font-extrabold text-textPearl">Cashier Desk</h1>
+    <div className="glass-panel p-6 rounded-2xl border border-slate-800/50">
+      <p className="text-sm text-mutedAsh">Point of sale and checkout billing panels are loading...</p>
+    </div>
+  </div>
+);
+
+const ReceptionDashboard: React.FC = () => (
+  <div className="space-y-4 text-left">
+    <h1 className="text-2xl font-display font-extrabold text-textPearl">Reception / Seating</h1>
+    <div className="glass-panel p-6 rounded-2xl border border-slate-800/50">
+      <p className="text-sm text-mutedAsh">Diner queue seating registries are loading...</p>
+    </div>
+  </div>
+);
+
+
+
+
 
 // Role Dashboard placeholders
-const OwnerOverview: React.FC = () => (
-  <div className="space-y-6">
-    <h1 className="text-2xl font-display font-extrabold text-textPearl">Owner Operations Dashboard</h1>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div className="glass-panel p-5 rounded-2xl border-slate-800/50">
-        <span className="text-xs text-mutedAsh">Daily Gross Sales</span>
-        <h2 className="text-2xl font-display font-bold text-textPearl mt-1">$4,850.20</h2>
-      </div>
-      <div className="glass-panel p-5 rounded-2xl border-slate-800/50">
-        <span className="text-xs text-mutedAsh">Active Dining Tables</span>
-        <h2 className="text-2xl font-display font-bold text-accent mt-1">12 / 20</h2>
-      </div>
-      <div className="glass-panel p-5 rounded-2xl border-slate-800/50">
-        <span className="text-xs text-mutedAsh">SaaS Active Plan</span>
-        <h2 className="text-2xl font-display font-bold text-primary mt-1">Pro Tier</h2>
-      </div>
-    </div>
-  </div>
-);
 
-const OwnerMenuEditor: React.FC = () => (
-  <div className="space-y-4">
-    <h1 className="text-2xl font-display font-extrabold text-textPearl">Menu CRUD Editor</h1>
-    <div className="glass-panel p-6 rounded-2xl border-slate-800/50">
-      <p className="text-sm text-mutedAsh">Menu builder is ready. Connect database hooks here.</p>
-    </div>
-  </div>
-);
 
-const OwnerStaffManager: React.FC = () => (
-  <div className="space-y-4">
-    <h1 className="text-2xl font-display font-extrabold text-textPearl">Staff Scheduling & Onboarding</h1>
-    <div className="glass-panel p-6 rounded-2xl border-slate-800/50">
-      <p className="text-sm text-mutedAsh">Staff invite list is ready.</p>
-    </div>
-  </div>
-);
 
-const OwnerTablesManager: React.FC = () => (
-  <div className="space-y-4">
-    <h1 className="text-2xl font-display font-extrabold text-textPearl">QR Code Layout Exporter</h1>
-    <div className="glass-panel p-6 rounded-2xl border-slate-800/50">
-      <p className="text-sm text-mutedAsh">QR creation system ready.</p>
-    </div>
-  </div>
-);
 
-const OwnerBilling: React.FC = () => (
-  <div className="space-y-4">
-    <h1 className="text-2xl font-display font-extrabold text-textPearl">SaaS Billing & Subscriptions</h1>
-    <div className="glass-panel p-6 rounded-2xl border-slate-800/50">
-      <p className="text-sm text-mutedAsh">Stripe Billing interface integrations.</p>
-    </div>
-  </div>
-);
 
-const KitchenQueue: React.FC = () => (
-  <div className="space-y-4">
-    <h1 className="text-2xl font-display font-extrabold text-textPearl">Kitchen Prep Tickets</h1>
-    <div className="glass-panel p-6 rounded-2xl border-slate-800/50">
-      <p className="text-sm text-mutedAsh">Real-time cooking ticket lines ready.</p>
-    </div>
-  </div>
-);
-
-const KitchenMenuControl: React.FC = () => (
-  <div className="space-y-4">
-    <h1 className="text-2xl font-display font-extrabold text-textPearl">Kitchen Stock Override</h1>
-    <div className="glass-panel p-6 rounded-2xl border-slate-800/50">
-      <p className="text-sm text-mutedAsh">Toggle items out-of-stock.</p>
-    </div>
-  </div>
-);
-
-const WaiterMatrix: React.FC = () => (
-  <div className="space-y-4">
-    <h1 className="text-2xl font-display font-extrabold text-textPearl">Waiter Seating Grid</h1>
-    <div className="glass-panel p-6 rounded-2xl border-slate-800/50">
-      <p className="text-sm text-mutedAsh">Live table alert matrix ready.</p>
-    </div>
-  </div>
-);
-
-const WaiterAlerts: React.FC = () => (
-  <div className="space-y-4">
-    <h1 className="text-2xl font-display font-extrabold text-textPearl">Customer Requests</h1>
-    <div className="glass-panel p-6 rounded-2xl border-slate-800/50">
-      <p className="text-sm text-mutedAsh">Table calls queue lists.</p>
-    </div>
-  </div>
-);
 
 const AdminAnalytics: React.FC = () => (
   <div className="space-y-4">
@@ -254,23 +109,7 @@ const AdminLogs: React.FC = () => (
   </div>
 );
 
-const SuperAdminOverview: React.FC = () => (
-  <div className="space-y-4">
-    <h1 className="text-2xl font-display font-extrabold text-textPearl">SaaS ARR Metrics</h1>
-    <div className="glass-panel p-6 rounded-2xl border-slate-800/50">
-      <p className="text-sm text-mutedAsh">Global MRR trackers.</p>
-    </div>
-  </div>
-);
 
-const SuperAdminTenants: React.FC = () => (
-  <div className="space-y-4">
-    <h1 className="text-2xl font-display font-extrabold text-textPearl">Merchant Tenant Directory</h1>
-    <div className="glass-panel p-6 rounded-2xl border-slate-800/50">
-      <p className="text-sm text-mutedAsh">Activate/suspend tenant workspaces.</p>
-    </div>
-  </div>
-);
 
 const Unauthorized: React.FC = () => (
   <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
@@ -292,13 +131,36 @@ export const AppRoutes: React.FC = () => {
   return (
     <Routes>
       {/* 1. Public Front facing routes */}
-      <Route path="/" element={<Home />} />
-      <Route path="/unauthorized" element={<Unauthorized />} />
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/customer/login" element={<CustomerLogin />} />
+      <Route path="/customer/register" element={<CustomerRegister />} />
+      {/* Staff activation — public, no auth guard needed (employee activates before they have an account) */}
+      <Route path="/staff/activate" element={<StaffActivate />} />
+      
+      {/* Protected customer routes */}
+      <Route element={<CustomerGuard />}>
+        <Route path="/customer/restaurants" element={<RestaurantDiscovery />} />
+        <Route path="/customer/restaurant/:tenantId" element={<RestaurantDetails />} />
+        <Route path="/customer/restaurant/:tenantId/menu" element={<CustomerMenu />} />
+        <Route path="/customer/restaurant/:tenantId/order/:orderId" element={<OrderTracking />} />
+        <Route path="/customer/home" element={<RestaurantDiscovery />} />
+      </Route>
+      
+      {/* Backward compatibility redirects for old login routes */}
+      <Route path="/owner/login" element={<Navigate to="/staff/login" replace />} />
+      <Route path="/waiter/login" element={<Navigate to="/staff/login" replace />} />
+      <Route path="/kitchen/login" element={<Navigate to="/staff/login" replace />} />
+      <Route path="/cashier/login" element={<Navigate to="/staff/login" replace />} />
+      <Route path="/admin/login" element={<Navigate to="/staff/login" replace />} />
 
-      {/* 2. Public Auth sub-routes gated by PublicRoute redirect interceptor */}
-      <Route element={<PublicRoute />}>
+      <Route path="/unauthorized" element={<Unauthorized />} />
+      <Route path="/workspace-error" element={<WorkspaceError />} />
+
+      {/* 2. Public Auth sub-routes gated by PublicGuard redirect interceptor */}
+      <Route element={<PublicGuard />}>
         <Route element={<AuthLayout />}>
-          <Route path="/login" element={<LoginForm />} />
+          <Route path="/login" element={<Navigate to="/staff/login" replace />} />
+          <Route path="/staff/login" element={<StaffLogin />} />
           <Route path="/register" element={<RegisterForm />} />
           <Route path="/forgot-password" element={<ForgotPasswordForm />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
@@ -310,46 +172,63 @@ export const AppRoutes: React.FC = () => {
       {/* 3. Customer tables QR portal routes */}
       <Route path="/r/:tenantId/table/:tableId" element={<CustomerPortal />} />
 
-      {/* 4. Protected Restaurant Owner routes */}
-      <Route element={<ProtectedRoute allowedRoles={['owner']} />}>
-        <Route element={<DashboardLayout />}>
-          <Route path="/dashboard/owner" element={<OwnerOverview />} />
-          <Route path="/dashboard/owner/menu" element={<OwnerMenuEditor />} />
-          <Route path="/dashboard/owner/staff" element={<OwnerStaffManager />} />
-          <Route path="/dashboard/owner/tables" element={<OwnerTablesManager />} />
-          <Route path="/dashboard/owner/billing" element={<OwnerBilling />} />
+      {/* 4. Protected B2B Restaurant Staff & Owner routes gated by Workspace Validation */}
+      <Route element={<OwnerGuard />}>
+        <Route element={<WorkspaceGuard />}>
+          <Route element={<DashboardLayout />}>
+            {/* Owner Dashboards */}
+            <Route element={<RoleGuard allowedRoles={['owner', 'admin']} />}>
+              <Route path="/dashboard/owner" element={<OwnerOverview />} />
+              <Route path="/dashboard/owner/menu" element={<MenuManagement />} />
+              <Route path="/dashboard/owner/staff" element={<OwnerStaffManager />} />
+              <Route path="/dashboard/owner/tables" element={<OwnerTablesManager />} />
+              <Route path="/dashboard/owner/billing" element={<OwnerInventoryManager />} />
+              <Route path="/dashboard/owner/settings" element={<OwnerSettings />} />
+            </Route>
+            
+            {/* Branch Manager Dashboard */}
+            <Route element={<RoleGuard allowedRoles={['owner', 'admin', 'manager']} />}>
+              <Route path="/dashboard/manager" element={<ManagerDashboard />} />
+            </Route>
+
+            {/* Cashier Dashboard */}
+            <Route element={<RoleGuard allowedRoles={['owner', 'admin', 'manager', 'cashier']} />}>
+              <Route path="/dashboard/cashier" element={<CashierDashboard />} />
+            </Route>
+
+            {/* Reception Dashboard */}
+            <Route element={<RoleGuard allowedRoles={['owner', 'admin', 'manager', 'reception']} />}>
+              <Route path="/dashboard/reception" element={<ReceptionDashboard />} />
+            </Route>
+
+            {/* Kitchen Dashboards */}
+            <Route element={<RoleGuard allowedRoles={['owner', 'admin', 'manager', 'kitchen']} />}>
+              <Route path="/dashboard/kitchen" element={<KitchenQueue />} />
+              <Route path="/dashboard/kitchen/menu-control" element={<KitchenMenuControl />} />
+            </Route>
+
+            {/* Waiter Dashboards */}
+            <Route element={<RoleGuard allowedRoles={['owner', 'admin', 'manager', 'waiter']} />}>
+              <Route path="/dashboard/waiter" element={<WaiterMatrix />} />
+              <Route path="/dashboard/waiter/alerts" element={<WaiterAlerts />} />
+            </Route>
+
+            {/* Branch Admin/Logs Dashboards */}
+            <Route element={<RoleGuard allowedRoles={['owner', 'admin']} />}>
+              <Route path="/dashboard/admin" element={<AdminAnalytics />} />
+              <Route path="/dashboard/admin/logs" element={<AdminLogs />} />
+            </Route>
+          </Route>
         </Route>
       </Route>
 
-      {/* 5. Protected Kitchen staff routes */}
-      <Route element={<ProtectedRoute allowedRoles={['kitchen', 'admin', 'owner']} />}>
-        <Route element={<DashboardLayout />}>
-          <Route path="/dashboard/kitchen" element={<KitchenQueue />} />
-          <Route path="/dashboard/kitchen/menu-control" element={<KitchenMenuControl />} />
-        </Route>
-      </Route>
-
-      {/* 6. Protected Waiter staff routes */}
-      <Route element={<ProtectedRoute allowedRoles={['waiter', 'admin', 'owner']} />}>
-        <Route element={<DashboardLayout />}>
-          <Route path="/dashboard/waiter" element={<WaiterMatrix />} />
-          <Route path="/dashboard/waiter/alerts" element={<WaiterAlerts />} />
-        </Route>
-      </Route>
-
-      {/* 7. Protected Branch Admin / Manager routes */}
-      <Route element={<ProtectedRoute allowedRoles={['admin', 'owner']} />}>
-        <Route element={<DashboardLayout />}>
-          <Route path="/dashboard/admin" element={<AdminAnalytics />} />
-          <Route path="/dashboard/admin/logs" element={<AdminLogs />} />
-        </Route>
-      </Route>
-
-      {/* 8. Protected SaaS Super Admin routes */}
-      <Route element={<ProtectedRoute allowedRoles={['super-admin']} />}>
-        <Route element={<DashboardLayout />}>
-          <Route path="/super-admin" element={<SuperAdminOverview />} />
-          <Route path="/super-admin/tenants" element={<SuperAdminTenants />} />
+      {/* 5. Protected SaaS Super Admin routes gated by Workspace Validation */}
+      <Route element={<AdminGuard />}>
+        <Route element={<WorkspaceGuard />}>
+          <Route element={<DashboardLayout />}>
+            <Route path="/super-admin" element={<SuperAdminOverview />} />
+            <Route path="/super-admin/tenants" element={<SuperAdminTenants />} />
+          </Route>
         </Route>
       </Route>
 
