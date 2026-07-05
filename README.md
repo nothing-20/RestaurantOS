@@ -1,64 +1,133 @@
-# RestaurantOS: Multi-Tenant Restaurant SaaS Platform
+# RestaurantOS: Production-Grade Multi-Tenant Restaurant SaaS Platform (Core v1.0.0)
 
-RestaurantOS is a production-grade multi-tenant Restaurant Management SaaS platform built with React 18, TypeScript, Vite, Tailwind CSS, and Firebase. 
-
----
-
-## 1. Project Directory Structure
-All client-side Firebase configurations are centralized inside the `src/firebase/` directory:
-- **`config.ts`**: Initializes the Firebase app instance, Firestore, Auth, and Storage.
-- **`auth.ts`**: Centralized authentication wrappers for registrations, claims checks, and persistence settings.
-- **`firestore.ts`**: Reusable generic CRUD service models to manage collections with automatic multi-tenant scoping filters.
-- **`storage.ts`**: Handles assets upload with fallback profiles.
-- **`collections.ts`**: Houses standard paths for all merchant databases subcollections.
-- **`seed.ts`**: Handles populating test environments.
+RestaurantOS is a modern, stable, multi-tenant B2B/B2C SaaS suite built with React 18, TypeScript, Vite, Tailwind CSS, and Firebase. It provides a complete commercial operating system for high-performance dining establishments, integrating diner portal menus, real-time kitchen queues, visual layouts, waiter dispatch command centers, POS cash drawers, refunds registers, and operational event engines.
 
 ---
 
-## 2. Firebase Configurations & Setup
+## 1. Project Overview & Architecture
 
-### Step A: Configure Environment Variables
-Create a `.env` file at the project root based on `.env.example`:
+RestaurantOS utilizes a decentralized, multi-tenant cloud structure where all transactions are strictly scoped by `tenantId` (Restaurant ID).
+
+```mermaid
+graph TD
+    A[B2B/B2C Landing Page] -->|B2C diner tables QR| B[Diner Mobile Portal]
+    A -->|B2B owner registration| C[Owner Dashboard]
+    C -->|Workspace Security Gate| D[POS Billing & Shifts Control]
+    C -->|Menu and Tables Editors| E[Visual Floor Plan Layout]
+    C -->|Staff Onboarding Invitations| F[Unified Staff Login Gate]
+    F -->|Waiter role auth| G[Waiter Service Command Center]
+    F -->|Kitchen role auth| H[Kitchen Display System KDS]
+    B -->|Submit Orders| H
+    H -->|Cook tick Ready| G
+    G -->|Request check| D
+```
+
+---
+
+## 2. Core Module Features
+
+### 🔐 Authentication & Security Gates
+- **Unified Staff Login Gate (`/staff/login`)**: Directs employees to respective views (Owner, Kitchen, Waiter) after validating account statuses.
+- **Onboarding Activation (`/staff/activate`)**: Allows invited staff to activate profiles via emailed links, avoiding manual database entries.
+- **Multi-Tenant Workspace Guard (`WorkspaceGuard.tsx`)**: Validates branch settings, subscription expiration states, and tenant deactivation profiles on dashboard switches.
+
+### 📋 Menu & Visual Layout Editors
+- **Menu Editor CRUD**: Supports Category display order dragging, veg/non-veg flags, pricing adjustments, availability toggles, and direct Firestore seeding.
+- **Visual Floor Canvas**: A visual room builder with drag-and-drop coordinate positions, circles/rectangles, and instant bulk vector QR code export sheets.
+
+### 🍳 Kitchen Display System (KDS)
+- **KDS multi-views**: Real-time queues displaying Cooking Tickets, Categories, Stations, and Batch aggregators.
+- **Operational actions**: Chef assignments, Pause/Resume with reason logs, back-transition Recalls, and Smart Priority weight sorting.
+- **Insights metrics**: Displays preparing vs ready volumes, average preparation delays, and bottleneck indicators.
+
+### 💁 Waiter Service Command Center
+- **Shift Clocker**: Tracks shifts, breaks, and served tables.
+- **Action Alerts queue**: Consolidated listings of KDS-ready pick-ups, customer assistance request alerts, table cleanup resets, and checkouts.
+- **Optimal routing algorithms**: Suggests next actions by sorting by urgency priority, sections, and tables proximity.
+
+### 🧾 POS & Billing module (v1.1)
+- **Shift Drawer float**: Requires operators to input opening cash float checks, locking settlements until open.
+- **Hold / Resume checks**: Pauses checkout files for ordering pauses or table changes, storing details under "Paused checks".
+- **Complimentary Items Markdown**: Mark selected dishes free, resetting subtotal calculations to 0 and listing them on invoices as `Complimentary ($0.00 / ₹0)`.
+- **Reprint copy counter**: Increments copy count and appends printing log entries with custom reasons on watermarked copies.
+- **Shift closed discrepancies reports**: Computes expected balance vs manually entered cash, logging discrepancy statistics to the database.
+
+---
+
+## 3. Folder Directory Structure
+
+```text
+Project Saas for all/
+├── docs/                        # Project context, logs, and backlogs
+│   ├── CHANGELOG.md             # Version release notes log
+│   ├── DEVELOPMENT_LOG.md       # Sprint entries and verification timelines
+│   └── TASK_BOARD.md            # canonical list of all features progress
+├── src/
+│   ├── components/              # Shared global UI components
+│   │   ├── layout/              # Nav bar, Sidebar layout shells
+│   │   └── ui/                  # Design system primitives (Card, Badge, Button, Modal)
+│   ├── context/                 # Context providers (Auth, Workspace validations)
+│   ├── features/                # Feature-based architecture
+│   │   ├── auth/                # Invitation, activation templates
+│   │   ├── customer-portal/     # Diner shopping cart, tracking order pages
+│   │   ├── kitchen-dashboard/   # Cooking queues, stats, timeline metrics
+│   │   ├── owner-dashboard/     # Visual tables plan, staff CRUD, POS Billing
+│   │   └── waiter-dashboard/    # Command center dashboard grids
+│   ├── firebase/                # Centralized SDK adapters
+│   │   ├── config.ts            # Firestore and Auth instances initialization
+│   │   ├── firestore.ts         # Generic scoped CRUD helpers
+│   │   └── collections.ts       # Central paths definition
+│   ├── routes/                  # Protected routes, guards validation wrappers
+│   └── utils/                   # Shared price, timestamp formatting helpers
+├── firestore.rules              # Multi-tenant security rules
+└── package.json                 # Node dependencies manifest
+```
+
+---
+
+## 4. Local Installation & Environment Configurations
+
+### Prerequisites
+- Node.js v18 or later
+- npm or yarn package manager
+- Firebase project credentials
+
+### Step 1: Clone and install dependencies
+```bash
+# Install dependencies
+npm install
+```
+
+### Step 2: Configure Environment Variables
+Create a `.env` file at the root based on `.env.example`:
 ```env
 VITE_FIREBASE_API_KEY=AIzaSyA...
-VITE_FIREBASE_AUTH_DOMAIN=restaurant-os.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=restaurant-os
-VITE_FIREBASE_STORAGE_BUCKET=restaurant-os.appspot.com
+VITE_FIREBASE_AUTH_DOMAIN=your-app.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+VITE_FIREBASE_STORAGE_BUCKET=your-app.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=1234567890
 VITE_FIREBASE_APP_ID=1:1234567890:web:abcdef
 ```
 
-### Step B: Build & Local Execution
-1. Install package dependencies:
-   ```bash
-   npm install
-   ```
-2. Start the local Vite development server:
-   ```bash
-   npm run dev
-   ```
-3. Compile for production distribution:
-   ```bash
-   npm run build
-   ```
+### Step 3: Run Locally
+```bash
+# Start Vite development server
+npm run dev
+```
+Open `http://localhost:5173` in your browser.
+
+### Step 4: Build for Production
+```bash
+# Compile and optimize asset bundles
+npm run build
+```
 
 ---
 
-## 3. Firestore Collections Schema
-The database uses a subcollection model nested under tenant workspaces:
-- `/tenants/{tenantId}`: Platform subscription configurations, plan tier and status labels.
-- `/users/{userId}`: User profile identifiers and role metadata.
-- `/restaurants/{tenantId}/menu/{itemId}`: Merchant dish list definitions.
-- `/restaurants/{tenantId}/orders/{orderId}`: Active dining tickets logs.
-- `/restaurants/{tenantId}/tables/{tableId}`: Seating capacity parameters.
-- `/restaurants/{tenantId}/employees/{employeeId}`: Role-based permissions assignments.
-- `/restaurants/{tenantId}/inventory/{itemId}`: Safety levels ingredient limits.
-- `/auditLogs/{logId}`: Immutable logs tracking pricing shifts or account changes.
+## 5. Firestore Rules & Security Configuration
 
----
+Deploy security parameters from `firestore.rules` to enforce absolute tenant isolation. Users are restricted to matching `tenantId` lookups:
 
-## 4. Firestore Security Rules
-Deploy rules from `firestore.rules` enforcing absolute tenant isolation:
 ```javascript
 rules_version = '2';
 service cloud.firestore {
@@ -81,17 +150,8 @@ service cloud.firestore {
 
 ---
 
-## 5. Instant Test Seeding
-Access the **Super Admin Panel** (`/super-admin`) and enter a workspace name (e.g. `test-restaurant`) inside the **Workspace Database Seeding** panel. Clicking **Seed Tenant** instantly inserts:
-- 2 branches
-- 20 complete menu items (organized under Starters, Mains, Desserts, and Beverages)
-- 8 dining tables
-- 5 mock staff members
-- 2 active orders
-- Raw ingredients stock records.
-
----
-
-## 6. Troubleshooting
-- **Error: `Missing environment configurations`**: Double-check your `.env` formatting and confirm Vite keys are prefixed with `VITE_`.
-- **Firebase Auth claims latency**: During the first sign-up, custom auth claim propagation might face Firestore latency. The system automatically falls back to Firestore database lookups to fetch roles instantly.
+## 6. Future Roadmap (v2.0 platform)
+- **Stripe tables-side settlement**: Seamless cashless checkout integrations for diners.
+- **Dynamic combos builder**: Modals allowing modifiers, add-ons, and group pricing combos.
+- **Audible Alerts**: Station alerts for high-priority tickets.
+- **Multi-Branch analytics aggregates**: Cross-location BI monitoring for owners.

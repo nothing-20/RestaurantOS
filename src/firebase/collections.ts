@@ -20,8 +20,16 @@ export const getEmployeePath = (tenantId: string) => getSubcollectionPath(tenant
 export const getRolePath = (tenantId: string) => getSubcollectionPath(tenantId, 'roles');
 export const getPermissionPath = (tenantId: string) => getSubcollectionPath(tenantId, 'permissions');
 export const getTablePath = (tenantId: string) => getSubcollectionPath(tenantId, 'tables');
-export const getMenuCategoryPath = (tenantId: string) => getSubcollectionPath(tenantId, 'menuCategories');
-export const getMenuItemPath = (tenantId: string) => getSubcollectionPath(tenantId, 'menu');
+export const getMenuCategoryPath = (tenantId: string) => `${COLLECTIONS.RESTAURANTS}/${tenantId}/menu/default/categories`;
+export const getMenuItemPath = (tenantId: string) => `${COLLECTIONS.RESTAURANTS}/${tenantId}/menu/default/items`;
+export const getMenuVariantPath = (tenantId: string) => `${COLLECTIONS.RESTAURANTS}/${tenantId}/menu/default/variants`;
+export const getMenuAddonPath = (tenantId: string) => `${COLLECTIONS.RESTAURANTS}/${tenantId}/menu/default/addons`;
+export const getMenuComboPath = (tenantId: string) => `${COLLECTIONS.RESTAURANTS}/${tenantId}/menu/default/combos`;
+
+export const getLegacyV2MenuCategoryPath = (tenantId: string) => `${COLLECTIONS.RESTAURANTS}/${tenantId}/menu/menu/categories`;
+export const getLegacyV2MenuItemPath = (tenantId: string) => `${COLLECTIONS.RESTAURANTS}/${tenantId}/menu/menu/items`;
+export const getLegacyV1MenuCategoryPath = (tenantId: string) => `${COLLECTIONS.RESTAURANTS}/${tenantId}/menu/categories/categories`;
+export const getLegacyV1MenuItemPath = (tenantId: string) => `${COLLECTIONS.RESTAURANTS}/${tenantId}/menu/items/items`;
 export const getOrderPath = (tenantId: string) => getSubcollectionPath(tenantId, 'orders');
 export const getKitchenTicketPath = (tenantId: string) => getSubcollectionPath(tenantId, 'kitchenTickets');
 export const getInventoryPath = (tenantId: string) => getSubcollectionPath(tenantId, 'inventory');

@@ -1,13 +1,14 @@
 import { collection, doc, getDoc, getDocs, limit, query, writeBatch } from 'firebase/firestore';
 import { db } from './config';
+import { getMenuItemPath, getMenuCategoryPath } from './collections';
 import toast from 'react-hot-toast';
 
 export const seedDatabase = async (tenantId: string): Promise<void> => {
   if (!tenantId) throw new Error('Tenant ID is required for seeding.');
 
-  // 1. Skip seeding if data already exists in the menu collection
-  const menuRef = collection(db, 'restaurants', tenantId, 'menu');
-  const checkSnap = await getDocs(query(menuRef, limit(1)));
+  // 1. Skip seeding if data already exists in the menu items collection
+  const itemsRef = collection(db, getMenuItemPath(tenantId));
+  const checkSnap = await getDocs(query(itemsRef, limit(1)));
   if (!checkSnap.empty) {
     console.log(`[Seeder] Data already exists for restaurant: ${tenantId}. Skipping seed.`);
     return;
@@ -148,49 +149,139 @@ export const seedDatabase = async (tenantId: string): Promise<void> => {
     { name: 'Gulab Jamun', category: 'Desserts', price: 650, description: 'Sweet milk dumplings soaked in cardamom sugar syrup.', isVeg: true, rating: 4.6 }
   ];
 
+  const defaultCategories = [
+    { id: 'CAT-STARTERS', name: 'Starters', description: 'Delicious appetizers and finger foods to start your meal.', displayOrder: 1 },
+    { id: 'CAT-MAINS', name: 'Main Course', description: 'Hearty and satisfying main course dishes.', displayOrder: 2 },
+    { id: 'CAT-PIZZA', name: 'Pizza', description: 'Freshly baked artisanal pizzas with premium toppings.', displayOrder: 3 },
+    { id: 'CAT-BURGERS', name: 'Burgers', description: 'Gourmet burgers served with fresh hand-cut fries.', displayOrder: 4 },
+    { id: 'CAT-BEVERAGES', name: 'Beverages', description: 'Refreshing hot and cold drinks.', displayOrder: 5 },
+    { id: 'CAT-DESSERTS', name: 'Desserts', description: 'Decadent sweet treats to finish your dining experience.', displayOrder: 6 }
+  ];
+
+  defaultCategories.forEach((cat) => {
+    const ref = doc(db, getMenuCategoryPath(tenantId), cat.id);
+    batch.set(ref, {
+      name: cat.name,
+      description: cat.description,
+      displayOrder: cat.displayOrder,
+      isActive: true,
+      image: `https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&auto=format&fit=crop&q=60`
+    });
+  });
+
+  const catMap: Record<string, string> = {
+    'Starters': 'CAT-STARTERS',
+    'Main Course': 'CAT-MAINS',
+    'Pizza': 'CAT-PIZZA',
+    'Burgers': 'CAT-BURGERS',
+    'Beverages': 'CAT-BEVERAGES',
+    'Desserts': 'CAT-DESSERTS'
+  };
+
+  const stationMap: Record<string, string> = {
+    'Starters': 'Grill',
+    'Main Course': 'Main Kitchen',
+    'Pizza': 'Pizza',
+    'Burgers': 'Grill',
+    'Beverages': 'Drinks',
+    'Desserts': 'Dessert'
+  };
+
   menuItems.forEach((item, index) => {
     const itemId = `MENU-${(index + 1).toString().padStart(3, '0')}`;
-    const ref = doc(db, 'restaurants', tenantId, 'menu', itemId);
+    const ref = doc(db, getMenuItemPath(tenantId), itemId);
+    const categoryId = catMap[item.category] || 'CAT-STARTERS';
+    const station = stationMap[item.category] || 'Main Kitchen';
+
     batch.set(ref, {
       id: itemId,
       name: item.name,
-      category: item.category,
+      categoryId,
+      category: item.category, // backward compatibility
       description: item.description,
       price: item.price,
       // Map image and veg properties to support both mock formats
       image: `https://picsum.photos/300/300?random=${index + 1}`,
-      imageUrl: `https://picsum.photos/300/300?random=${index + 1}`,
+      imageUrl: `https://picsum.photos/300/300?random=${index + 1}`, // backward compatibility
       available: true,
+      isAvailable: true,
       preparationTime: 10 + (index % 6),
       rating: item.rating,
       isVeg: item.isVeg,
-      veg: item.isVeg,
+      veg: item.isVeg, // backward compatibility
+      isBestSeller: index % 5 === 0,
+      isRecommended: index % 7 === 0,
+      spiceLevel: index % 4 === 0 ? 'medium' : 'none',
       tags: item.isVeg ? ['Veg'] : ['Non-Veg'],
+      station,
       tenantId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
   });
 
-  // 3. Seed 8 Tables
-  for (let i = 1; i <= 8; i++) {
-    const tableId = `TBL-${i}`;
+  // 3. Seed 8 Tables with advanced layout schema
+  const defaultFloors = [
+    { id: 'FLR-GROUND', name: 'Ground Floor' },
+    { id: 'FLR-ROOFTOP', name: 'Rooftop' }
+  ];
+
+  const defaultSections = [
+    { id: 'SEC-INDOOR', floorId: 'FLR-GROUND', name: 'Indoor Main' },
+    { id: 'SEC-OUTDOOR', floorId: 'FLR-GROUND', name: 'Outdoor Patio' },
+    { id: 'SEC-VIP', floorId: 'FLR-ROOFTOP', name: 'VIP Lounge' }
+  ];
+
+  // Save layout config
+  const layoutRef = doc(db, 'restaurants', tenantId, 'settings', 'layout');
+  batch.set(layoutRef, {
+    floors: defaultFloors,
+    sections: defaultSections
+  });
+
+  const tableSpecs = [
+    { number: '1', name: 'Table 1', floor: 'Ground Floor', section: 'Indoor Main', capacity: 4, shape: 'square', x: 20, y: 20, status: 'Available' },
+    { number: '2', name: 'Table 2', floor: 'Ground Floor', section: 'Indoor Main', capacity: 2, shape: 'circle', x: 50, y: 20, status: 'Occupied' },
+    { number: '3', name: 'Table 3', floor: 'Ground Floor', section: 'Outdoor Patio', capacity: 6, shape: 'rectangle', x: 20, y: 60, status: 'Reserved' },
+    { number: '4', name: 'Table 4', floor: 'Ground Floor', section: 'Outdoor Patio', capacity: 4, shape: 'square', x: 50, y: 60, status: 'Available' },
+    { number: '5', name: 'Table 5', floor: 'Rooftop', section: 'VIP Lounge', capacity: 2, shape: 'circle', x: 20, y: 20, status: 'Available' },
+    { number: '6', name: 'Table 6', floor: 'Rooftop', section: 'VIP Lounge', capacity: 4, shape: 'square', x: 60, y: 20, status: 'Cleaning' },
+    { number: '7', name: 'Table 7', floor: 'Rooftop', section: 'VIP Lounge', capacity: 8, shape: 'rectangle', x: 20, y: 60, status: 'Available' },
+    { number: '8', name: 'Table 8', floor: 'Rooftop', section: 'VIP Lounge', capacity: 4, shape: 'square', x: 60, y: 60, status: 'Disabled' }
+  ];
+
+  tableSpecs.forEach((spec, index) => {
+    const tableId = `TBL-${spec.number}`;
     const ref = doc(db, 'restaurants', tenantId, 'tables', tableId);
+    
+    // Standard customer scanning QR url
+    const qrCodeUrl = `${window.location.origin}/r/${tenantId}/table/${tableId}`;
+
     batch.set(ref, {
       id: tableId,
-      tableNumber: String(i),
-      number: String(i),
-      capacity: i % 2 === 0 ? 4 : 2,
-      seatingCapacity: i % 2 === 0 ? 4 : 2,
-      // Status string set to 'Free' (and also empty for dashboard matrix logic)
-      status: 'Free',
-      tableStatus: 'Free',
-      qrCodeUrl: `${window.location.origin}/r/${tenantId}/table/${i}`,
-      tenantId,
+      tableId,
+      tableNumber: spec.number,
+      tableName: spec.name,
+      number: spec.number, // backward compatibility
+      floor: spec.floor,
+      section: spec.section,
+      capacity: spec.capacity,
+      seatingCapacity: spec.capacity, // backward compatibility
+      status: spec.status,
+      tableStatus: spec.status, // backward compatibility
+      shape: spec.shape,
+      positionX: spec.x,
+      positionY: spec.y,
+      qrCodeId: `QR-${tableId}`,
+      qrCodeUrl, // backward compatibility
+      branchId: 'main',
+      isActive: spec.status !== 'Disabled',
+      notes: `Standard seating layout for ${spec.name}`,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      createdBy: 'seeder'
     });
-  }
+  });
 
   // 4. Seed Mock Employees
   const employees = [

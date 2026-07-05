@@ -113,6 +113,12 @@ service cloud.firestore {
           (subcollection == 'requests' && (hasRole('waiter') || hasRole('customer')))
         );
       }
+
+      // Specific rule to match nested menu subcollections (categories, items)
+      match /menu/{menuDoc}/{nestedSubcollection}/{nestedDocId} {
+        allow read: if isAuth() && isTenant(tenantId);
+        allow write: if isAuth() && isTenant(tenantId) && (hasRole('owner') || hasRole('admin'));
+      }
     }
   }
 }

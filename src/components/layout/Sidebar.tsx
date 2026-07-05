@@ -19,6 +19,7 @@ interface ISidebarLink {
   to: string;
   label: string;
   icon: React.ComponentType<any>;
+  disabled?: boolean;
 }
 
 export const Sidebar: React.FC = () => {
@@ -33,11 +34,14 @@ export const Sidebar: React.FC = () => {
         ];
       case 'owner':
         return [
-          { to: '/dashboard/owner', label: 'Performance', icon: LayoutDashboard },
-          { to: '/dashboard/owner/menu', label: 'Menu Editor', icon: Menu },
-          { to: '/dashboard/owner/staff', label: 'Manage Staff', icon: Users },
-          { to: '/dashboard/owner/tables', label: 'QR Generators', icon: QrCode },
-          { to: '/dashboard/owner/billing', label: 'SaaS Subscription', icon: DollarSign },
+          { to: '/dashboard/owner', label: 'Dashboard', icon: LayoutDashboard },
+          { to: '/dashboard/owner/menu', label: 'Menu', icon: Menu },
+          { to: '/dashboard/owner/tables', label: 'Tables', icon: QrCode },
+          { to: '/dashboard/kitchen', label: 'Kitchen', icon: ChefHat },
+          { to: '/dashboard/waiter', label: 'Waiters', icon: Users },
+          { to: '/dashboard/owner/billing', label: 'Billing', icon: DollarSign },
+          { to: '/dashboard/owner/inventory', label: 'Inventory', icon: ClipboardList },
+          { to: '#', label: 'Analytics', icon: TrendingUp, disabled: true },
         ];
       case 'admin':
         return [
@@ -78,11 +82,24 @@ export const Sidebar: React.FC = () => {
       <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
         {links.map((link) => {
           const IconComponent = link.icon;
+          if (link.disabled) {
+            return (
+              <div
+                key={link.to + link.label}
+                className="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 cursor-not-allowed select-none"
+                title="Coming Soon"
+              >
+                <IconComponent className="w-4 h-4" />
+                <span>{link.label}</span>
+                <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-700 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded-md">Soon</span>
+              </div>
+            );
+          }
           return (
             <NavLink
               key={link.to}
               to={link.to}
-              end
+              end={link.to === '/dashboard/owner' || link.to === '/dashboard/waiter' || link.to === '/dashboard/kitchen'}
               className={({ isActive }) => `
                 flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300
                 ${isActive 
@@ -112,7 +129,7 @@ export const Sidebar: React.FC = () => {
             }
           >
             <Settings className="w-4 h-4" />
-            <span>Profile Settings</span>
+            <span>Settings</span>
           </NavLink>
         </div>
       )}

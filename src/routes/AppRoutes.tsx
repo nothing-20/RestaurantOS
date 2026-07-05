@@ -39,6 +39,7 @@ import OwnerStaffManager from '../features/owner-dashboard/components/OwnerStaff
 import OwnerTablesManager from '../features/owner-dashboard/components/OwnerTablesManager';
 import OwnerInventoryManager from '../features/owner-dashboard/components/OwnerInventoryManager';
 import OwnerSettings from '../features/owner-dashboard/components/OwnerSettings';
+import OwnerBilling from '../features/owner-dashboard/components/OwnerBilling';
 
 // Import newly created Super Admin features
 import SuperAdminOverview from '../features/super-admin/components/SuperAdminOverview';
@@ -182,7 +183,8 @@ export const AppRoutes: React.FC = () => {
               <Route path="/dashboard/owner/menu" element={<MenuManagement />} />
               <Route path="/dashboard/owner/staff" element={<OwnerStaffManager />} />
               <Route path="/dashboard/owner/tables" element={<OwnerTablesManager />} />
-              <Route path="/dashboard/owner/billing" element={<OwnerInventoryManager />} />
+              <Route path="/dashboard/owner/billing" element={<OwnerBilling />} />
+              <Route path="/dashboard/owner/inventory" element={<OwnerInventoryManager />} />
               <Route path="/dashboard/owner/settings" element={<OwnerSettings />} />
             </Route>
             

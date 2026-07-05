@@ -1,14 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   collection, 
   onSnapshot, 
   doc, 
   deleteDoc,
-  updateDoc
+  updateDoc,
+  query,
+  where,
+  arrayUnion
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
-import { IServiceRequest } from '../../../types';
+import { IServiceRequest, IOrder } from '../../../types';
 
 // UI Kit components
 import Card from '../../../components/ui/Card/Card';
@@ -18,27 +21,58 @@ import LoadingSpinner from '../../../components/ui/LoadingSpinner/LoadingSpinner
 // Hot Toast notifications
 import toast from 'react-hot-toast';
 import { 
-  Bell, 
   Coffee, 
   DollarSign, 
   User, 
   AlertTriangle, 
   Check, 
   Clock,
-  CheckSquare
+  CheckSquare,
+  UtensilsCrossed,
+  ChefHat
 } from 'lucide-react';
+
+type TAlertTab = 'ready_orders' | 'qr_alerts' | 'customer_requests';
 
 export const WaiterAlerts: React.FC = () => {
   const { user } = useAuth();
   
   const [requests, setRequests] = useState<IServiceRequest[]>([]);
   const [waiterRequests, setWaiterRequests] = useState<any[]>([]);
+  const [readyOrders, setReadyOrders] = useState<IOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState<'qr_alerts' | 'customer_requests'>('qr_alerts');
+  // Default to kitchen-ready tab (kitchen-first operational flow)
+  const [activeTab, setActiveTab] = useState<TAlertTab>('ready_orders');
 
-  // Subscribe to restaurants/{restaurantId}/requests (Legacy QR Table Alerts)
+  // ── Subscribe to READY orders from kitchen ──────────────────────────────────
+  useEffect(() => {
+    if (!user?.tenantId) return;
+
+    const colRef = collection(db, 'restaurants', user.tenantId, 'orders');
+    const readyQuery = query(colRef, where('status', '==', 'READY'));
+
+    const unsubscribe = onSnapshot(
+      readyQuery,
+      (snapshot) => {
+        const list: IOrder[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ ...docSnap.data() } as IOrder);
+        });
+        // Oldest ready first (serve FIFO)
+        list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        setReadyOrders(list);
+      },
+      (error) => {
+        console.error(error);
+        toast.error('Failed to connect to kitchen ready orders stream.');
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.tenantId]);
+
+  // ── Subscribe to Legacy QR Table Alerts ─────────────────────────────────────
   useEffect(() => {
     if (!user?.tenantId) return;
 
@@ -52,10 +86,7 @@ export const WaiterAlerts: React.FC = () => {
         snapshot.forEach((docSnap) => {
           list.push({ ...docSnap.data() } as IServiceRequest);
         });
-
-        // Sort descending (newest requests on top)
         list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        
         setRequests(list);
         setIsLoading(false);
       },
@@ -67,9 +98,9 @@ export const WaiterAlerts: React.FC = () => {
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user?.tenantId]);
 
-  // Subscribe to restaurants/{restaurantId}/waiterRequests (New Call Waiter Assistance Requests)
+  // ── Subscribe to Call Waiter Assistance Requests ─────────────────────────────
   useEffect(() => {
     if (!user?.tenantId) return;
 
@@ -85,10 +116,7 @@ export const WaiterAlerts: React.FC = () => {
             list.push({ id: docSnap.id, ...data });
           }
         });
-
-        // Sort descending
         list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        
         setWaiterRequests(list);
       },
       (error) => {
@@ -98,9 +126,33 @@ export const WaiterAlerts: React.FC = () => {
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user?.tenantId]);
 
-  // Complete / Clear Legacy QR Alert
+  // ── Mark order as DELIVERED ──────────────────────────────────────────────────
+  const handleMarkDelivered = useCallback(async (orderId: string) => {
+    if (!user?.tenantId) return;
+    try {
+      const docRef = doc(db, 'restaurants', user.tenantId, 'orders', orderId);
+      const timelineEvent = {
+        type: 'DELIVERED',
+        title: 'Delivered',
+        description: `Delivered by Waiter ${user.displayName || user.email}`,
+        timestamp: new Date().toISOString(),
+        performedBy: user.displayName || 'Waiter'
+      };
+      await updateDoc(docRef, { 
+        status: 'DELIVERED', 
+        deliveredAt: new Date().toISOString(),
+        timeline: arrayUnion(timelineEvent)
+      });
+      toast.success('Order marked as Delivered! ✓', { id: `deliver-${orderId}` });
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to mark order as delivered.');
+    }
+  }, [user?.tenantId, user?.displayName]);
+
+  // ── Clear Legacy QR Alert ────────────────────────────────────────────────────
   const handleResolveAlert = async (id: string) => {
     if (!user?.tenantId) return;
     try {
@@ -113,7 +165,7 @@ export const WaiterAlerts: React.FC = () => {
     }
   };
 
-  // Accept / Complete Call Waiter Assistance Request
+  // ── Accept / Complete Call Waiter Requests ───────────────────────────────────
   const handleUpdateStatus = async (requestId: string, nextStatus: 'Accepted' | 'Completed') => {
     if (!user?.tenantId) return;
     try {
@@ -156,12 +208,32 @@ export const WaiterAlerts: React.FC = () => {
     <div className="space-y-6 text-left select-none pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-display font-extrabold text-textPearl">Diner Request Hub</h1>
-          <p className="text-xs text-mutedAsh font-semibold">Real-time alerts triggered by table-side diners.</p>
+          <h1 className="text-2xl font-display font-extrabold text-textPearl">Waiter Alerts Hub</h1>
+          <p className="text-xs text-mutedAsh font-semibold">
+            Kitchen pickups, QR service alerts, and diner assistance requests — all in one place.
+          </p>
         </div>
 
-        {/* Tab switcher options */}
-        <div className="bg-slate-900 border border-slate-800 p-1 rounded-xl flex items-center space-x-1 self-start">
+        {/* Tab switcher */}
+        <div className="bg-slate-900 border border-slate-800 p-1 rounded-xl flex items-center space-x-1 self-start flex-wrap gap-y-1">
+          {/* Kitchen Ready — primary operational tab */}
+          <button
+            onClick={() => setActiveTab('ready_orders')}
+            className={`relative px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              activeTab === 'ready_orders'
+                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
+                : 'text-slate-400 hover:text-textPearl'
+            }`}
+          >
+            <UtensilsCrossed className="w-3.5 h-3.5" />
+            Kitchen Ready
+            {readyOrders.length > 0 && (
+              <span className="w-4 h-4 rounded-full bg-emerald-500 text-slate-950 text-[9px] font-extrabold flex items-center justify-center animate-pulse">
+                {readyOrders.length}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => setActiveTab('qr_alerts')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -170,8 +242,9 @@ export const WaiterAlerts: React.FC = () => {
                 : 'text-slate-400 hover:text-textPearl'
             }`}
           >
-            QR Service Alerts ({requests.length})
+            QR Alerts ({requests.length})
           </button>
+
           <button
             onClick={() => setActiveTab('customer_requests')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
@@ -180,7 +253,7 @@ export const WaiterAlerts: React.FC = () => {
                 : 'text-slate-400 hover:text-textPearl'
             }`}
           >
-            Customer Requests ({waiterRequests.length})
+            Diner Requests ({waiterRequests.length})
             {pendingCustomerRequestsCount > 0 && (
               <span className="w-2.5 h-2.5 bg-primary rounded-full animate-pulse" />
             )}
@@ -192,8 +265,68 @@ export const WaiterAlerts: React.FC = () => {
         <div className="h-64 flex items-center justify-center">
           <LoadingSpinner label="Connecting to requests feed..." />
         </div>
+      ) : activeTab === 'ready_orders' ? (
+        /* ─── KITCHEN READY ORDERS TAB ─── */
+        readyOrders.length === 0 ? (
+          <div className="h-64 flex flex-col items-center justify-center text-center border border-dashed border-slate-850 rounded-3xl bg-slate-900/10">
+            <ChefHat className="w-10 h-10 text-slate-700 mb-3" />
+            <p className="text-sm font-semibold text-slate-500">No kitchen orders ready for pickup yet.</p>
+            <p className="text-xs text-slate-600 mt-1">Orders appear here when kitchen marks them Ready.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {readyOrders.map((order) => (
+              <Card
+                key={order.orderId}
+                className="p-0 border-emerald-500/20 bg-emerald-950/10 overflow-hidden rounded-2xl ring-1 ring-emerald-500/10"
+              >
+                {/* Ticket header */}
+                <div className="px-4 py-3 bg-emerald-900/10 border-b border-emerald-500/15 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-sm font-extrabold text-emerald-300">
+                      Table {order.tableNumber}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-[10px] text-slate-500">
+                    <Clock className="w-3 h-3" />
+                    <span>{getMinutesElapsed(order.createdAt)}</span>
+                    <span className="text-slate-700">·</span>
+                    <span className="font-mono">#{(order.orderId || '').substring(0, 8)}</span>
+                  </div>
+                </div>
+
+                {/* Items */}
+                <div className="p-4 space-y-2">
+                  {order.items.map((item, idx) => (
+                    <div key={idx} className="flex items-start space-x-2 text-xs">
+                      <span className="font-extrabold text-emerald-400 min-w-[20px]">×{item.count}</span>
+                      <div className="flex-1">
+                        <span className="font-semibold text-slate-300">{item.name}</span>
+                        {item.notes && (
+                          <p className="text-[10px] text-amber-400 italic mt-0.5">"{item.notes}"</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Deliver CTA */}
+                <div className="px-4 pb-4">
+                  <button
+                    onClick={() => handleMarkDelivered(order.orderId)}
+                    className="w-full py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 transition-all flex items-center justify-center space-x-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Mark Delivered to Table</span>
+                  </button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )
       ) : activeTab === 'qr_alerts' ? (
-        /* Render Legacy QR Service Alerts list */
+        /* ─── QR ALERTS TAB ─── */
         requests.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-center border border-dashed border-slate-850 rounded-3xl bg-slate-900/10">
             <Check className="w-10 h-10 text-slate-700 mb-2" />
@@ -211,7 +344,7 @@ export const WaiterAlerts: React.FC = () => {
                     {getAlertIcon(req.type)}
                   </div>
                   
-                  <div className="space-y-1">
+                  <div className="space-y-1 text-left">
                     <div className="flex items-center space-x-2">
                       <h3 className="font-display font-bold text-sm text-textPearl">{req.type}</h3>
                       <Badge variant="warning">Table {req.tableNumber}</Badge>
@@ -235,7 +368,7 @@ export const WaiterAlerts: React.FC = () => {
           </div>
         )
       ) : (
-        /* Render New Call Waiter Requests list */
+        /* ─── DINER REQUESTS TAB ─── */
         waiterRequests.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-center border border-dashed border-slate-850 rounded-3xl bg-slate-900/10">
             <CheckSquare className="w-10 h-10 text-slate-700 mb-2" />
@@ -271,7 +404,6 @@ export const WaiterAlerts: React.FC = () => {
                   </Badge>
                 </div>
 
-                {/* Accept and Complete buttons */}
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-850/60 w-full">
                   {req.status === 'Pending' && (
                     <button

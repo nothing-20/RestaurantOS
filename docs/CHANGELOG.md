@@ -4,6 +4,218 @@ All notable changes to the **RestaurantOS** repository will be documented in thi
 
 ---
 
+## [1.0.0-core] - 2026-07-05 (RestaurantOS Core Stable Release)
+
+This is the first stable production release of the **RestaurantOS Core** platform. It consolidates all client portals, kitchen KDS operations, visual floor builders, waiter dispatch panels, POS cash drawer registers, refunds ledgers, and operational event streams into a single responsive, multi-tenant operating system.
+
+### Key Highlights
+- **Multi-Tenant Validation Security**: Checks branch status, subscriptions, roles, and status locks.
+- **Visual Canvas Table Allocation**: Visual layout manager and canvas vector export QR code sheets.
+- **Interactive 4-Tab KDS Desk**: Category, Station, Item queues, chef assignments, recall back-actions, and delay warnings.
+- **Waiter command dispatch matrix**: Realtime pickups, customer asistencia alerts, table cleanups, and service timings.
+- **POS & Billing Workspace**: Support for mixed payment splits, cash drawer floats checking, bill checks hold/resume, complimentary comps, reprints counters, and shift audits.
+
+## [11.1.0] - 2026-07-05 (POS Enhancements: Cash Drawer, Bill Hold, Complimentary, Reprints)
+
+
+This release implements advanced professional POS features in the Billing module, including active Cash Drawer shifts, Bill Hold & Resume checks, auditable complimentary items, invoice reprints tracking, and Shift Reports histories.
+
+### Added
+- **Cash Drawer & Shift closing module**: Prevents checkout payments until a shift is opened with starting float cash. Computes expected shift cash balances (Opening Cash + Cash Sales - Refunds) in real-time, requiring operator input of actual closing cash to flag discrepancies.
+- **Bill Hold / Resume Workspace**: Enables pausing table checks for ordering pauses or table changes, displaying paused checks in a dedicated Held section, and resuming them with updated cart structures.
+- **Complimentary Items Selection**: Allows marking individual items as free with audited reason logging, updating SUBTOTAL counts to 0 for those items, and formatting invoices to list them clearly as complimentary (₹0 / $0.00).
+- **Invoice Reprint Tracking copies**: Embeds reprint audit counter prompts, incrementing and appending audit stamps (time, operator, reason) on target invoice printouts.
+- **Shift Reports ledger**: Sub-tab inside Billing listing chronological cash drawer shift summaries.
+- **POS Action Security gates**: Restricts shift transitions, item comps, bill voids, refunds, and invoice reprint authorizations to Owner/Admin roles.
+
+### Changed
+- **Extended Order Schema**: Extended `IOrder` and `IOrderItem` interfaces with hold reasons, reprint audit objects, and complimentary logs.
+
+## [11.0.0] - 2026-07-05 (Billing & POS Module Integration)
+
+
+This release introduces the complete POS & Billing module integrated inside the Owner Dashboard. It establishes the workspace for real-time queue processing, item modifications, discount approvals, multi-mode tax calculations, cash drawers logging, refunds management, and Event Engine sync.
+
+### Added
+- **Integrated Billing Desk (`OwnerBilling.tsx`)**: Reusable commercial POS center featuring sub-tabs for Billing Queue (real-time table requests), Open Bills (running checks), Settled Invoices log, Auditable Refunds panel, Transactions ledger, and Sales Summary charts.
+- **Mixed Payment Settlement**: POS settlement selector allowing owners to distribute payment totals across Cash, UPI, Credit/Debit Cards, and Digital Wallets, validating exact totals before transaction finalization.
+- **Auditable Refund Desk**: Dedicated desk facilitating partial refunds, complete returns, or invoice voids. Requires mandatory reason captures and log records.
+- **Permissions Alignment**: Re-routed billing workspace accessibility solely to authorized admin and owner roles. Updated the waiter floor matrix to restrict checkout, replacing client settlements with direct "Request Bill" alerts.
+- **Supervisor Security Pin Gate**: Approval credentials prompt screen (PIN `1234`) blocking high discount submissions (>20% or flat sums) until manager override is input.
+- **Vector Invoicing Sheets**: Formatted professional bill layouts presenting restaurant logo, FSSAI registry, tax subdivisions, payment distributions, and QR check validators.
+
+### Changed
+- **Sidebar Operations Navigation**: Renamed "SaaS Subscription" to "Billing", mapping route `/dashboard/owner/billing` to the new POS interface, and re-routing "Inventory" to `/dashboard/owner/inventory`.
+
+## [10.0.0] - 2026-07-05 (Restaurant Event Engine & Customer Experience Intelligence)
+
+
+This release implements the Restaurant Event Engine and Customer Experience Intelligence modules under Sprint 10, establishing a centralized non-blocking event-logging system and automated service recovery workflows.
+
+### Added
+- **Central Event Stream (`logEvent`)**: Centralized background logger writing events asynchronously to `/restaurants/{tenantId}/events` in Firestore, preventing any blocking delays on UI operational switches.
+- **Activity Feed Component (`ActivityFeed.tsx`)**: Reusable UI component with searching and filtering options (table number, order ID, date, category toggles) subscribing to the live Firestore events collection. Integrated into `WaiterMatrix.tsx` under a new tab.
+- **Customer Experience Intelligence**: Upgraded payment checkout dialog to collect operational metrics (Food Quality, Service Speed, Cleanliness, Staff Behavior, Waiting Time, Ambience) scored 1 to 5, customer type (Solo, Couple, Family, Group), visit occasion, and repeat customer status. Syncs structured reviews to `/satisfactionRatings`.
+- **Service Recovery Automations**: Automatically creates high/critical priority review tasks under `/restaurants/{tenantId}/managerReviews` for checkout reviews rating customer satisfaction as `Needs Attention` or `Complaint`.
+- **Operational Logs Integration**: Hooked `logEvent` triggers inside Waiter Matrix actions (shift states, diner seatings, cart ordering, task claims, resets) and KDS Queue actions (status transitions, chef assignments, recalls, pauses/resumes).
+
+## [9.0.0] - 2026-07-05 (Waiter Final Enhancements & Complete Freeze)
+
+
+This release implements the final operational enhancements for the Waiter Operations module, finalizing features for shift handovers, table assignments, and customer experience tracking. The Waiter module is now marked **FEATURE COMPLETE** and frozen.
+
+### Added
+- **Waiter Shift Handover**: Checks for pending assigned tables, ready deliveries, or diner requests on shift end, presenting a summary handover modal. Transfer to active waiters initiates a `/handovers` document.
+- **Accept Shift Handover Alert**: Interactive overlay notification alert enabling receiving waiters to accept handover, triggering a Firestore transaction updating all table, order, and request assignments.
+- **Table Allocation Cockpit**: Manager console containing:
+  - Auto-assignment load-balancer (Round Robin and Least Loaded distribution algorithms).
+  - Bulk section and floor assignment triggers.
+  - Manual waiter selectors next to each visual table.
+- **Diner Experience Review Prompt**: Prompt intercepting the checkout flow logging ratings (Excellent, Good, Neutral, Needs Attention, Complaint), text notes, and repeat customer markers to `/satisfactionRatings` collection before table resets.
+
+
+## [8.0.0] - 2026-07-05 (Waiter Service Command Center)
+
+This release upgrades the Waiter Dashboard into a commercial-grade Service Command Center. It introduces dynamic Shift Management, a Unified Task Engine, a Smart Priority Engine, Route Optimization, and color-coded Service Timers to streamline floor operations.
+
+### Added
+- **Shift Management Controls**: Active widgets tracking Shift Start/End, Breaks, working durations, and serving metrics.
+- **Unified Task Queue**: Consolidates Deliver Orders, Customer Requests, Bill Invoices, and Table Cleaning into a single actionable feed.
+- **Smart Priority Engine**: Dynamic calculation of priority tags (Critical, High, Medium, Low) based on VIP statuses, KDS delays (>5m/10m), and checkout waiting times. Supports manual waiter overrides.
+- **Route Optimization (Next Best Action)**: Real-time sorting by priority index, section zones, and nearest numerical table. Highlights recommendation cards at the top.
+- **Live Activity Feed**: scrolling sidebar showing chronological server event logs (e.g. Table Ready alerts, water requests).
+- **Service Timers**: Second-precision timers color-coded (Green <5m, Yellow <10m, Orange <15m, Red 15m+) to indicate response age.
+- **Table Notes support**: Displays prominent instructions (Allergy, VIP, Baby chair, Birthday) on table cards and task lists.
+
+
+## [7.0.0] - 2026-07-05 (Waiter Operations Module)
+
+This release implements a production-ready Waiter Operations Module as the centralized cockpit for dining floor staff, managing table assignments, QR alerts, kitchen ready orders, invoice checkouts, cleaning tasks, and waiter performance.
+
+### Added
+- **Assigned Tables (My Floor)**: Filtering of dining tables assigned to the logged-in server, supporting seating check-ins, guest count configuration, and release triggers.
+- **Quick Order Creation**: Direct table-side order builder allowing waiters to search menu items, build carts, compute sub-totals, and submit tickets directly to KDS.
+- **Service timelines**: Step-by-step table service visual progress indicator showing Order Received → Accepted → Preparing → Ready → Delivered → Paid checkpoints.
+- **Kitchen Pickups**: Real-time pickup lists for READY orders, tracking completion speed and enabling waiter claiming and delivery handoffs.
+- **Requests Hub**: Consolidated diner alerts hub handling Call Waiter, Water, Plates, Tissue, Condiments, Special Assistance, and Birthday triggers.
+- **Billing Checkout**: Invoice modal calculating sub-totals, discount percent rates, 8% sales tax, and marking paid. Updates table status to cleaning.
+- **Cleaning Duty Tasks**: Interactive table cleaning flow transitioning tables dirty → cleaning in progress → available/empty.
+- **Live Event Alerts**: Dynamic toasted warnings for Kitchen Ready status, diner requests, tables requesting checks, and delayed pickups (>5m ready).
+- **Staff Performance Stats**: Dynamic reporting of delivered orders count, average delivery speed, and resolved requests.
+
+
+## [6.0.0] - 2026-07-05 (Kitchen Display System — Professional Enhancements)
+
+This release freezes the KDS module, adding chef assignments, pause/resume mechanisms, ready-order recalls, queue reordering, and smart order priority configurations.
+
+### Added
+- **Chef Assignment**: Real-time kitchen staff selection and unassignment with timestamps mapped to `/employees`.
+- **Cooking Pause/Resume**: Multi-state transitions between preparing and paused cooking phases, capturing custom reasons in the timeline.
+- **Recall Order Action**: Back-transitions accidental ready marks to preparing, automatically updating active waiter dashboards.
+- **Cooking Queue View**: 5th tab showing positions, estimated window times (start/finish), priority tags, and queue timeline maps.
+- **Reordering Swaps**: Manual queue positioning using ▲ and ▼ controls that swap positions atomically.
+- **Auto-Sort by Priority**: Batch pos updating sorting queue sequence using Smart Priority weights.
+- **Smart Order Priority**: Automatic classification into Critical/High/Normal/Low based on VIP tags, large order size (>6 items), or waiting delay (>15 min).
+- **Internal Note Editors**: Side-by-side display and custom editing prompts for Internal Kitchen and Chef notes.
+
+
+## [5.0.0] - 2026-07-05 (Kitchen Dashboard — Professional Operations Suite)
+
+This release transforms the Kitchen Display System into a commercial-grade operations platform with live performance metrics, bulk order management, per-order chronological timelines, kitchen insights, and a 5-band elapsed time color system.
+
+### Added
+- **`KitchenStatsBar`**: Fixed 8-card live performance strip displaying Active Orders, Preparing, Ready, Avg Prep Time, Delayed Orders, Completed Today, Kitchen Efficiency %, and Peak Queue (session watermark). Efficiency card includes animated bottom progress bar.
+- **`BulkActionsToolbar`**: Floating glassmorphism toolbar (pinned viewport bottom) that appears on ticket selection. Supports Accept, Mark Preparing, Mark Ready, Archive actions via `writeBatch` — up to 500 documents per Firestore batch commit. Confirmation modal guards all destructive actions.
+- **`OrderTimeline`**: Vertical per-order chronological event display showing type-specific icons (CircleDot → CheckCircle2 → Flame → ChefHat → UtensilsCrossed), color-coded dot connectors, ISO timestamps, performer, and description. Rendered in compact mode inside tickets.
+- **`KitchenInsightsPanel`**: Collapsible real-time insights sidebar with 6 operational metrics: Longest Waiting Order, Fastest Completed, Bottleneck Station, Avg Prep Time, Avg Ticket Time, Orders > 15 min. Rows color-code by severity (normal/warn/critical).
+- **`KitchenTicket`**: Enhanced ticket card with inline checkbox for bulk selection, ring-highlight for selected state, collapsible timeline, 5-band elapsed timer (Green/Yellow/Orange/Red/Critical-Pulse), estimated prep time display, and special notes section.
+- **`kitchenMetrics.ts`**: Pure utility module with `calcKitchenMetrics()`, `getPrepTimeMinutes()`, `getTotalTimeMinutes()`, `getElapsedColor()`, `getElapsedSeconds()`, `formatElapsedSeconds()`, `getElapsedMinutes()`, `isToday()`, `calcBottleneckStation()`. All functions are pure and memoizable.
+- **`kitchen-dashboard/types.ts`**: KDS-specific types extracted into a dedicated module: `TKdsTab`, `TOrderStatus`, `TPriority`, `IKdsOrder`, `IKdsMetrics`, `IBulkConfirmDialog`.
+- **`ITimelineEvent`** type in global `types/index.ts`.
+- **`updatedAt?`** and **`timeline?: ITimelineEvent[]`** added to `IOrder`.
+- **Delayed Only filter toggle** in the filter panel with configurable threshold.
+- **Target Prep Time selector** (10m / 15m / 20m / 30m) inline in filters — affects Efficiency %, Delayed count, and color logic.
+- **Insights panel toggle** button in the toolbar — shows/hides `KitchenInsightsPanel` as a sidebar column.
+- **Peak Queue tracking**: `setPeakQueue(prev => Math.max(prev, activeNow))` inside the `onSnapshot` callback — session high-watermark with no extra Firestore reads.
+
+### Changed
+- **`KitchenQueue.tsx`**: Fully refactored into a composable orchestrator. All render logic for ticket cards delegated to `KitchenTicket`. Bulk selection state (`selectedIds: Set<string>`), metrics derivation (`useMemo`), and `handleBulkStatusUpdate` (`writeBatch`) added.
+- **Timeline Event Writes**: Every `handleStatusUpdate` call now also appends a `ITimelineEvent` via `arrayUnion` — conflict-safe for concurrent kitchen staff.
+- **Filter Panel**: Added Category, Delayed Only toggle, and Target Prep Time controls. Result count displayed inline.
+- **5-Band Elapsed Color**: Upgraded from 3-band (green/yellow/red) to 5-band (green/yellow/orange/red/critical-pulse).
+
+### Architecture
+- Single Firestore `onSnapshot` listener preserved — all 4 tabs and all metrics continue sharing the same `allOrders` state.
+- `filteredOrders` converted from inline `useCallback` to `useMemo` — avoids recalculation on unrelated re-renders.
+- `calcKitchenMetrics()` is a pure function called inside `useMemo` — no side effects.
+
+---
+
+## [4.0.0] - 2026-07-05 (Kitchen Display System — Sprint 4)
+
+This release implements the production-ready Kitchen Display System (KDS) as the central operational hub for RestaurantOS:
+
+### Added
+- **4-Tab KDS Dashboard**: Table View (default), Category View, Station View, and Item Queue — all powered by a single shared Firestore `onSnapshot` listener, eliminating duplicate reads when switching tabs.
+- **Live Elapsed Timers**: Every ticket card displays a `MM:SS` countdown ticking every second. Color changes from Green (<5m) → Yellow (5-15m) → Red blinking (>15m).
+- **One-Click Status Advancement**: Ticket cards surface the correct next action button (Accept → Start Cooking → Mark Ready) mapped to the centralized order lifecycle state machine.
+- **Station Metadata**: Added `station` field to `IMenuItem` type and `seed.ts` seeder to power Station View groupings.
+- **Global Filter Panel**: Cross-tab filtering by Status, Priority, Station, text Search, and sortable by Arrival Time, Priority, Prep Time, or Table Number.
+- **Item Queue Batching**: Aggregates identical dishes across all active tables so chefs can batch-cook at scale.
+
+## [4.0.0-draft] - 2026-07-05 (Kitchen-Centric Operational Architecture)
+
+This draft release reorganizes the RestaurantOS core workflow around a kitchen-centric operations model in preparation for Sprint 4:
+
+### Changed
+- **Operational Alignment**: Redefined the business logic flow to route orders dynamically through KDS (Kitchen Display System) as the central hub communicating status updates to waiter notifications, inventory hooks, and tableside ordering.
+- **Unified Lifecycles**: Created the standard Order Lifecycle (`NEW -> ACCEPTED -> PREPARING -> READY -> DELIVERED -> COMPLETED -> ARCHIVED`) and conformed Table State Transitions (`Available -> Occupied -> Ordering -> Preparing -> Dining -> Bill Requested -> Cleaning -> Available`).
+- **Sprint 4 Blueprinting**: Laid out database collection schema mappings, component hierarchies, state machines, and real-time listeners for the KDS module.
+
+## [3.0.0] - 2026-07-05 (Restaurant Table Management System)
+
+This release implements a production-ready Restaurant Table Management module under Sprint 3:
+
+### Added
+- **Visual Floor Map**: Built a draggable 2D floor grid designer permitting owners to rearrange table positions (`positionX`, `positionY`) and rendering circle/square/rectangle shapes styled by live status colors.
+- **Table Operations Drawer**: Added quick-access action triggers for reserving, releasing, marking occupied, cleaning, or toggling active/disabled table status.
+- **Floors & Sections Management**: Built inline layouts configuration managers to add, rename, or delete floors and sections.
+- **Canvas QR Card Exporter**: Generates custom table ordering cards combining app metadata parameters drawn on a canvas for high-res PNG download, printed layout grids, and regenerating code signatures.
+- **Tables Seeder**: Updated `seed.ts` to populate default floors, sections, and structural table arrangements with initial coordinates and shapes.
+
+## [2.2.0] - 2026-07-05 (RestaurantOS Firestore Architecture v1.0)
+
+This release finalizes the Firestore database architecture for RestaurantOS, cleaning up redundant nesting levels and laying placeholder frameworks:
+
+### Added
+- **Finalized Menu Paths**: Refactored paths to `/menu/default/categories/{categoryId}` and `/menu/default/items/{itemId}`, removing duplicate path segments.
+- **Architectural Placeholders**: Prepared schema collections for `/menu/default/variants`, `/menu/default/addons`, and `/menu/default/combos` without impacting runtime flows.
+- **Dual Legacy Migration Handler**: Enhanced the automated mounting migration script to identify and consolidate documents from both V1 (`/menu/categories/categories`) and V2 (`/menu/menu/categories`) legacy systems.
+- **Service Alignment**: Re-routed `FirestoreService` singletons and seeder modules.
+
+## [2.1.0] - 2026-07-05 (Menu Firestore Architecture Migration)
+
+This release migrates the Menu database structure from deep subcollections to a cleaner, non-nested architecture:
+
+### Added
+- **Streamlined Firestore Paths**: Migrated categories path to `menu/menu/categories/{categoryId}` and items path to `menu/menu/items/{itemId}`, eliminating redundant subcollection nesting.
+- **Automated Client-Side Migration**: Implemented a mounting script in `MenuManagement.tsx` that copies legacy category and item documents to the new paths and deletes old documents, guaranteeing data integrity.
+- **Service & Component Alignment**: Updated `collections.ts` helper paths, `FirestoreService` singletons in `firestore.ts`, `seed.ts` seeding loops, and `CustomerMenu.tsx`/`CustomerPortal.tsx` consumers.
+
+## [2.0.0] - 2026-07-05 (Menu Management System Foundation)
+
+This release introduces a robust, multi-tenant Menu Management system featuring five specialized operations areas under `Menu Engine`:
+
+### Added
+- **Interactive Multi-Tab Workspace**: Rewrote `MenuManagement.tsx` to support a high-fidelity workspace with five main tabs: Categories, Menu Items, Availability Switchboard, Pricing Adjustments, and Customer Menu Preview.
+- **Nested Category Management**: Supports category creation, editing, reordering (with Display Order adjustment), status toggling, and deletion. Categories are persisted at `restaurants/{tenantId}/menu/categories/categories/`.
+- **Comprehensive Menu Item CRUD**: Adds, edits, deletes, duplicates, and archives menu items. Items are persisted at `restaurants/{tenantId}/menu/items/items/`.
+- **Search, Filter, and Sort Controls**: Enabled live searching, category filtering, vegetarian status filters, availability filters, and sort controls (A-Z, Z-A, Price, Newest).
+- **Availability Switchboard**: Provided a high-fidelity workspace for instantly toggling the in-stock status of categories and items.
+- **Pricing Adjustments Grid**: Created a dense list of menu items permitting instant updates to base price and discount prices with strict inline validation saving on input blur.
+- **Customer Menu Preview**: Built a fully responsive, read-only customer-facing layout showing how items appear table-side.
+- **Strict Validation Layer**: Implemented checks for duplicate category names, duplicate item names in the same category, negative prices, and negative prep times.
+
 ## [1.9.0] - 2026-07-05 (Staff Onboarding & Invitation Authentication Redesign)
 
 This release implements a secure, invitation-based staff onboarding workflow:

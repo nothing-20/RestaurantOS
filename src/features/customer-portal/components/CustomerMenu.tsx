@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { collection, getDocs, doc, getDoc, setDoc, query, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
+import { getMenuItemPath } from '../../../firebase/collections';
 import { IMenuItem, IOrderItem } from '../../../types';
 import { useCart } from '../../../context/CartContext';
 import { formatPrice } from '../../../utils/format';
@@ -89,7 +90,7 @@ export const CustomerMenu: React.FC = () => {
     if (!tenantId) return;
     setIsLoading(true);
     try {
-      const colRef = collection(db, 'restaurants', tenantId, 'menu');
+      const colRef = collection(db, getMenuItemPath(tenantId));
       const querySnap = await getDocs(query(colRef));
       const items: IMenuItem[] = [];
       const catSet = new Set<string>();
