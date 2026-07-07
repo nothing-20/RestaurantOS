@@ -1,8 +1,3 @@
-import React from 'react';
-import DashboardLayout from './DashboardLayout';
-
-export const AdminLayout: React.FC = () => {
-  // Inherits global dashboard sidebar and header layout mapping admin permissions
-  return <DashboardLayout />;
-};
+export * from '../../shared/ui/layouts/AdminLayout';
+import AdminLayout from '../../shared/ui/layouts/AdminLayout';
 export default AdminLayout;

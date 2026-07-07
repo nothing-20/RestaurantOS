@@ -47,16 +47,6 @@ export const RestaurantDetails: React.FC = () => {
         navigate('/customer/restaurants');
         return;
       }
-
-      // 2. Fetch Tables List
-      const tablesRef = collection(db, 'restaurants', tenantId, 'tables');
-      const tablesSnap = await getDocs(tablesRef);
-      const tablesList: any[] = [];
-      tablesSnap.forEach((doc) => {
-        tablesList.push({ id: doc.id, ...doc.data() });
-      });
-      tablesList.sort((a, b) => parseInt(a.tableNumber || a.number || '0') - parseInt(b.tableNumber || b.number || '0'));
-      setTables(tablesList.length > 0 ? tablesList : Array.from({ length: 8 }, (_, i) => ({ tableNumber: String(i + 1) })));
     } catch (e) {
       console.error('Failed to load restaurant details', e);
       toast.error('Error loading restaurant.');
@@ -67,6 +57,25 @@ export const RestaurantDetails: React.FC = () => {
 
   useEffect(() => {
     fetchRestaurantAndData();
+  }, [tenantId]);
+
+  // Real-time subscription to tables list
+  useEffect(() => {
+    if (!tenantId) return;
+    const tablesRef = collection(db, 'restaurants', tenantId, 'tables');
+    
+    const unsubscribe = onSnapshot(tablesRef, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      list.sort((a, b) => parseInt(a.tableNumber || a.number || '0') - parseInt(b.tableNumber || b.number || '0'));
+      setTables(list);
+    }, (err) => {
+      console.error('Failed to subscribe to tables collection:', err);
+    });
+
+    return () => unsubscribe();
   }, [tenantId]);
 
   // Real-time subscription to active orders to track table occupancy
@@ -308,33 +317,39 @@ export const RestaurantDetails: React.FC = () => {
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {Array.from({ length: 8 }, (_, i) => {
-              const tableNum = String(i + 1);
-              const isOccupied = occupiedTableNumbers.includes(tableNum);
+            {tables.length === 0 ? (
+              <div className="col-span-full py-8 text-center text-xs text-slate-500 font-semibold">
+                No tables are currently configured for this restaurant.
+              </div>
+            ) : (
+              tables.map((t) => {
+                const tableNum = t.tableNumber || t.number;
+                const isOccupied = occupiedTableNumbers.includes(tableNum) || t.status === 'Occupied' || t.status === 'Cleaning' || !t.isActive;
 
-              return (
-                <button
-                  key={tableNum}
-                  onClick={() => {
-                    if (isOccupied) return;
-                    setIsManualModalOpen(false);
-                    navigate(`/customer/restaurant/${tenantId}/menu?table=${tableNum}`);
-                  }}
-                  disabled={isOccupied}
-                  className={`p-4 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all select-none ${
-                    isOccupied
-                      ? 'bg-slate-950 border-slate-900/60 opacity-40 cursor-not-allowed text-slate-550'
-                      : 'bg-slate-900/40 border-slate-850 hover:border-primary text-slate-350 hover:text-primary cursor-pointer hover:bg-slate-900'
-                  }`}
-                >
-                  <Table className={`w-5 h-5 ${isOccupied ? 'text-slate-650' : 'text-primary'}`} />
-                  <span className="text-xs font-bold text-textPearl">Table {tableNum}</span>
-                  <Badge variant={isOccupied ? 'danger' : 'success'}>
-                    {isOccupied ? 'Occupied' : 'Available'}
-                  </Badge>
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      if (isOccupied) return;
+                      setIsManualModalOpen(false);
+                      navigate(`/customer/restaurant/${tenantId}/menu?table=${tableNum}`);
+                    }}
+                    disabled={isOccupied}
+                    className={`p-4 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all select-none ${
+                      isOccupied
+                        ? 'bg-slate-950 border-slate-900/60 opacity-40 cursor-not-allowed text-slate-555'
+                        : 'bg-slate-900/40 border-slate-850 hover:border-primary text-slate-355 hover:text-primary cursor-pointer hover:bg-slate-900'
+                    }`}
+                  >
+                    <Table className={`w-5 h-5 ${isOccupied ? 'text-slate-650' : 'text-primary'}`} />
+                    <span className="text-xs font-bold text-textPearl">Table {tableNum}</span>
+                    <Badge variant={isOccupied ? 'danger' : 'success'}>
+                      {isOccupied ? 'Occupied' : 'Available'}
+                    </Badge>
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
       </Modal>

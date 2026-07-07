@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { collection, getDocs, doc, getDoc, setDoc, query, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc, query, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
-import { getMenuItemPath } from '../../../firebase/collections';
+import { getMenuItemPath, getMenuCategoryPath } from '../../../firebase/collections';
 import { IMenuItem, IOrderItem } from '../../../types';
 import { useCart } from '../../../context/CartContext';
 import { formatPrice } from '../../../utils/format';
@@ -90,6 +90,22 @@ export const CustomerMenu: React.FC = () => {
     if (!tenantId) return;
     setIsLoading(true);
     try {
+      // 1. Fetch Categories
+      const catColRef = collection(db, getMenuCategoryPath(tenantId));
+      const catSnap = await getDocs(query(catColRef));
+      const catList: { name: string; displayOrder: number; isActive: boolean }[] = [];
+      catSnap.forEach((doc) => {
+        const data = doc.data();
+        catList.push({
+          name: data.name || '',
+          displayOrder: data.displayOrder || 99,
+          isActive: data.isActive !== false
+        });
+      });
+      catList.sort((a, b) => a.displayOrder - b.displayOrder);
+      const activeCatNames = catList.filter(c => c.isActive).map(c => c.name);
+
+      // 2. Fetch Menu Items
       const colRef = collection(db, getMenuItemPath(tenantId));
       const querySnap = await getDocs(query(colRef));
       const items: IMenuItem[] = [];
@@ -101,9 +117,13 @@ export const CustomerMenu: React.FC = () => {
         if (item.category) catSet.add(item.category);
       });
 
+      const resolvedCategories = activeCatNames.length > 0 
+        ? activeCatNames 
+        : Array.from(catSet);
+
       setMenuItems(items);
       setFilteredItems(items);
-      setCategories(Array.from(catSet));
+      setCategories(resolvedCategories);
     } catch (e) {
       console.error(e);
       toast.error('Failed to load restaurant menu.');
@@ -236,20 +256,47 @@ export const CustomerMenu: React.FC = () => {
       }));
 
       await setDoc(docRef, {
+        id: orderId,
         orderId,
         customerId: user?.uid || 'guest-uid',
         customerName: user?.displayName || user?.email || 'Guest Diner',
         restaurantId: tenantId,
         tenantId,
-        tableNumber: tableId,
+        branchId: 'main',
+        tableId: tableId.startsWith('TBL-') ? tableId : `TBL-${tableId}`,
+        tableNumber: tableId.replace('TBL-', ''),
         items: itemsList,
         subtotal: cartSubtotal,
         tax: gstCharge + serviceCharge,
+        discount: 0,
+        totalAmount: cartTotalVal,
         total: cartTotalVal,
-        status: 'PLACED',
+        status: 'NEW',
         paymentStatus: 'PENDING',
         specialInstructions,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Update the Table status in Firestore (Step 8)
+      const tableRef = doc(db, 'restaurants', tenantId, 'tables', tableId.startsWith('TBL-') ? tableId : `TBL-${tableId}`);
+      await updateDoc(tableRef, {
+        status: 'Occupied',
+        updatedAt: new Date().toISOString()
+      });
+
+      // Fire Operational event logs (Step 10)
+      await customerService.logCustomerEvent(tenantId, 'Order Created', `Diner placed order ${orderId} on table ${tableId} for ${formatPrice(cartTotalVal)}`, {
+        orderId,
+        tableNumber: tableId,
+        itemsCount: cartItems.length,
+        total: cartTotalVal
+      });
+
+      await customerService.logCustomerEvent(tenantId, 'Order Sent To Kitchen', `Order ${orderId} routed successfully to KDS kitchen queue`, {
+        orderId,
+        tableNumber: tableId,
+        itemsCount: cartItems.length
       });
 
       // Clear states

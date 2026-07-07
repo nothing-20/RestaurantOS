@@ -733,3 +733,22 @@ To automate deployment processes and ensure only tested and verified code reache
 
 ### Future Scalability Considerations
 Hosting deployments can scale to support custom subdomains for tenants using Firebase Hosting API integrations.
+
+---
+
+## 29. Shared Architecture Updates (v1.2)
+
+### Description
+In RestaurantOS v1.2, the codebase underwent a major architectural refactoring sprint to improve maintainability, scalability, and code reuse. This decoupled features into client applications (`apps/`) and a centralized shared library (`src/shared/`).
+
+### Folder Layout
+- `src/shared/domain/`: Centralized domain models, types, and schemas (e.g., `users`, `restaurant`, `menu`, `orders`, `billing`, `tables`, `staff`, `events`, `notifications`, `customer`, and `tasks`).
+- `src/shared/ui/`: Centralized, highly polished, and responsive reusable UI primitives (buttons, cards, dialogs, forms/inputs, tables, badges, avatars, feedback, skeletons, empty-states, layouts) and the centralized `ActivityFeed` component.
+- `src/shared/design-system/`: Design system tokens (`tokens.ts`) and CSS classes/variables (`styles.css`) feeding Tailwind configuration for unified styling and themes.
+- `src/shared/hooks/`: Reusable hooks such as `useFirestore`, `useRealtime`, `useCurrentUser`, `useCurrentRestaurant`, and `useCurrentBranch`.
+- `src/shared/services/`: Unified backend services layer (e.g., `menuService`, `billingService`, `tableService`, `orderService`, `notificationService`, `eventService`, `taskService`).
+
+### Purpose
+- Centralize all typescript declarations, domain definitions, validation logic, and styling tokens.
+- Decouple generic view presentation components from core domain state services.
+- Guarantee full backward-compatibility through proxy exports, allowing zero-downtime developer transitions.

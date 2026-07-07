@@ -21,37 +21,42 @@ import VerifyEmail from '../features/auth/components/VerifyEmail';
 import SessionExpired from '../features/auth/components/SessionExpired';
 import Maintenance from '../features/auth/components/Maintenance';
 
-// Import newly created Menu and Ordering features
-import MenuManagement from '../features/owner-dashboard/components/MenuManagement';
-import CustomerPortal from '../features/customer-portal/components/CustomerPortal';
+// ── Owner App ──────────────────────────────────────────────────────────────────
+import MenuManagement from '../apps/owner/pages/MenuManagement';
+import OwnerOverview from '../apps/owner/pages/OwnerOverview';
+import OwnerStaffManager from '../apps/owner/pages/OwnerStaffManager';
+import OwnerTablesManager from '../apps/owner/pages/OwnerTablesManager';
+import OwnerInventoryManager from '../apps/owner/pages/OwnerInventoryManager';
+import OwnerSettings from '../apps/owner/pages/OwnerSettings';
+import OwnerBilling from '../apps/owner/pages/OwnerBilling';
+import OwnerAnalytics from '../apps/owner/pages/OwnerAnalytics';
+import OwnerAutomationCenter from '../apps/owner/pages/OwnerAutomationCenter';
+import OwnerStrategyCenter from '../apps/owner/pages/OwnerStrategyCenter';
 
-// Import newly created Kitchen features
-import KitchenQueue from '../features/kitchen-dashboard/components/KitchenQueue';
-import KitchenMenuControl from '../features/kitchen-dashboard/components/KitchenMenuControl';
+// ── Kitchen App ────────────────────────────────────────────────────────────────
+import KitchenQueue from '../apps/owner/kitchen/KitchenQueue';
+import KitchenMenuControl from '../apps/owner/kitchen/KitchenMenuControl';
 
-// Import newly created Waiter features
-import WaiterMatrix from '../features/waiter-dashboard/components/WaiterMatrix';
-import WaiterAlerts from '../features/waiter-dashboard/components/WaiterAlerts';
+// ── Waiter App ─────────────────────────────────────────────────────────────────
+import WaiterMatrix from '../apps/owner/waiter/WaiterMatrix';
+import WaiterAlerts from '../apps/owner/waiter/WaiterAlerts';
 
-// Import newly created Owner dashboard features
-import OwnerOverview from '../features/owner-dashboard/components/OwnerOverview';
-import OwnerStaffManager from '../features/owner-dashboard/components/OwnerStaffManager';
-import OwnerTablesManager from '../features/owner-dashboard/components/OwnerTablesManager';
-import OwnerInventoryManager from '../features/owner-dashboard/components/OwnerInventoryManager';
-import OwnerSettings from '../features/owner-dashboard/components/OwnerSettings';
-import OwnerBilling from '../features/owner-dashboard/components/OwnerBilling';
+// ── Super Admin App ────────────────────────────────────────────────────────────
+import SuperAdminOverview from '../apps/super-admin/pages/SuperAdminOverview';
+import SuperAdminTenants from '../apps/super-admin/pages/SuperAdminTenants';
 
-// Import newly created Super Admin features
-import SuperAdminOverview from '../features/super-admin/components/SuperAdminOverview';
-import SuperAdminTenants from '../features/super-admin/components/SuperAdminTenants';
-
+// ── Landing Page ───────────────────────────────────────────────────────────────
 import LandingPage from '../features/landing-page/LandingPage';
-import CustomerLogin from '../features/customer-portal/components/CustomerLogin';
-import CustomerRegister from '../features/customer-portal/components/CustomerRegister';
-import RestaurantDiscovery from '../features/customer-portal/components/RestaurantDiscovery';
-import RestaurantDetails from '../features/customer-portal/components/RestaurantDetails';
-import CustomerMenu from '../features/customer-portal/components/CustomerMenu';
-import OrderTracking from '../features/customer-portal/components/OrderTracking';
+
+// ── Customer App ───────────────────────────────────────────────────────────────
+import CustomerLogin from '../apps/customer/pages/CustomerLogin';
+import CustomerRegister from '../apps/customer/pages/CustomerRegister';
+import RestaurantDiscovery from '../apps/customer/pages/RestaurantDiscovery';
+import RestaurantDetails from '../apps/customer/pages/RestaurantDetails';
+import CustomerMenu from '../apps/customer/pages/CustomerMenu';
+import OrderTracking from '../apps/customer/pages/OrderTracking';
+import CustomerPortal from '../apps/customer/pages/CustomerPortal';
+import CustomerWelcome from '../apps/customer/pages/CustomerWelcome';
 
 // Mock UI Pages (Operational Dashboards)
 const ManagerDashboard: React.FC = () => (
@@ -133,6 +138,9 @@ export const AppRoutes: React.FC = () => {
     <Routes>
       {/* 1. Public Front facing routes */}
       <Route path="/" element={<LandingPage />} />
+      <Route path="/customer" element={<CustomerWelcome />} />
+      <Route path="/customer/restaurant/:tenantId/menu" element={<CustomerMenu />} />
+      <Route path="/customer/restaurant/:tenantId/order/:orderId" element={<OrderTracking />} />
       <Route path="/customer/login" element={<CustomerLogin />} />
       <Route path="/customer/register" element={<CustomerRegister />} />
       {/* Staff activation — public, no auth guard needed (employee activates before they have an account) */}
@@ -142,8 +150,6 @@ export const AppRoutes: React.FC = () => {
       <Route element={<CustomerGuard />}>
         <Route path="/customer/restaurants" element={<RestaurantDiscovery />} />
         <Route path="/customer/restaurant/:tenantId" element={<RestaurantDetails />} />
-        <Route path="/customer/restaurant/:tenantId/menu" element={<CustomerMenu />} />
-        <Route path="/customer/restaurant/:tenantId/order/:orderId" element={<OrderTracking />} />
         <Route path="/customer/home" element={<RestaurantDiscovery />} />
       </Route>
       
@@ -185,6 +191,9 @@ export const AppRoutes: React.FC = () => {
               <Route path="/dashboard/owner/tables" element={<OwnerTablesManager />} />
               <Route path="/dashboard/owner/billing" element={<OwnerBilling />} />
               <Route path="/dashboard/owner/inventory" element={<OwnerInventoryManager />} />
+              <Route path="/dashboard/owner/analytics" element={<OwnerAnalytics />} />
+              <Route path="/dashboard/owner/automation" element={<OwnerAutomationCenter />} />
+              <Route path="/dashboard/owner/strategy" element={<OwnerStrategyCenter />} />
               <Route path="/dashboard/owner/settings" element={<OwnerSettings />} />
             </Route>
             

@@ -19,11 +19,7 @@ import { zodResolver } from '../../../utils/zodResolver';
 import { formatPrice } from '../../../utils/format';
 import { 
   getMenuCategoryPath, 
-  getMenuItemPath, 
-  getLegacyV1MenuCategoryPath, 
-  getLegacyV1MenuItemPath,
-  getLegacyV2MenuCategoryPath,
-  getLegacyV2MenuItemPath
+  getMenuItemPath
 } from '../../../firebase/collections';
 
 // UI Kit Primitives
@@ -105,11 +101,9 @@ const FALLBACK_ITEM_IMAGE = 'https://images.unsplash.com/photo-1498837167922-ddd
 export const MenuManagement: React.FC = () => {
   const { user } = useAuth();
   
-  // Real-time state
   const [categories, setCategories] = useState<IMenuCategory[]>([]);
   const [menuItems, setMenuItems] = useState<IMenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isMigrating, setIsMigrating] = useState(false);
 
   // Tab State
   const [activeTab, setActiveTab] = useState<'categories' | 'items' | 'availability' | 'pricing' | 'preview'>('categories');
@@ -174,83 +168,9 @@ export const MenuManagement: React.FC = () => {
   const watchIsBestSeller = watchItem('isBestSeller');
   const watchIsRecommended = watchItem('isRecommended');
 
-  // Automatic Data Migration script
-  useEffect(() => {
-    if (!user?.tenantId) return;
-
-    const performMigration = async () => {
-      try {
-        const legacyV1CatPath = getLegacyV1MenuCategoryPath(user.tenantId);
-        const legacyV1ItemPath = getLegacyV1MenuItemPath(user.tenantId);
-        const legacyV2CatPath = getLegacyV2MenuCategoryPath(user.tenantId);
-        const legacyV2ItemPath = getLegacyV2MenuItemPath(user.tenantId);
-
-        const newCatPath = getMenuCategoryPath(user.tenantId);
-        const newItemPath = getMenuItemPath(user.tenantId);
-
-        // Fetch documents from legacy paths
-        const oldV1CatSnap = await getDocs(collection(db, legacyV1CatPath));
-        const oldV1ItemSnap = await getDocs(collection(db, legacyV1ItemPath));
-        const oldV2CatSnap = await getDocs(collection(db, legacyV2CatPath));
-        const oldV2ItemSnap = await getDocs(collection(db, legacyV2ItemPath));
-
-        if (oldV1CatSnap.empty && oldV1ItemSnap.empty && oldV2CatSnap.empty && oldV2ItemSnap.empty) {
-          // No legacy data exists, skip migration safely
-          return;
-        }
-
-        setIsMigrating(true);
-        toast.loading('Migrating menu data to new Firestore structure...', { id: 'menu-migration-toast' });
-
-        const batch = writeBatch(db);
-
-        // Move V1 Categories
-        oldV1CatSnap.forEach((catDoc) => {
-          const newDocRef = doc(db, newCatPath, catDoc.id);
-          batch.set(newDocRef, catDoc.data());
-          batch.delete(catDoc.ref);
-        });
-
-        // Move V1 Items
-        oldV1ItemSnap.forEach((itemDoc) => {
-          const newDocRef = doc(db, newItemPath, itemDoc.id);
-          batch.set(newDocRef, itemDoc.data());
-          batch.delete(itemDoc.ref);
-        });
-
-        // Move V2 Categories
-        oldV2CatSnap.forEach((catDoc) => {
-          const newDocRef = doc(db, newCatPath, catDoc.id);
-          batch.set(newDocRef, catDoc.data());
-          batch.delete(catDoc.ref);
-        });
-
-        // Move V2 Items
-        oldV2ItemSnap.forEach((itemDoc) => {
-          const newDocRef = doc(db, newItemPath, itemDoc.id);
-          batch.set(newDocRef, itemDoc.data());
-          batch.delete(itemDoc.ref);
-        });
-
-        await batch.commit();
-
-        toast.dismiss('menu-migration-toast');
-        toast.success('Menu data migrated to new architecture successfully!');
-      } catch (err) {
-        console.error('Firestore migration failed', err);
-        toast.dismiss('menu-migration-toast');
-        toast.error('Automated migration failed. Retrying on refresh.');
-      } finally {
-        setIsMigrating(false);
-      }
-    };
-
-    performMigration();
-  }, [user?.tenantId]);
-
   // Real-time Firestore Listeners
   useEffect(() => {
-    if (!user?.tenantId || isMigrating) return;
+    if (!user?.tenantId) return;
 
     setIsLoading(true);
 
@@ -289,7 +209,7 @@ export const MenuManagement: React.FC = () => {
       unsubCategories();
       unsubItems();
     };
-  }, [user?.tenantId, isMigrating]);
+  }, [user?.tenantId]);
 
   // Image handling
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -733,9 +653,9 @@ export const MenuManagement: React.FC = () => {
       </div>
 
       {/* Main Load State */}
-      {isLoading || isMigrating ? (
+      {isLoading ? (
         <div className="h-64 flex items-center justify-center">
-          <LoadingSpinner label={isMigrating ? "Migrating Menu Database..." : "Loading Menu Workspace..."} />
+          <LoadingSpinner label="Loading Menu Workspace..." />
         </div>
       ) : (
         <div className="space-y-4">

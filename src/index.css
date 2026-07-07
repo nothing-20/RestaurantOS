@@ -1,3 +1,5 @@
+@import './shared/design-system/styles.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,26 +8,6 @@
   body {
     @apply bg-background text-textPearl font-sans antialiased;
   }
-}
-
-/* Glassmorphism primitives */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(51, 65, 85, 0.4);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-}
-
-.glass-panel-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass-panel-hover:hover {
-  background: rgba(15, 23, 42, 0.8);
-  border-color: rgba(245, 158, 11, 0.4);
-  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
-  transform: translateY(-2px);
 }
 
 /* Custom Scrollbar for dashboards */

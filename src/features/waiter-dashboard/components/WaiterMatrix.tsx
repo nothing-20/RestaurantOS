@@ -1658,6 +1658,72 @@ export const WaiterMatrix: React.FC = () => {
     }
   };
 
+  // ─── Render Shift Control Card ───
+  const renderShiftControlCard = () => {
+    if (user?.role !== 'waiter') {
+      return (
+        <Card className="p-6 border-slate-800 bg-slate-900/50 rounded-3xl">
+          <div className="flex items-center space-x-4">
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 text-amber-400">
+              <AlertOctagon className="w-6 h-6 animate-pulse" />
+            </div>
+            <div className="text-left">
+              <h2 className="text-lg font-extrabold text-textPearl">Shift Command Desk (Manager View)</h2>
+              <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                Shift active actions are disabled. Only logged-in employees with the Waiter role can start floor shifts.
+              </p>
+            </div>
+          </div>
+        </Card>
+      );
+    }
+    const durationStr = shift.isActive ? formatDuration(getShiftWorkingTime(shift)) : '';
+    return (
+      <Card className="p-6 border-slate-800 bg-slate-900/50 rounded-3xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center space-x-4">
+            <div className={`p-3.5 rounded-2xl ${shift.isActive ? (shift.status === 'break' ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400') : 'bg-slate-800 text-slate-400'}`}>
+              <Clock className="w-6 h-6 animate-pulse" />
+            </div>
+            <div className="text-left">
+              <h2 className="text-lg font-extrabold text-textPearl">Shift Command Desk</h2>
+              <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                {shift.isActive ? (
+                  <span>On Duty · <span className="font-mono text-emerald-400">{durationStr}</span> {shift.status === 'break' && ' (On Break)'}</span>
+                ) : (
+                  <span>Offline · Clock-in to sync tables and receive service request task cards</span>
+                )}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {shift.isActive ? (
+              <>
+                {shift.status === 'active' ? (
+                  <button onClick={handleStartBreak} className="flex items-center gap-1.5 text-xs font-bold py-2.5 px-4 rounded-xl border border-slate-800 bg-slate-955 text-slate-300 hover:bg-slate-900">
+                    <span>Take Break</span>
+                  </button>
+                ) : (
+                  <button onClick={handleEndBreak} className="flex items-center gap-1.5 text-xs font-bold py-2.5 px-4 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-950">
+                    <span>Resume Duty</span>
+                  </button>
+                )}
+                <Button onClick={handleEndShiftClick} className="flex items-center gap-1.5 text-xs font-bold py-2.5 px-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-slate-955">
+                  <span>End Shift</span>
+                </Button>
+              </>
+            ) : (
+              <Button onClick={handleStartShift} className="flex items-center gap-1.5 text-xs font-bold py-2.5 px-6 rounded-xl bg-primary text-slate-955 hover:bg-primary-hover">
+                <span>Start Active Shift</span>
+              </Button>
+            )}
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
   // ─── Render Handovers Claim Alert Overlay ──────────────────────────────────
   const renderIncomingHandoversAlert = () => {
     if (incomingHandovers.length === 0) return null;
@@ -1715,29 +1781,28 @@ export const WaiterMatrix: React.FC = () => {
           {/* Command center metric widgets */}
           {renderCommandHeaderMetrics()}
 
-          {/* Master View tab selectors */}
           <div className="flex items-center space-x-2 p-1 bg-slate-900/30 border border-slate-850 rounded-2xl w-fit flex-wrap gap-y-1">
-            {[
-              { id: 'command_center', label: 'Command Queue', Icon: ListTodo },
-              { id: 'floor_map', label: 'Floor Matrix Seating', Icon: LayoutGrid },
-              { id: 'cleaning', label: 'Sanitizing Duties', count: tables.filter(t => t.status === 'cleaning' && t.assignedWaiterId === user?.uid).length },
-              { id: 'stats', label: 'Performance Summary', Icon: Award },
-              { id: 'live_feed', label: 'Operations Event Feed', Icon: Activity },
-              ...(isManagerOrOwner ? [{ id: 'manager_console', label: 'Manager Allocation Console', Icon: Users }] : [])
-            ].map(tab => (
+            {(
+              [
+                { id: 'command_center', label: 'Command Queue', Icon: ListTodo },
+                { id: 'floor_map', label: 'Floor Matrix Seating', Icon: LayoutGrid },
+                { id: 'cleaning', label: 'Sanitizing Duties', count: tables.filter(t => t.status === 'cleaning' && t.assignedWaiterId === user?.uid).length },
+                { id: 'stats', label: 'Performance Summary', Icon: Award },
+                { id: 'live_feed', label: 'Operations Event Feed', Icon: Activity },
+                ...(isManagerOrOwner ? [{ id: 'manager_console', label: 'Manager Allocation Console', Icon: Users }] : [])
+              ] as { id: TWaiterTab; label: string; Icon?: any; count?: number }[]
+            ).map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all border outline-none ${
                   activeTab === tab.id
                     ? 'bg-primary/10 border-primary/20 text-primary'
                     : 'text-slate-400 border-transparent hover:text-textPearl hover:bg-slate-900/40'
                 }`}
               >
-                {/* @ts-ignore */}
                 {tab.Icon && <tab.Icon className="w-3.5 h-3.5" />}
                 <span>{tab.label}</span>
-                {/* @ts-ignore */}
                 {tab.count !== undefined && tab.count > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-slate-450 text-[9px] font-bold">
                     {tab.count}
@@ -2579,7 +2644,7 @@ export const WaiterMatrix: React.FC = () => {
             >
               <ArrowRightLeft className="w-4 h-4" />
               <span>Initiate Handover</span>
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

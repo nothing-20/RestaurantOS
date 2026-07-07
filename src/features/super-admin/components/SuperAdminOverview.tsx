@@ -110,14 +110,14 @@ export const SuperAdminOverview: React.FC = () => {
     // 2. Subscribe to Support tickets
     const unsubTickets = onSnapshot(collection(db, 'supportTickets'), (snap) => {
       const list: ISupportTicket[] = [];
-      snap.forEach(d => list.push({ ...d.data() } as ISupportTicket));
+      snap.forEach(d => list.push({ id: d.id, ...d.data() } as ISupportTicket));
       setTickets(list);
     });
 
     // 3. Subscribe to Feature flags
     const unsubFlags = onSnapshot(collection(db, 'featureFlags'), (snap) => {
       const list: IFeatureFlag[] = [];
-      snap.forEach(d => list.push({ ...d.data() } as IFeatureFlag));
+      snap.forEach(d => list.push({ id: d.id, ...d.data() } as IFeatureFlag));
       
       // Seed default flags if collection is empty
       if (snap.empty) {
@@ -138,7 +138,7 @@ export const SuperAdminOverview: React.FC = () => {
     // 4. Subscribe to Audit Logs
     const unsubAudit = onSnapshot(collection(db, 'auditLogs'), (snap) => {
       const list: IAuditLog[] = [];
-      snap.forEach(d => list.push({ ...d.data() } as IAuditLog));
+      snap.forEach(d => list.push({ id: d.id, ...d.data() } as IAuditLog));
       list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setAuditLogs(list);
     });

@@ -1,0 +1,132 @@
+:root {
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Outfit', sans-serif;
+
+  /* Spacing Scale */
+  --spacing-4: 0.25rem;  /* 4px */
+  --spacing-8: 0.5rem;   /* 8px */
+  --spacing-12: 0.75rem; /* 12px */
+  --spacing-16: 1rem;    /* 16px */
+  --spacing-24: 1.5rem;  /* 24px */
+  --spacing-32: 2rem;    /* 32px */
+  --spacing-48: 3rem;    /* 48px */
+  --spacing-64: 4rem;    /* 64px */
+
+  /* Typography Scale */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
+
+  /* Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Elevation / Shadows */
+  --elevation-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --elevation-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --elevation-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --elevation-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --elevation-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+
+  /* Breakpoints */
+  --breakpoint-mobile: 640px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1024px;
+  --breakpoint-large-display: 1440px;
+}
+
+/* Default Theme - Dark Mode Ready (RestaurantOS Dark-Glass Theme) */
+.dark {
+  --color-primary: 35 92% 50%;          /* #f59e0b */
+  --color-primary-hover: 35 92% 40%;    /* #d97706 */
+  --color-secondary: 215 20% 65%;      /* #94a3b8 */
+  --color-success: 142 72% 40%;        /* #10b981 */
+  --color-warning: 45 93% 47%;         /* #f59e0b */
+  --color-danger: 0 84% 60%;           /* #ef4444 */
+  --color-info: 217 91% 60%;           /* #3b82f6 */
+  --color-background: 222 47% 11%;     /* #0f172a */
+  --color-surface: 222 47% 11%;        /* glass slate */
+  --color-border: 217 30% 20%;
+  --color-text: 210 40% 98%;           /* bright pearl */
+  --color-muted: 215 20% 65%;          /* muted ash */
+  --glass-bg: rgba(15, 23, 42, 0.65);
+  --glass-border: rgba(51, 65, 85, 0.4);
+}
+
+/* Light Theme - Future White Label Ready */
+.light {
+  --color-primary: 35 92% 50%;
+  --color-primary-hover: 35 92% 40%;
+  --color-secondary: 215 16% 47%;
+  --color-success: 142 72% 30%;
+  --color-warning: 45 93% 37%;
+  --color-danger: 0 84% 50%;
+  --color-info: 217 91% 50%;
+  --color-background: 210 40% 98%;
+  --color-surface: 0 0% 100%;
+  --color-border: 214 32% 91%;
+  --color-text: 222 47% 11%;
+  --color-muted: 215 16% 47%;
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(226, 232, 240, 0.8);
+}
+
+/* Centralized Component Variants & Utility classes */
+.btn-primary {
+  background-color: hsl(var(--color-primary));
+  color: hsl(var(--color-background));
+  box-shadow: 0 8px 32px 0 hsla(var(--color-primary) / 0.1);
+}
+.btn-primary:hover {
+  background-color: hsl(var(--color-primary-hover));
+}
+
+.btn-secondary {
+  background-color: hsla(var(--color-surface) / 0.8);
+  color: hsl(var(--color-text));
+  border: 1px solid hsla(var(--color-border) / 0.5);
+}
+.btn-secondary:hover {
+  background-color: hsla(var(--color-surface) / 0.6);
+}
+
+/* Glassmorphism primitives */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel-hover:hover {
+  background: rgba(15, 23, 42, 0.8);
+  border-color: hsla(var(--color-primary) / 0.4);
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
+  transform: translateY(-2px);
+}
+
+/* Animations */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

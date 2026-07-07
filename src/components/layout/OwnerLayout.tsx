@@ -1,7 +1,3 @@
-import React from 'react';
-import DashboardLayout from './DashboardLayout';
-
-export const OwnerLayout: React.FC = () => {
-  return <DashboardLayout />;
-};
+export * from '../../shared/ui/layouts/OwnerLayout';
+import OwnerLayout from '../../shared/ui/layouts/OwnerLayout';
 export default OwnerLayout;

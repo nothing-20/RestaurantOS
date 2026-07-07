@@ -1,7 +1,3 @@
-import { useTheme as useThemeFromContext } from '../context/ThemeContext';
-
-/**
- * Accesses theme states (dark/light) and toggle handlers.
- */
-export const useTheme = useThemeFromContext;
+export * from '../shared/hooks/useTheme';
+import useTheme from '../shared/hooks/useTheme';
 export default useTheme;

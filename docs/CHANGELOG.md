@@ -4,6 +4,171 @@ All notable changes to the **RestaurantOS** repository will be documented in thi
 
 ---
 
+## [2.0.0-rc] - 2026-07-07 (RestaurantOS v2.0 Release Candidate)
+
+This release elevates RestaurantOS to a production-ready Commercial SaaS Release Candidate. It completes product-wide polish, interactive sandboxing controls, global workspace integrations, and unified notifications centers.
+
+### Added
+- **Global Command Palette (Ctrl+K)**: Popups an interactive keyboard-navigable command center mapping shortcuts to create orders, open kitchen queues, inventory manager, billing desks, staff roster logs, and system settings.
+- **Unified Global Search**: Consolidates matches from menu items, dining tables, employee profiles, and active stock inventory into the navigation header.
+- **Unified Notification Center**: Real-time alert list filtering low stock, csat warnings, and automation warnings, with action redirects and dismiss controls.
+- **Chronological Decision Feed**: Live audit stream inside the Executive Dashboard mapping timestamps and category markers to events (Opened, Stock audits, Revenue pacing alerts, KDS latency warnings).
+- **Interactive Demo Mode & Seeder (Italian & Japanese)**: Sandbox controllers in Settings allowing administrators to clear tenant records and seed customized presets instantly (45 items, 15 tables, 5 employees, reviews, logs).
+- **EmptyState action drawers**: Added optional button triggers to shared EmptyState overlays.
+
+## [2.2.0] - 2026-07-07 (Executive Command Center v1.0)
+
+This release introduces the premium Business Command Center as the default landing page for every Owner (`OwnerOverview.tsx`), enabling restaurant executives to assess the overall state of the business in under 30 seconds.
+
+### Added
+- **Time-of-Day Executive greetings**: Greets the owner with Morning, Midday, or Evening summaries dynamically compiling current stats (e.g. "Revenue is 8% higher than yesterday") alongside live scrolling insights.
+- **Unified Health Score circular gauge**: Displays a dynamic HSL color-coded health rating (0-100) combining CSAT, kitchen prep speed, low stocks, and waste cost indicators.
+- **Financial & Operational KPI Widgets**: Real-time widgets for Live Revenue with daily trend sparkline, Average Order Value (AOV), orders in progress, table occupancy percentages, and active diners.
+- **Interactive Stock & Staff Performance Panels**: Summarizes ingredient stock status (healthy, low, critical, expiring in 3 days) and staff shift performances (waiter/kitchen turnaround averages, fastest waiter, clocked-in counts).
+- **Strategy & Risk Center Integration**: Houses live recommendations from the Strategy Engine with expected ROI and one-click accept execution buttons, and lists warning alerts for critical risks.
+- **Opportunity & Automation Dashboard**: Built campaign opportunities panel and background runner terminal presenting real-time scheduler executions and rule sets.
+- **Quick Action workspace tools**: Action drawers to quickly create purchase orders, add staff, create promotion deals, or view Billing, Inventory, KDS, and Analytics.
+
+## [2.0.0] - 2026-07-06 (Sprints 12.1 - 12.13 — Restaurant Strategy Engine)
+
+This release implements the RestaurantOS Strategy Engine, transforming data highlights into strategic action proposals, business goal monitors, ROI predictions, and strategy execution paths.
+
+### Added
+- **Owner Strategy Center Dashboard (`OwnerStrategyCenter.tsx`)**: Created the strategic dashboard covering goals progress bars, cost/revenue/marketing suggestions, and execution timeline history.
+- **Goal progress evaluator (`strategyService.ts`)**: Tracks target metrics (daily revenue, CSAT ratings, kitchen turnaround prep times) dynamically against context values, logging Goal Achieved event logs on achievements.
+- **ROI Strategy Planner Engine**: Compiles growth proposals with objectives, reasonings, cost constraints, timeline scopes, and ROI percentage formulas.
+- **Dynamic Goals creator form**: Allows owners to define custom target levels.
+- **Strategy execution transitions**: Accepts, starts, or completes suggested strategies with Event Engine logs.
+- **Sidebar Integration**: Exposes and routes the Strategy tab in the owner navigation sidebar.
+
+---
+
+## [1.9.0] - 2026-07-06 (Sprints 11.1 - 11.13 — Restaurant Intelligence Engine)
+
+This release implements the RestaurantOS Intelligence Engine, compiling business knowledge bases, memory habits patterns, rule-based operations projections, explainable decision workflows, and AI Provider placeholder adapters.
+
+### Added
+- **Intelligence Architecture (`INTELLIGENCE_ARCHITECTURE.md`)**: Documented context data flows, intelligence scoring formula, memory profiles, and AI integration plans.
+- **Owner Restaurant Intelligence Dashboard (`OwnerIntelligence.tsx`)**: Created a command dashboard featuring Advisor cards, explainable insights reasons, rule-based predictions, memory profiles, and knowledge SOPs.
+- **Interactive AI Playground**: Interactive sandbox allowing owners to query mock AI Provider adapters (Gemini, OpenAI, Claude, Ollama, DeepSeek) returning mock JSON latency data.
+- **Context Builder Module (`contextBuilder.ts`)**: Synthesizes orders completed revenue, CSAT scores, waiter latency counts, active dining tables, and inventory low stocks.
+- **Memory Patterns Engine (`memoryEngine.ts`)**: Tracks historical busiest days of week, lunch peaks time ranges, dishes demand spikes, and discount approvals.
+- **Knowledge Policies Engine (`knowledgeEngine.ts`)**: Manages operating SOP targets (kitchen < 12m, waiters < 5m), recipe structures, and tax parameters.
+- **Intelligence Score Engine (`intelligenceService.ts`)**: Computes a dynamic rating score (0-100) combining CSAT averages, prep speeds, safety stocks, and waste cost margins.
+- **Explainability reasoning Engine**: Appends transparent rationale factors (Biryani sales, chicken stock margins) explaining recommendation decisions.
+- **AI Providers Placeholder Adapters (`aiProvider.ts`)**: Establishes IAIProvider interfaces with Gemini, OpenAI, Claude, Ollama, and DeepSeek adapter classes.
+
+---
+
+## [1.8.0] - 2026-07-06 (Sprints 10.1 - 10.13 — Automation & Operations Platform)
+
+This release implements the RestaurantOS Automation & Operations Platform, establishing a configurable background rules runner, central alerts manager, daily executive briefings, and automated job schedulers.
+
+### Added
+- **Owner Automation Center Dashboard (`OwnerAutomationCenter.tsx`)**: Created the command console providing widgets for scheduler runtimes, rules configurator, alert monitors, system health, and logs.
+- **Scheduled Job Scheduler**: Supports daily stock safety scans, expired ingredient scans, daily briefings compiles, and data cleanup utilities, with triggers overrides.
+- **Configurable Rules Runner (`automationService.ts`)**: Supports toggleable rules conditions (e.g. low stock purchase suggestions, waste spoilage caps, CSAT feedback complaints review manager tasks).
+- **Executive Daily Brief Builder**: Consolidates orders counts, revenue margins, AOV, ratings, lowest stock items, waste costs, and recommendations into printable brief cards.
+- **Centralized Alert Center Matrix**: Manages warning priorities (Critical, High, Medium, Low) and triggers event engine alerts.
+- **Background Event Engine Integrations**: Dispatches logs automatically for job completions, failures, warning triggers, alerts creation, and reports compiled.
+- **Background Tasks Listener (`DashboardLayout.tsx`)**: Installs useAutomationEngine() 60-second checker checks.
+
+---
+
+## [1.7.0] - 2026-07-06 (Sprints 9.1 - 9.13 — Business Intelligence Platform)
+
+This release introduces the RestaurantOS Business Intelligence and Decisions Analytics platform, helping restaurant owners analyze historical and real-time operations, sales margins, operational speeds, customer satisfaction metrics, finances, rule-based forecasts, and smart insights.
+
+### Added
+- **Owner BI Analytics Dashboard (`OwnerAnalytics.tsx`)**: Created a fully modular analytics tab covering sales, operations, customer ratings, finances, inventory health, forecast center, and smart insights.
+- **SVG Visualizations Engine**: Implemented responsive, clean, pure-SVG line charts for revenue trends, bar charts for dish velocities, and heatmaps for peak occupancy slots.
+- **Aggregation Logic**: Dynamically computes Average Order Value (AOV), average kitchen turnaround preparation speed, waiter turnaround counts, table turnaround cycles, and payment mechanisms splits in-memory.
+- **Dynamic Business Health Score**: Computes a trailing health score (0-100) combining CSAT star ratings, kitchen speeds, safety stock margins, waste loss factors, and cancellation rates.
+- **Rule-based Predictions Forecasts**: Generates warning predictions based on trailing parameters (e.g. Biryani demand increases, chicken depletion, busy weekend dinners, CSAT warnings).
+- **Automated Smart Insights**: Triggers highlighting cards dynamically (e.g. Tomato reorder warnings, highest ratings waiter Rahul, top selling dish Paneer Butter Masala).
+- **Multidimensional Filters**: Supports real-time filter combinations by Date range, Waiter staff, Seating table number, Menu Category, and Payment Method.
+- **Sidebar Integration**: Exposes and routes the Analytics tab from the main sidebar.
+
+---
+
+## [1.6.0] - 2026-07-06 (Sprints 8.1 - 8.13 — Inventory Automation & Stock Intelligence)
+
+This release implements the automated stock intelligence and ingredient management engine for RestaurantOS, letting the kitchen automatically deduct ingredients on orders completion, restore stock on cancels/refunds, monitor expiry alerts, log waste, manage suppliers, and automatically generate purchase suggestions.
+
+### Added
+- **Ingredient Master (`types.ts`)**: Structured schemas tracking inventory stock, reorder levels, shelf limits, costs, suppliers, expiration calendars, storage units, and status metrics.
+- **Recipe Configurator (`OwnerInventoryManager.tsx`)**: Connects menu items to ingredient proportions with supports for versions, yield ratios, and waste factor adjustments.
+- **Transaction-Safe Stock Deductions (`inventoryService.ts`)**: Automatically calculates and subtracts recipe requirements when orders change to COMPLETED, checking locks to prevent double-processing.
+- **Stock Movement Auditor**: Logs all adjustments, consumption pings, manual stockups, waste, and cancellations restocks.
+- **Low Stock warning Engine**: Scans safety limits, dispatching notifications and Event Engine alerts.
+- **Purchase Suggestions Builder**: Automatically generates replenishment proposals (ingredient, qty, supplier, cost) when levels reach reorder limits.
+- **Waste & Spoilage logger**: Lets staff input spoiled or damaged ingredients with reasons, tracking lost value metrics.
+- **Supplier Directory manager**: Manages suppliers listings, contacts, speed, and ratings.
+- **Unified 9-Tab Dashboard UI (`OwnerInventoryManager.tsx`)**: Incorporates Overview metrics, Ingredients CRUD, Recipes linking, Movements history, Suppliers matrix, and suggestions dashboards.
+- **Background Automation Hook (`DashboardLayout.tsx`)**: Integrates real-time order listeners tracking and processing stock updates in the background.
+
+---
+
+## [1.5.0] - 2026-07-06 (Sprints 7.3, 7.4, 7.5 — Dining Journey Completion)
+
+This release completes the end-to-end customer Dining Experience Platform, integrating dining checkout verification, waiter alerts notifications, live timeline order tracking, invoicing bill settlements, simulated card/UPI payments, and ratings feedback reviews.
+
+### Added
+- **Unified Live Dining Dashboard (`OrderTracking.tsx`)**: Upgraded the tracking view into a live guest console presenting KDS prep progress stages, live clocks, custom assistance requests, running invoices, simulated checkouts, and ratings feedback.
+- **Cart Checkout Verification (`CustomerMenu.tsx`)**: Integrates multi-point order validation checking active open hours, branches, tables, and item availability before generating orders.
+- **Service Assistance Alert Hub**: Allows table guests to request water, spoons, waiter calls, or cleaning, routing alerts directly to the Waiter Dashboard Commands desk.
+- **Simulated Payment Gateway Checkout**: Provides interactive selectors for UPI, Card, or Wallet payments, simulating processing gates and updating Firestore state.
+- **Ratings & Reviews feedback**: Automatically renders a satisfaction feedback form (Excellent, Good, Complaint ratings across food, service, ambience, cleanliness stars) upon payment confirmation, logging data to `/restaurants/{tenantId}/satisfactionRatings`.
+- **Session Orders History**: Fetches and renders historical order receipts placed within the same table dining session.
+- **Table Clearance Auto-Automation**: Submitting reviews updates table document status to Available and deletes active local dining session codes.
+- **Public Routes Exposure (`AppRoutes.tsx`)**: Exposes customer menu and tracking views publicly to bypass auth gates for anonymous QR table scans.
+
+---
+
+## [1.4.0] - 2026-07-06 (Sprint 7.2 — Explore Menu Experience)
+
+This release introduces the Explore Menu experience, converting the customer portal into a high-fidelity digital catalog with search, filtering, custom notes and size customization, up-selling product bundles, and event tracking hooks.
+
+### Added
+- **Digital Menu Explorer Page (`CustomerMenu.tsx`)**: Re-coded the main menu view with Cover Header assets, horizontal scrolling category emoji chips, and mobile-first list views.
+- **Rule-Based Recommendation Engine (`recommendationEngine.ts`)**: Suggests additional items ("People Also Ordered") or promotional meals ("Complete Your Meal" with custom combo discounts) dynamically.
+- **Interactive Customization Modal**: Enables customers to select variant sizes (e.g. Medium, Large), toggle checkboxes for ingredients add-ons, view nutrition info or allergens, and write custom cooking requests.
+- **Smart Filter Row & Sort Panel**: Restructures search matching dynamically, sorting by ratings, price, or prep time.
+- **Floating Cart Basket**: A sticky bottom-right button displaying cart totals and opening cart review drawers (surviving refresh page reloads).
+- **Audit Analytics Tracking**: Fires triggers for `Menu Viewed`, `Category Viewed`, `Item Viewed`, `Recommendation Viewed`, and `Item Added To Cart`.
+
+---
+
+## [1.3.0] - 2026-07-06 (Sprint 7.1 — Customer Dining Entry Experience)
+
+This release implements the first customer-facing touchpoint of the RestaurantOS Dining Experience Platform: the Welcome and Dining Entry verification panel.
+
+### Added
+- **Customer Welcome Page (`CustomerWelcome.tsx`)**: Premium landing view with cover image, welcome message, local live clock, and working hours information.
+- **Dynamic Branding Customization**: Injects restaurant configurations from Firestore on-load, overriding layout colors (primary/secondary) and loading custom logos dynamically.
+- **Robust QR Code Verification**: Validates scanned URLs containing `r` (restaurantId), `b` (branchId), `t` (tableId), and `s` (secureToken) parameters against live database values.
+- **Dining Session Management**: Creates anonymous sessions saved in Firestore subcollection (`/restaurants/{restaurantId}/diningSessions/{sessionId}`) and localStorage for page refresh recovery.
+- **Unified Error View Templates**: Implements responsive error screens using the Design System for handlingClosed, Disabled, Invalid, Not Found, and Network exceptions.
+- **Dynamic Language Translator**: Pre-programmed dictionary support for English, Spanish (Español), and French (Français) translations.
+- **Event Engine Logs**: Records `QR Scanned` and `Dining Session Started` operational triggers.
+
+---
+
+## [1.2.0-refactor] - 2026-07-06 (RestaurantOS Platform Architecture v1.2 Refactor)
+
+This release introduces the complete RestaurantOS architecture v1.2 refactoring sprint. It improves modularity, maintainability, styling configurations, and service code reuse across all portals.
+
+### Added
+- **Centralized Shared Domain**: Created `src/shared/domain/` mapping modular business rules and models for users, menus, restaurants, orders, billing, tables, staff, events, notifications, customers, and manager review tasks.
+- **Unified UI Component Library**: Centralized all core presentation primitives (buttons, cards, dialogs, dropdowns, badging, inputs, pagination, skeleton tables, emptystate, loading animations, and notifications) into `src/shared/ui/` categories.
+- **Decoupled Application Layouts**: Centralized sidebar and navigation frame structures (`AdminLayout`, `AuthLayout`, `CustomerLayout`, `DashboardLayout`, `KitchenLayout`, `Navbar`, `OwnerLayout`, `PublicLayout`, `Sidebar`, `SuperAdminLayout`, `WaiterLayout`) under `src/shared/ui/layouts/`.
+- **Global Design System Configuration**: Integrated design system styles, colors, layouts variables, and animations inside `src/shared/design-system/`, dynamically bound to the primary stylesheet and tailwind themes configs.
+- **Shared Hook Core**: Built hooks including `useFirestore`, `useRealtime`, `useCurrentUser`, `useCurrentRestaurant`, and `useCurrentBranch`.
+- **Shared Business Services Layer**: Centralized API and service controllers (`menuService`, `billingService`, `tableService`, `orderService`, `notificationService`, `eventService`, `taskService`).
+- **Compatibility Proxy Export Architecture**: Re-exported all centralized layouts and components in their legacy locations (`src/components/ui/` and `src/components/layout/`) to ensure complete backward-compatibility with all existing page views.
+
+---
+
 ## [1.0.0-core] - 2026-07-05 (RestaurantOS Core Stable Release)
 
 This is the first stable production release of the **RestaurantOS Core** platform. It consolidates all client portals, kitchen KDS operations, visual floor builders, waiter dispatch panels, POS cash drawer registers, refunds ledgers, and operational event streams into a single responsive, multi-tenant operating system.

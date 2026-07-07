@@ -2,6 +2,176 @@
 
 This file tracks the timeline of RestaurantOS development. Each entry summarizes the completed features, outstanding tasks, technical bugs or blockers encountered, their respective solutions, and immediate next steps.
 
+## Log Entry: 2026-07-07 (Stable Release Candidate — RestaurantOS v2.0)
+
+### Completed Tasks
+- **Ctrl+K Command Palette**: Implemented keyboard-driven modal displaying quick shortcuts to open billing, KDS, staff sheets, or reset demo database.
+- **Unified Header Search**: Created real-time search inputs in header fetching matched records from menu items, dining tables, employee sheets, and inventory stock levels.
+- **Notification center bell**: Configured floating dropdown menu streaming warnings or critical notifications from the tenant alerts database, allowing one-click resolution.
+- **Decision Feed Widget**: Setup chronological event feeds inside Owner overview tracking kitchen delays, audits, and opening times with customized icons.
+- **Interactive Demo presets**: Built complete demo seeder matching Italian (Pasta & Pizza) or Japanese (Sushi & Ramen) presets, writing 45 items, 15 tables, and 5 employee rosters.
+- **Shared UX Refactoring**: Updated global EmptyState components to accept interactive action button triggers.
+
+### Status
+- **RestaurantOS v2.0**: ✅ FEATURE COMPLETE (Release Candidate)
+
+---
+
+## Log Entry: 2026-07-07 (Sprint 12 — Executive Command Center v1.0)
+
+### Completed Tasks
+- **Executive Greetings Card**: Programmed dynamic time-based morning, midday, and evening summaries showing live revenue pacing compared to yesterday, active stock warnings, and kitchen prep latency.
+- **Top Financial & Operational KPI Metrics**: Constructed a 4-column layout presenting Business Health Score (0-100 gauge), Live Revenue metrics, Yesterday's comparison calculations, AOV, active orders, occupied tables percentages, CSAT scores, and pending reviews alerts.
+- **Decoupled Strategy & Risk Auditing widgets**: Embedded recommendations directly from the Strategy Engine with ROI percentage indicators and a one-click execute button, alongside risk alerts flagging stock depletion or kitchen delays.
+- **Growth Opportunity Grid**: Set up interactive growth modules for quick promotions (Happy Hours, Lunch combos) that trigger background logging in the Event Engine.
+- **Automation Runner Terminal**: Linked scheduler runner controls facilitating manual stock checks or expiry sweeps from the dashboard, displaying real-time logger feeds from `jobsHistory` collection.
+- **Inventory Stock Snapshot**: Built stock status progress meters outlining healthy counts, low levels, critical items, and expiration indicators.
+- **Staff turnarounds & Shifts performance**: Dynamically calculated average kitchen prep speed, waiter delivery duration averages, clocked-in roster members, and fastest server.
+- **Quick Action workspace tools**: Mounted action drawers to quickly create purchase orders, add staff, create promotion deals, or view Billing, Inventory, KDS, and Analytics.
+
+### Status
+- **Executive Command Center Module**: ✅ COMPLETE (v1.0)
+
+---
+
+## Log Entry: 2026-07-06 (Sprints 12.1 - 12.13 — Restaurant Strategy Engine)
+
+### Completed Tasks
+- **Consultant Strategy Dashboard**: Programmed `OwnerStrategyCenter.tsx` inside `src/apps/owner/pages` displaying goal progress indicators, strategy action cards (revenue, cost, marketing, retention), and lifecycle controllers (accept, execute, complete).
+- **Target Goals progress validator**: Wired `evaluateGoalProgress` under `strategyService.ts` updating goal metrics against context variables and firing `Goal Achieved` logs when objectives are met.
+- **ROI Strategy Planner Engine**: Wired `generateStrategies` under `strategyService.ts` generating operational strategies containing objective, estimated cost, difficulty, priority, and expected ROI percentage indicators.
+- **Dynamic Goals configurator**: Added target goals form panels allowing owners to input and activate daily parameters targets.
+- **Exposed Route & Sidebar**: Wired routes in `AppRoutes.tsx` and registered the link inside `Sidebar.tsx`.
+
+### Status
+- **Platform Development Status**: ✅ COMPLETE - RestaurantOS Strategy Engine v1.0. All goals progress trackers, consulting strategies generators, ROI estimators, and execution timelines are fully functional and stable.
+
+---
+
+## Log Entry: 2026-07-06 (Sprints 11.1 - 11.13 — Restaurant Intelligence Engine)
+
+### Completed Tasks
+- **Structured Intelligence Directory**: Created `src/shared/intelligence/` containing context compilations, rules knowledge, habits memory, adapters placeholders, and scoring algorithms.
+- **Explainable Advisor Dashboard**: Programmed `OwnerIntelligence.tsx` inside `src/apps/owner/pages` displaying advisor summaries, predictions indices, and expander cards for recommendation reasons.
+- **AI Adapter Sandbox**: Designed an interactive testing suite querying Gemini, OpenAI, Claude, Ollama, and DeepSeek placeholder adapters, outputting mock JSON response payloads.
+- **Intelligence Score Formulation**: Coded an aggregation service mapping score ratings (0-100) based on CSAT ratings, kitchen prep speed SOPs, low safety stock items, and waste cost caps.
+- **Exposed Route & Sidebar**: Wired routes in `AppRoutes.tsx` and registered the link inside `Sidebar.tsx`.
+- **Structural Architecture Docs**: Created `INTELLIGENCE_ARCHITECTURE.md` documenting parameters, formulas, and integration guidelines.
+
+### Status
+- **Platform Development Status**: ✅ COMPLETE - RestaurantOS Intelligence Engine v1.0. All context builders, memory habit engines, rule predictions, health scorings, explainability triggers, and AI placeholder adapters are fully functional and stable.
+
+---
+
+## Log Entry: 2026-07-06 (Sprints 10.1 - 10.13 — Automation & Operations Platform)
+
+### Completed Tasks
+- **Executive Daily Brief Builder**: Compiled a consolidation engine tracking completed order totals, CSAT stars, lowest stock items, waste costs, and recommendations into download sheets.
+- **Job Scheduler lifecycle**: Implemented scheduled jobs (safety audits, expiry scans, briefings compilation, database cleanup) with manual overrides pings.
+- **Configurable Rules Runner**: Programmed trigger matches evaluating low stock reorders, CSAT negative review task creations, and waste spoilage warnings.
+- **Centralized Alert Center Matrix**: Built an operational console categorizing priority levels (Critical, High, Medium, Low) and acknowledging alerts.
+- **System Health Diagnostics**: Added animated status widgets tracking Firestore listeners, event queues, and latency.
+- **Background Runner Hook**: Mounted `useAutomationEngine()` in `DashboardLayout.tsx` running periodic 60-second checks.
+- **Exposed Route & Sidebar**: Wired routes mapping in `AppRoutes.tsx` and enabled Automation links inside `Sidebar.tsx`.
+
+### Status
+- **Platform Development Status**: ✅ COMPLETE - RestaurantOS Automation Platform v1.0. The automated operations center, schedules checker, rules evaluation triggers, alerts coordinator, and daily briefs compiler are fully functional and stable.
+
+---
+
+## Log Entry: 2026-07-06 (Sprints 9.1 - 9.13 — Business Intelligence Platform)
+
+### Completed Tasks
+- **Modular Owner BI Dashboard**: Created `OwnerAnalytics.tsx` under `src/apps/owner/pages` providing Sales curves, Kitchen turnaround operations, Customer reviews rating distributions, and Financial margins.
+- **Dynamic Business Health Score**: Coded an aggregation engine computing score metrics combining CSAT ratings, kitchen speeds, safety stock margins, waste loss factors, and cancellation rates.
+- **Rule-based Predictions Forecast**: Created a forecasting widget displaying warnings based on consumption trends, peak weekend slots, and retentions.
+- **Automated Smart Insights**: Configured highlight cards parsing database highlights (Rahul rating spotlight, tomatoes warnings, high revenue milestones).
+- **Responsive SVG Visualizations**: Implemented line charts for sales trends, bar metrics for menu items, and occupancy heatmaps.
+- **Multidimensional Filters Bar**: Integrated selector bars filtering outputs by Waiters, Tables, Categories, Payment mechanism, and Date range windows.
+- **Exposed Route & Sidebar**: Wired path mappings in `AppRoutes.tsx` and enabled Analytics links inside `Sidebar.tsx`.
+
+### Status
+- **Platform Development Status**: ✅ COMPLETE - RestaurantOS Business Intelligence v1.0. All analytics modules, filters, and rule engines are fully operational and stable.
+
+---
+
+## Log Entry: 2026-07-06 (Sprints 8.1 - 8.13 — Inventory Automation & Stock Intelligence)
+
+### Completed Tasks
+- **Ingredient Master Definitions**: Created `types.ts` under `src/shared/domain/inventory` establishing interfaces for ingredients, recipes, movements, suppliers, suggestions, and waste records.
+- **Stock Automation Engine**: Programmed `inventoryService.ts` containing transaction-safe ingredient auto-deductions on Completed orders, auto-restocking on cancelled/refunded orders, waste log recordings, reorder suggestions builders, and Event Engine warnings.
+- **Background Observer Hook**: Mounted `useInventoryAutomation` observer inside `DashboardLayout.tsx` which listens to completed orders in real-time, executing deduction/restocking calculations instantly.
+- **Unified 9-Tab Dashboard UI**: Rewrote `OwnerInventoryManager.tsx` to integrate Overview KPI metrics cards, Ingredients CRUD panel, Recipes linking proportions editor, movements logger table, Suppliers master rating list, Expiry indicators, Waste log trackers, and purchase suggestions grids.
+- **Event Engine Notifications**: Tied Event Engine dispatchers generating logs for: `Ingredient Consumed`, `Low Stock`, `Critical Stock`, `Stock Adjustment`, `Purchase Suggested`, `Waste Recorded`, `Expiry Alert`.
+
+### Status
+- **Platform Development Status**: ✅ COMPLETE - RestaurantOS Inventory Automation v1.0. The automated stock intelligence and ingredient management engine is fully operational and stable.
+
+---
+
+## Log Entry: 2026-07-06 (Sprints 7.3, 7.4, 7.5 — Dining Journey Completion)
+
+### Completed Tasks
+- **Dining Checkout Integrations**: Programmed multi-item cart validation constraints (open check, tables availability, in-stock verification) and Firestore order document inserts with `status: 'NEW'` to trigger immediate KDS sync.
+- **KDS & Waiter Hub notifications**: Wired alerts triggers updating `/restaurants/{tenantId}/waiterRequests` and logging event engine details.
+- **Unified Live Dining Tracker**: Rewrote `OrderTracking.tsx` to handle status progress step indicators, live elapsed counters, active requests lists, and invoicing summaries.
+- **Service Request buttons**: Constructed drawer to dispatch staff calls (water, plates, tissues).
+- **Simulated Payment checkout**: Created interactive UPI/Card checkout modal that updates Firestore parameters to paid and triggers feedback state.
+- **ratings Review loop**: Designed stars feedback dashboard logging ratings to `/restaurants/{tenantId}/satisfactionRatings`, reverting table statuses back to Available, and clearing cached dining session keys.
+- **Session Order History**: Integrated sub-queries grouping past receipts placed within the same active seating.
+- **Public Router access**: Moved menu and tracking pathways outside the auth guards.
+
+### Status
+- **Platform Development Status**: ✅ COMPLETE - RestaurantOS Dining Experience v1.0. End-to-end customer dining journey from scans to reviews is fully functional and stable.
+
+---
+
+## Log Entry: 2026-07-06 (Sprint 7.2 — Explore Menu Experience)
+
+### Completed Tasks
+- **Predefined Recommendation Engine**: Created `recommendationEngine.ts` mapping menu up-sell items ("People Also Ordered" and "Complete Your Meal" bundles).
+- **Redesigned Customer Menu UI**: Wrote modern, premium catalog layout featuring Cover image, dining table indicators, and scrolling chips category navigation.
+- **Search & Filters Enhancements**: Set up search matching and filters toggles (Veg/Non-Veg, Chef Specials, Quick Prep, etc.) with sorted selections.
+- **Customization Modal details**: Supported variant size adjustments, ingredients checkboxes, nutritional lists, and custom preparation inputs.
+- **Persistent Floating Basket**: Integrated bottom-right basket button, preserving item totals and cart drawers on page reloads.
+- **Operational Audits Hooks**: Synced analytic triggers (`Menu Viewed`, `Category Viewed`, `Item Viewed`, `Recommendation Viewed`, and `Item Added To Cart`) to the event engine.
+
+### Status
+- **Platform Development Status**: ✅ COMPLETE - RestaurantOS Dining Experience Sprint 7.2 - Ready for Sprint 7.3 Cart & Order Placement.
+
+---
+
+## Log Entry: 2026-07-06 (Sprint 7.1 — Customer Dining Entry Experience)
+
+### Completed Tasks
+- **Zod Domain Schema Verification**: Designed parameters schema validating presence and shapes of query tokens.
+- **Backend Customer Service**: Coded database check constraints validating merchants status, branches status, tables status, and token hashes.
+- **Polished Welcome Screen**: Developed Welcome page featuring local live clocks, opening schedules, estimated delays, and multilingual translations.
+- **Dynamic CSS Injection**: Linked theme properties on-load to override layout variable colors based on the scanned restaurant settings.
+- **Dining Sessions Creation**: Initialized UUID session records inside Firestore and cached them in localStorage for data restoration.
+- **Error Page layouts**: Built beautiful responsive warning widgets in the Design System.
+- **Routing Integration**: Connected `/customer` pathway in primary routes table.
+
+### Status
+- **Platform Development Status**: ✅ COMPLETE - RestaurantOS Dining Experience Sprint 7.1 - Ready for Sprint 7.2 Digital Menu Experience
+
+---
+
+## Log Entry: 2026-07-06 (Sprint 12 — Architecture & Refactoring Sprint to v1.2)
+
+### Completed Tasks
+- **Modular Shared Domain Layer**: Partitioned types and schemas into granular folders under `src/shared/domain/`.
+- **Decoupled Reusable Components & Layout Primitives**: Migrated 22 UI primitives and 11 layout assets to `src/shared/ui/` with matching proxies in legacy directories.
+- **RestaurantOS Design System**: Created `tokens.ts` and `styles.css` bound to `src/index.css` and Tailwind variables configuration.
+- **Shared Hook Core**: Built hooks including `useFirestore`, `useRealtime`, `useCurrentUser`, `useCurrentRestaurant`, and `useCurrentBranch`.
+- **Shared Services Core**: Set up standard API controllers for menus, orders, billing, tables, tasks, and notifications.
+- **Compatibility Verification**: Verified proxy redirect mappings across all pages, allowing compilation without modifying legacy view paths.
+
+### Status
+- **Platform Development Status**: ✅ COMPLETE - RestaurantOS Platform Architecture v1.2 - Ready for Sprint 7.1
+
+---
+
 ## Log Entry: 2026-07-05 (Stable Release — RestaurantOS Core v1.0.0)
 
 ### Completed Tasks
