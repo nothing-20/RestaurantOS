@@ -8,10 +8,12 @@ import {
   query,
   where,
   arrayUnion,
-  writeBatch
+  writeBatch,
+  setDoc
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
+import { generateUniqueOrderId } from '../../../shared/utils/orderUtils';
 import { IOrder, ITable, IServiceRequest, ITimelineEvent, IHandoverDoc, ISatisfactionRating } from '../../../types';
 import { formatPrice } from '../../../utils/format';
 import { getMenuItemPath } from '../../../firebase/collections';
@@ -46,7 +48,11 @@ import {
   AlertOctagon,
   UserPlus,
   Activity,
-  Sparkles
+  Sparkles,
+  ChefHat,
+  MessageSquare,
+  Trash2,
+  ShieldAlert
 } from 'lucide-react';
 
 type TWaiterTab = 'command_center' | 'floor_map' | 'cleaning' | 'stats' | 'live_feed' | 'manager_console';
@@ -172,6 +178,8 @@ export const WaiterMatrix: React.FC = () => {
   const [tick, setTick] = useState(0);
   const notifiedEventsRef = React.useRef<Set<string>>(new Set());
   const [priorityOverrides, setPriorityOverrides] = useState<Record<string, 'critical' | 'high' | 'medium' | 'low'>>({});
+  const [queueFilter, setQueueFilter] = useState<'all' | 'delivery' | 'request' | 'bill' | 'cleaning'>('all');
+  const [actionFilter, setActionFilter] = useState<'All' | 'Kitchen' | 'Customers' | 'Payments' | 'Cleaning' | 'Manager'>('All');
 
   const [shift, setShift] = useState<IWaiterShift>(() => {
     const saved = localStorage.getItem(`shift_${user?.uid}`);
@@ -818,15 +826,23 @@ export const WaiterMatrix: React.FC = () => {
     };
 
     list.sort((a, b) => {
-      const aW = priorityWeights[a.priority];
-      const bW = priorityWeights[b.priority];
+      // 1. Priority weights (critical=0, high=1, medium=2, low=3)
+      const aW = priorityWeights[a.priority] !== undefined ? priorityWeights[a.priority] : 2;
+      const bW = priorityWeights[b.priority] !== undefined ? priorityWeights[b.priority] : 2;
       if (aW !== bW) return aW - bW;
 
-      const aSec = a.section || '';
-      const bSec = b.section || '';
-      if (aSec !== bSec) return aSec.localeCompare(bSec);
+      // 2. VIP requests above normal requests
+      const isVipA = a.notes?.toLowerCase().includes('vip') || a.tableNumber === 'VIP' ? 1 : 0;
+      const isVipB = b.notes?.toLowerCase().includes('vip') || b.tableNumber === 'VIP' ? 1 : 0;
+      if (isVipB !== isVipA) return isVipB - isVipA;
 
-      return a.tableNumber.localeCompare(b.tableNumber, undefined, { numeric: true });
+      // 3. Kitchen ready above informational alerts
+      const isKitchenA = a.type === 'Kitchen Ready' ? 1 : 0;
+      const isKitchenB = b.type === 'Kitchen Ready' ? 1 : 0;
+      if (isKitchenB !== isKitchenA) return isKitchenB - isKitchenA;
+
+      // 4. Older pending events first
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
 
     return list;
@@ -1286,6 +1302,7 @@ export const WaiterMatrix: React.FC = () => {
   const handlePlaceQuickOrder = async () => {
     if (!user?.tenantId || !orderTable) return;
     try {
+      const orderId = generateUniqueOrderId();
       const orderItems = Object.values(cart).map(entry => ({
         menuItemId: entry.item.id,
         name: entry.item.name,
@@ -1295,6 +1312,7 @@ export const WaiterMatrix: React.FC = () => {
       }));
 
       const newOrderData = {
+        orderId,
         tenantId: user.tenantId,
         tableNumber: orderTable.number,
         waiterId: user.uid,
@@ -1319,11 +1337,8 @@ export const WaiterMatrix: React.FC = () => {
         ]
       };
 
-      const ordersCol = collection(db, 'restaurants', user.tenantId, 'orders');
-      const orderDocRef = await addDoc(ordersCol, newOrderData);
-      const orderId = orderDocRef.id;
-
-      await updateDoc(doc(db, 'restaurants', user.tenantId, 'orders', orderId), { orderId });
+      const orderRef = doc(db, 'restaurants', user.tenantId, 'orders', orderId);
+      await setDoc(orderRef, newOrderData);
 
       const tableRef = doc(db, 'restaurants', user.tenantId, 'tables', orderTable.id);
       await updateDoc(tableRef, { activeOrderId: orderId });
@@ -1533,9 +1548,39 @@ export const WaiterMatrix: React.FC = () => {
     const myTablesCount = tables.filter(t => t.assignedWaiterId === user?.uid && t.status !== 'empty').length;
     const pendingTasksCount = optimizedTasks.length;
     const efficiency = performanceStats.efficiencyScore;
+
+    // Today's Pending Bills
+    const today = new Date().toDateString();
+    const pendingBillsOrders = orders.filter(o => 
+      o.status === 'BILL_REQUESTED' || 
+      o.status === 'BILL_GENERATED' || 
+      (o.paymentStatus === 'pending' && (o.status === 'SERVED' || o.status === 'DELIVERED' || o.status === 'DINING'))
+    );
+    const pendingBillsCount = pendingBillsOrders.length;
+    const pendingBillsTotal = pendingBillsOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+
+    // Average Guest Stay Time
+    let totalStayMinutes = 0;
+    let stayCount = 0;
+    orders.forEach(o => {
+      if (o.createdAt && (o as any).paidAt) {
+        const duration = (new Date((o as any).paidAt).getTime() - new Date(o.createdAt).getTime()) / 60000;
+        if (duration > 0 && duration < 240) {
+          totalStayMinutes += duration;
+          stayCount++;
+        }
+      }
+    });
+    const avgStay = stayCount > 0 ? `${Math.round(totalStayMinutes / stayCount)}m` : '45m';
+
+    // Average Table Turnover
+    const totalTablesCount = tables.length || 1;
+    const todayOrdersCount = orders.filter(o => new Date(o.createdAt).toDateString() === today).length;
+    const turnoverRate = (todayOrdersCount / totalTablesCount).toFixed(1);
+    const tableTurnover = `${turnoverRate}x`;
     
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         <Card className="p-4 border-slate-800 bg-slate-900/30 rounded-2xl flex items-center justify-between text-left">
           <div className="space-y-1">
             <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">My Seated Tables</span>
@@ -1570,6 +1615,24 @@ export const WaiterMatrix: React.FC = () => {
           </div>
           <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-400">
             <TrendingUp className="w-5 h-5" />
+          </div>
+        </Card>
+        <Card className="p-4 border-slate-800 bg-slate-900/30 rounded-2xl flex items-center justify-between text-left">
+          <div className="space-y-1">
+            <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">Pending Bills</span>
+            <h3 className="text-sm font-extrabold text-textPearl">{pendingBillsCount} ({formatPrice(pendingBillsTotal)})</h3>
+          </div>
+          <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-400">
+            <DollarSign className="w-5 h-5" />
+          </div>
+        </Card>
+        <Card className="p-4 border-slate-800 bg-slate-900/30 rounded-2xl flex items-center justify-between text-left">
+          <div className="space-y-1">
+            <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">Stay & Turnover</span>
+            <h3 className="text-xs font-extrabold text-textPearl">Stay: {avgStay} · Turn: {tableTurnover}</h3>
+          </div>
+          <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
+            <Clock className="w-5 h-5" />
           </div>
         </Card>
       </div>
@@ -1632,8 +1695,6 @@ export const WaiterMatrix: React.FC = () => {
 
   // ─── Render Unified Task Queue ───
   const renderUnifiedTaskQueue = () => {
-    const [queueFilter, setQueueFilter] = useState<'all' | 'delivery' | 'request' | 'bill' | 'cleaning'>('all');
-    
     const filteredTasks = optimizedTasks.filter(t => {
       if (queueFilter === 'all') return true;
       if (queueFilter === 'delivery') return t.source === 'order';
@@ -1755,16 +1816,284 @@ export const WaiterMatrix: React.FC = () => {
     );
   };
 
-  // ─── Render Live Activity Feed ───
+  // ─── Render Live Activity Feed / Live Action Center ───
   const renderLiveActivityFeed = () => {
+    // 1. Get counts
+    const activeAlerts = optimizedTasks.length;
+    const highPriority = optimizedTasks.filter(t => t.priority === 'critical' || t.priority === 'high').length;
+    
+    // Quick summary counts
+    const kitchenReadyCount = optimizedTasks.filter(t => t.type === 'Kitchen Ready').length;
+    const customerAlertsCount = optimizedTasks.filter(t => t.source === 'request' && t.type !== 'Bill Request' && t.type !== 'Cleaning' && t.type !== 'Clean Table' && t.type !== 'Generate Bill').length;
+    const billsPendingCount = optimizedTasks.filter(t => t.type === 'Bill Request' || t.type === 'Generate Bill').length;
+    const cleaningCount = optimizedTasks.filter(t => t.type === 'Cleaning' || t.type === 'Clean Table').length;
+    const vipCount = optimizedTasks.filter(t => t.notes?.toLowerCase().includes('vip') || t.tableNumber === 'VIP').length;
+
+    // Filter tasks based on actionFilter
+    const getTaskCategory = (t: IWaiterTask): 'Kitchen' | 'Customers' | 'Payments' | 'Cleaning' | 'Manager' => {
+      if (t.source === 'order') return 'Kitchen';
+      if (t.source === 'managerReview') return 'Manager';
+      if (t.type === 'Cleaning' || t.type === 'Clean Table') return 'Cleaning';
+      if (t.type === 'Bill Request' || t.type === 'Generate Bill') return 'Payments';
+      return 'Customers';
+    };
+
+    const filteredTasks = optimizedTasks.filter(t => {
+      if (actionFilter === 'All') return true;
+      return getTaskCategory(t) === actionFilter;
+    }).slice(0, 8); // Keep maximum 8 visible events
+
     return (
-      <Card className="p-5 border-slate-850 bg-slate-900/10 rounded-2xl space-y-4 text-left">
-        <h3 className="text-xs font-extrabold text-textPearl uppercase tracking-wider flex items-center space-x-2">
-          <Activity className="w-4 h-4 text-indigo-400 animate-pulse" />
-          <span>Live Operational Events</span>
-        </h3>
-        <div className="max-h-[380px] overflow-y-auto pr-1">
-          <ActivityFeed maxEvents={8} />
+      <Card className="p-4 border-slate-850 bg-slate-900/40 rounded-3xl space-y-4 text-left shadow-xl w-full">
+        {/* Header Section */}
+        <div className="space-y-1 pb-3 border-b border-slate-800/40">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xs font-black text-textPearl uppercase tracking-widest flex items-center space-x-1.5">
+              <Activity className="w-4 h-4 text-primary animate-pulse" />
+              <span>Live Action Center</span>
+            </h3>
+            <span className="text-[9px] text-slate-550 font-bold font-mono">Last updated: Just now</span>
+          </div>
+          <div className="flex justify-between text-[10px] text-slate-400 font-semibold pt-1">
+            <span>Active Alerts: <strong className="text-textPearl font-mono font-black">{activeAlerts}</strong></span>
+            <span>High Priority: <strong className="text-red-450 font-mono font-black">{highPriority}</strong></span>
+          </div>
+        </div>
+
+        {/* Quick Summary Grid */}
+        <div className="grid grid-cols-5 gap-1 text-center text-[9px] font-extrabold pb-3 border-b border-slate-800/45">
+          <div className="bg-slate-950/60 border border-slate-850 p-1.5 rounded-xl">
+            <span className="block text-slate-500 uppercase text-[8px]">Kitchen</span>
+            <span className="text-primary font-mono text-xs">{kitchenReadyCount}</span>
+          </div>
+          <div className="bg-slate-950/60 border border-slate-850 p-1.5 rounded-xl">
+            <span className="block text-slate-500 uppercase text-[8px]">Alerts</span>
+            <span className="text-orange-400 font-mono text-xs">{customerAlertsCount}</span>
+          </div>
+          <div className="bg-slate-950/60 border border-slate-850 p-1.5 rounded-xl">
+            <span className="block text-slate-500 uppercase text-[8px]">Bills</span>
+            <span className="text-emerald-450 font-mono text-xs">{billsPendingCount}</span>
+          </div>
+          <div className="bg-slate-950/60 border border-slate-850 p-1.5 rounded-xl">
+            <span className="block text-slate-500 uppercase text-[8px]">Clean</span>
+            <span className="text-indigo-400 font-mono text-xs">{cleaningCount}</span>
+          </div>
+          <div className="bg-slate-950/60 border border-slate-850 p-1.5 rounded-xl">
+            <span className="block text-slate-500 uppercase text-[8px]">VIP</span>
+            <span className="text-red-500 font-mono text-xs">{vipCount}</span>
+          </div>
+        </div>
+
+        {/* Segmented Filter Pills */}
+        <div className="flex flex-wrap gap-1 text-[10px] font-extrabold bg-slate-955 p-1 rounded-xl border border-slate-850">
+          {(['All', 'Kitchen', 'Customers', 'Payments', 'Cleaning', 'Manager'] as const).map(cat => {
+            // Count for category
+            let catCount = 0;
+            if (cat === 'All') catCount = activeAlerts;
+            else if (cat === 'Kitchen') catCount = kitchenReadyCount;
+            else if (cat === 'Customers') catCount = customerAlertsCount;
+            else if (cat === 'Payments') catCount = billsPendingCount;
+            else if (cat === 'Cleaning') catCount = cleaningCount;
+            else if (cat === 'Manager') catCount = optimizedTasks.filter(t => t.source === 'managerReview').length;
+
+            const isSelected = actionFilter === cat;
+            return (
+              <button
+                key={cat}
+                onClick={() => setActionFilter(cat)}
+                className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 font-extrabold ${
+                  isSelected 
+                    ? 'bg-slate-800 text-textPearl border border-slate-700/50' 
+                    : 'text-slate-500 hover:text-slate-350 border border-transparent'
+                }`}
+              >
+                <span>{cat}</span>
+                {catCount > 0 && (
+                  <span className={`px-1 py-0.2 rounded-full text-[8px] font-black font-mono ${
+                    isSelected ? 'bg-primary text-slate-950' : 'bg-slate-950 text-slate-450'
+                  }`}>
+                    {catCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Event Cards Queue */}
+        <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+          {filteredTasks.length === 0 ? (
+            <div className="p-8 text-center border border-dashed border-slate-850 bg-slate-900/10 rounded-2xl space-y-2 select-none">
+              <CheckCircle className="w-8 h-8 text-emerald-500/80 mx-auto animate-bounce" />
+              <div className="text-xs font-black text-slate-300">✔ Everything is under control</div>
+              <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">
+                No active alerts.<br />Kitchen and dining floor are operating normally.
+              </p>
+              <div className="text-[8px] text-slate-600 font-extrabold uppercase pt-1">
+                Last activity: Just now
+              </div>
+            </div>
+          ) : (
+            filteredTasks.map(task => {
+              const elapsedMins = Math.floor((Date.now() - new Date(task.createdAt).getTime()) / 60000);
+              const elapsedText = elapsedMins < 1 ? 'Just now' : `${elapsedMins}m ago`;
+              
+              // Get time of day (formatted short time)
+              const timeText = new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+              // Colors based on priority
+              let stripColor = 'bg-blue-500'; // Information
+              let priorityLabel = 'Low';
+              if (task.priority === 'critical') {
+                stripColor = 'bg-red-500';
+                priorityLabel = 'Critical';
+              } else if (task.priority === 'high') {
+                stripColor = 'bg-orange-500';
+                priorityLabel = 'High';
+              }
+
+              // Card status badge text
+              const statusText = task.status === 'Accepted' ? 'IN PROGRESS' : 'NEW';
+
+              // Call Manager Handler
+              const handleCallManagerFromCard = async () => {
+                try {
+                  const managerTaskData = {
+                    tenantId: user?.tenantId || '',
+                    customerIssue: `Assistance requested at Table ${task.tableNumber} by Waiter ${user?.displayName || user?.email}`,
+                    priority: 'High',
+                    assignedManager: 'Pending',
+                    resolutionStatus: 'Pending',
+                    resolutionNotes: '',
+                    submittedAt: new Date().toISOString(),
+                    submittedByName: user?.displayName || user?.email || 'Waiter',
+                    submittedBy: user?.uid || '',
+                    tableNumber: task.tableNumber
+                  };
+                  const mReviewsCol = collection(db, 'restaurants', user?.tenantId || '', 'managerReviews');
+                  await addDoc(mReviewsCol, managerTaskData);
+                  toast.success(`Manager summoned to Table ${task.tableNumber}.`);
+                } catch (e) {
+                  console.error(e);
+                }
+              };
+
+              // Select Card Icon
+              const renderCardIcon = () => {
+                const isVip = task.notes?.toLowerCase().includes('vip') || task.tableNumber === 'VIP';
+                const isComplaint = task.notes?.toLowerCase().includes('complaint') || task.type.toLowerCase().includes('complaint');
+                
+                if (isVip) return <Award className="w-4 h-4 text-red-500" />;
+                if (isComplaint) return <ShieldAlert className="w-4 h-4 text-red-500" />;
+                if (task.source === 'order') return <ChefHat className="w-4 h-4 text-orange-400" />;
+                if (task.type === 'Cleaning' || task.type === 'Clean Table') return <Trash2 className="w-4 h-4 text-indigo-400" />;
+                if (task.type === 'Bill Request' || task.type === 'Generate Bill') return <DollarSign className="w-4 h-4 text-emerald-450" />;
+                return <MessageSquare className="w-4 h-4 text-blue-400" />;
+              };
+
+              return (
+                <div 
+                  key={task.id}
+                  className="flex border border-slate-850 bg-slate-950/40 rounded-2xl overflow-hidden hover:border-slate-800 transition-all duration-300 shadow-md group hover:scale-[1.01]"
+                >
+                  {/* Priority Color Strip */}
+                  <div className={`w-1.5 shrink-0 ${stripColor} self-stretch`} />
+
+                  {/* Card Content */}
+                  <div className="flex-1 p-3.5 space-y-2.5 text-left text-xs font-semibold">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-black uppercase text-slate-350 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded">
+                            Table {task.tableNumber}
+                          </span>
+                          <span className="text-[8px] font-extrabold uppercase text-slate-500">
+                            {task.section}
+                          </span>
+                        </div>
+                        <h4 className="font-black text-textPearl pt-1 flex items-center gap-1">
+                          {renderCardIcon()}
+                          <span>{task.type}</span>
+                        </h4>
+                      </div>
+                      <div className="text-right space-y-0.5">
+                        <span className="block text-[8px] text-slate-550 font-mono font-bold">{timeText} ({elapsedText})</span>
+                        <span className="inline-block text-[8px] font-black uppercase px-1 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400">
+                          {statusText}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 font-semibold leading-relaxed">
+                      {task.description}
+                    </p>
+
+                    {task.notes && (
+                      <p className="text-[10px] text-amber-500/85 italic font-medium">
+                        Notes: "{task.notes}"
+                      </p>
+                    )}
+
+                    <div className="text-[9px] text-slate-500 flex justify-between border-t border-slate-800/20 pt-2 font-medium">
+                      <span>Server: <strong className="text-slate-400">{task.notes?.toLowerCase().includes('server:') ? 'System' : (task.status === 'Accepted' ? 'Claimed' : 'Unassigned')}</strong></span>
+                      <span>Priority: <strong className={task.priority === 'critical' ? 'text-red-400 font-black' : task.priority === 'high' ? 'text-orange-400 font-black' : 'text-blue-400 font-black'}>{priorityLabel}</strong></span>
+                    </div>
+
+                    {/* Contextual Action Buttons */}
+                    <div className="flex gap-1.5 pt-1.5 border-t border-slate-800/20">
+                      {task.status === 'Pending' ? (
+                        <>
+                          <Button
+                            onClick={() => handleAcceptTask(task)}
+                            className="flex-1 py-1.5 text-[10px] font-black bg-indigo-500 hover:bg-indigo-600 text-slate-950 rounded-xl"
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={handleCallManagerFromCard}
+                            className="py-1.5 px-2.5 text-[10px] font-bold bg-slate-900/60 hover:bg-slate-800 border border-slate-800 text-slate-450 rounded-xl"
+                          >
+                            Manager
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            onClick={() => handleResolveTask(task)}
+                            className="flex-1 py-1.5 text-[10px] font-black bg-emerald-500 hover:bg-emerald-600 text-slate-955 rounded-xl"
+                          >
+                            Resolve
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={handleCallManagerFromCard}
+                            className="py-1.5 px-2.5 text-[10px] font-bold bg-slate-900/60 hover:bg-slate-800 border border-slate-800 text-slate-450 rounded-xl"
+                          >
+                            Escalate
+                          </Button>
+                        </>
+                      )}
+                      
+                      {/* Contextual specific action buttons */}
+                      {(task.type === 'Bill Request' || task.type === 'Generate Bill') && (
+                        <Button
+                          onClick={() => {
+                            const activeOrder = orders.find(o => o.orderId === task.targetId || o.tableNumber === task.tableNumber);
+                            if (activeOrder) handleGenerateBill(activeOrder);
+                            else toast.error('No active billing order found for Table.');
+                          }}
+                          className="py-1.5 px-2.5 text-[10px] font-black bg-emerald-600 hover:bg-emerald-700 text-textPearl rounded-xl"
+                        >
+                          Print Bill
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </Card>
     );
@@ -1860,7 +2189,7 @@ export const WaiterMatrix: React.FC = () => {
                 {renderUnifiedTaskQueue()}
               </div>
 
-              <div className="lg:w-72 shrink-0">
+              <div className="lg:w-[350px] md:w-full w-full shrink-0">
                 {renderLiveActivityFeed()}
               </div>
             </div>

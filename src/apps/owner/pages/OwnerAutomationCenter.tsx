@@ -47,6 +47,7 @@ export const OwnerAutomationCenter: React.FC = () => {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [dailyBriefs, setDailyBriefs] = useState<any[]>([]);
   const [automationLogs, setAutomationLogs] = useState<any[]>([]);
+  const [automationSchedules, setAutomationSchedules] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // UI Active Tab
@@ -57,15 +58,6 @@ export const OwnerAutomationCenter: React.FC = () => {
 
   // Selected Daily Brief view details
   const [selectedBrief, setSelectedBrief] = useState<any | null>(null);
-
-  // Master job definition index
-  const predefinedJobs = [
-    { id: 'low_stock_check', name: 'Background Stock Safety Audit', frequency: 'daily', desc: 'Checks safety limits, generates reorder suggestions, and updates status flags.' },
-    { id: 'expiry_check', name: 'Expiry Dates Calendar Monitor', frequency: 'daily', desc: 'Scans ingredient calendar thresholds, generating expired or near-expiry warnings.' },
-    { id: 'daily_brief_generation', name: 'Executive Business Summary Brief', frequency: 'daily', desc: 'Consolidates daily completed orders, margins, CSAT scores, and stock indicators.' },
-    { id: 'analytics_refresh', name: 'Trailing Trends Cache Refresher', frequency: 'hourly', desc: 'Rebuilds analytics curves data points to accelerate dashboard loads.' },
-    { id: 'data_cleanup', name: 'Completed Sessions Database Optimizer', frequency: 'monthly', desc: 'Archives finalized customer sessions and cleans logs data.' }
-  ];
 
   // 1. Subscribe to Firestore automation records
   useEffect(() => {
@@ -113,12 +105,19 @@ export const OwnerAutomationCenter: React.FC = () => {
       setAutomationLogs(list.sort((a, b) => new Date(b.executionTime).getTime() - new Date(a.executionTime).getTime()));
     });
 
+    const unsubSchedules = onSnapshot(collection(db, 'restaurants', tenantId, 'automationSchedules'), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+      setAutomationSchedules(list);
+    });
+
     return () => {
       unsubHistory();
       unsubRules();
       unsubAlerts();
       unsubBriefs();
       unsubLogs();
+      unsubSchedules();
     };
   }, [tenantId]);
 
@@ -318,23 +317,27 @@ export const OwnerAutomationCenter: React.FC = () => {
                 Quick Job triggers
               </h3>
               <div className="space-y-3">
-                {predefinedJobs.slice(0, 3).map(j => (
-                  <div key={j.id} className="flex justify-between items-center bg-slate-950/40 p-3.5 border border-slate-855 rounded-xl text-xs select-none">
-                    <div>
-                      <span className="font-bold text-textPearl block">{j.name}</span>
-                      <span className="text-[9px] text-slate-500 block">Frequency: {j.frequency}</span>
+                {automationSchedules.length === 0 ? (
+                  <p className="text-xs text-slate-500 py-4 text-center">Loading schedules...</p>
+                ) : (
+                  automationSchedules.slice(0, 3).map(j => (
+                    <div key={j.id} className="flex justify-between items-center bg-slate-950/40 p-3.5 border border-slate-855 rounded-xl text-xs select-none">
+                      <div>
+                        <span className="font-bold text-textPearl block">{j.name}</span>
+                        <span className="text-[9px] text-slate-500 block">Interval: Every {j.intervalMinutes} mins</span>
+                      </div>
+                      <Button
+                        size="xs"
+                        onClick={() => handleRunJob(j.id, j.name)}
+                        disabled={runningJobId !== null || j.executionStatus === 'running'}
+                        className="flex items-center gap-1"
+                      >
+                        <Play className="w-3 h-3 fill-current" />
+                        <span>Run</span>
+                      </Button>
                     </div>
-                    <Button
-                      size="xs"
-                      onClick={() => handleRunJob(j.id, j.name)}
-                      disabled={runningJobId !== null}
-                      className="flex items-center gap-1"
-                    >
-                      <Play className="w-3 h-3 fill-current" />
-                      <span>Run</span>
-                    </Button>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </Card>
           </div>
@@ -349,41 +352,72 @@ export const OwnerAutomationCenter: React.FC = () => {
               Configured Job Schedulers
             </h3>
             <div className="space-y-3.5">
-              {predefinedJobs.map(job => {
-                const history = jobsHistory.filter(h => h.jobId === job.id);
-                const lastHistory = history[0];
-                return (
+              {automationSchedules.length === 0 ? (
+                <div className="text-center py-8">
+                  <LoadingSpinner label="Loading configured job schedules..." />
+                </div>
+              ) : (
+                automationSchedules.map(job => (
                   <div key={job.id} className="bg-slate-950/40 p-4 border border-slate-855 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs select-none">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <strong className="text-textPearl font-bold">{job.name}</strong>
-                        <Badge variant="primary" className="scale-90 font-mono tracking-wider uppercase">{job.frequency}</Badge>
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <strong className="text-textPearl font-bold text-sm">{job.name}</strong>
+                        <Badge variant={job.enabled ? 'success' : 'muted'} className="scale-90 font-mono tracking-wider uppercase">
+                          {job.enabled ? 'Enabled' : 'Disabled'}
+                        </Badge>
+                        <Badge variant="primary" className="scale-90 font-mono tracking-wider uppercase">
+                          Every {job.intervalMinutes} mins ({job.intervalType})
+                        </Badge>
                       </div>
                       <p className="text-[10px] text-slate-500 font-semibold">{job.desc}</p>
-                      {lastHistory && (
-                        <div className="flex items-center space-x-3 text-[10px] text-slate-500 mt-1 font-semibold">
-                          <span>Last Run: {new Date(lastHistory.startedAt).toLocaleString()}</span>
-                          <span>•</span>
-                          <span className={`font-bold uppercase ${
-                            lastHistory.status === 'completed' ? 'text-emerald-500' : 'text-red-500'
-                          }`}>
-                            {lastHistory.status}
-                          </span>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t border-slate-900/60 text-[10px] text-slate-400">
+                        <div>
+                          <span className="text-slate-550 block text-[9px] uppercase font-bold">Last Execution</span>
+                          <span className="font-semibold">{job.lastExecutionTime ? new Date(job.lastExecutionTime).toLocaleString() : 'Never'}</span>
                         </div>
-                      )}
+                        <div>
+                          <span className="text-slate-550 block text-[9px] uppercase font-bold">Next Execution</span>
+                          <span className="font-semibold text-primary">{job.nextExecutionTime ? new Date(job.nextExecutionTime).toLocaleString() : 'Pending'}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-550 block text-[9px] uppercase font-bold">Status</span>
+                          <span className={`font-bold uppercase ${
+                            job.executionStatus === 'success' || job.executionStatus === 'completed' ? 'text-emerald-500' :
+                            job.executionStatus === 'failed' ? 'text-red-500' :
+                            job.executionStatus === 'running' ? 'text-blue-400 animate-pulse' :
+                            job.executionStatus === 'skipped' ? 'text-amber-500' : 'text-slate-455'
+                          }`}>{job.executionStatus || 'idle'}</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Switch
+                            checked={job.enabled}
+                            onChange={async () => {
+                              if (!tenantId) return;
+                              await updateDoc(doc(db, 'restaurants', tenantId, 'automationSchedules', job.id), {
+                                enabled: !job.enabled
+                              });
+                              toast.success(`${job.name} status updated.`);
+                            }}
+                          />
+                          <span className="ml-1.5 text-[9.5px] uppercase font-bold text-slate-500">Active</span>
+                        </div>
+                      </div>
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={() => handleRunJob(job.id, job.name)}
-                      disabled={runningJobId !== null}
-                      className="self-start md:self-center shrink-0 flex items-center gap-1.5"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>Execute Now</span>
-                    </Button>
+                    {job.manualRunCapability !== false && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleRunJob(job.id, job.name)}
+                        disabled={runningJobId !== null || job.executionStatus === 'running'}
+                        className="self-start md:self-center shrink-0 flex items-center gap-1.5"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>Run Now</span>
+                      </Button>
+                    )}
                   </div>
-                );
-              })}
+                ))
+              )}
             </div>
           </Card>
 

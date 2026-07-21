@@ -899,76 +899,78 @@ export const OwnerTablesManager: React.FC = () => {
           {/* LIST VIEW */}
           {activeTab === 'list' && (
             <Card className="p-0 overflow-hidden border-slate-850">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-850 bg-slate-900/30 text-xs font-bold text-slate-400 uppercase">
-                    <th className="p-4">Table Code/Name</th>
-                    <th className="p-4">Capacity</th>
-                    <th className="p-4">Location</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-850/40 text-xs">
-                  {getFilteredTables().map((tbl) => (
-                    <tr key={tbl.id} className="hover:bg-slate-900/25 transition-all">
-                      <td className="p-4">
-                        <div className="font-bold text-textPearl text-sm">Table #{tbl.tableNumber}</div>
-                        <div className="text-[10px] text-slate-500">{tbl.tableName}</div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center space-x-1 font-bold text-slate-350">
-                          <Users className="w-3.5 h-3.5" />
-                          <span>{tbl.capacity} Seats</span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="font-bold text-slate-400">{tbl.floor}</div>
-                        <div className="text-[10px] text-slate-500">{tbl.section}</div>
-                      </td>
-                      <td className="p-4">
-                        <Badge variant={getStatusColor(tbl.status)}>{tbl.status}</Badge>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center space-x-1.5">
-                          <Button 
-                            variant="ghost" 
-                            size="xs" 
-                            className="p-1 text-slate-400 hover:text-primary"
-                            onClick={() => { setQrTable(tbl); setIsQrModalOpen(true); }}
-                          >
-                            <QrCode className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="xs" 
-                            className="p-1 text-slate-400 hover:text-primary"
-                            onClick={() => openEditModal(tbl)}
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="xs" 
-                            className="p-1 text-slate-400 hover:text-emerald-400"
-                            onClick={() => duplicateTable(tbl)}
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="xs" 
-                            className="p-1 text-slate-500 hover:text-red-400"
-                            onClick={() => archiveTable(tbl)}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </td>
+              <div className="w-full overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-850 bg-slate-900/30 text-xs font-bold text-slate-400 uppercase">
+                      <th className="p-4">Table Code/Name</th>
+                      <th className="p-4">Capacity</th>
+                      <th className="p-4">Location</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-850/40 text-xs">
+                    {getFilteredTables().map((tbl) => (
+                      <tr key={tbl.id} className="hover:bg-slate-900/25 transition-all">
+                        <td className="p-4">
+                          <div className="font-bold text-textPearl text-sm">Table #{tbl.tableNumber}</div>
+                          <div className="text-[10px] text-slate-500">{tbl.tableName}</div>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center space-x-1 font-bold text-slate-355">
+                            <Users className="w-3.5 h-3.5" />
+                            <span>{tbl.capacity} Seats</span>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <div className="font-bold text-slate-400">{tbl.floor}</div>
+                          <div className="text-[10px] text-slate-500">{tbl.section}</div>
+                        </td>
+                        <td className="p-4">
+                          <Badge variant={getStatusColor(tbl.status)}>{tbl.status}</Badge>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center space-x-1.5">
+                            <Button 
+                              variant="ghost" 
+                              size="xs" 
+                              className="p-1 text-slate-400 hover:text-primary"
+                              onClick={() => { setQrTable(tbl); setIsQrModalOpen(true); }}
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="xs" 
+                              className="p-1 text-slate-400 hover:text-primary"
+                              onClick={() => openEditModal(tbl)}
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="xs" 
+                              className="p-1 text-slate-400 hover:text-emerald-400"
+                              onClick={() => duplicateTable(tbl)}
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="xs" 
+                              className="p-1 text-slate-550 hover:text-red-400"
+                              onClick={() => archiveTable(tbl)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </Card>
           )}
 

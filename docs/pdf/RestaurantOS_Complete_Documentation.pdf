@@ -1,0 +1,130 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.275 841.889] /Contents 6 0 R /Resources << /Font << /F1 9 0 R /F2 10 0 R >> >> >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.275 841.889] /Contents 7 0 R /Resources << /Font << /F1 9 0 R /F2 10 0 R >> >> >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.275 841.889] /Contents 8 0 R /Resources << /Font << /F1 9 0 R /F2 10 0 R >> >> >>
+endobj
+6 0 obj
+<< /Length 260 >>
+stream
+BT
+/F2 36 Tf
+50 500 Td
+(RestaurantOS) Tj
+ET
+BT
+/F2 18 Tf
+50 450 Td
+(Complete Software Documentation) Tj
+ET
+BT
+/F1 12 Tf
+50 400 Td
+(Version 2.0-rc) Tj
+ET
+BT
+/F1 12 Tf
+50 385 Td
+(Generated: July 20, 2026) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Length 380 >>
+stream
+BT
+/F2 18 Tf
+50 750 Td
+(Table of Contents) Tj
+ET
+BT
+/F1 12 Tf
+50 700 Td
+(1. System Architecture.....................................Page 3) Tj
+ET
+BT
+/F1 12 Tf
+50 680 Td
+(2. Database Schema.......................................Page 3) Tj
+ET
+BT
+/F1 12 Tf
+50 660 Td
+(3. API Reference...........................................Page 3) Tj
+ET
+BT
+/F1 12 Tf
+50 640 Td
+(4. Authentication & Security.............................Page 3) Tj
+ET
+BT
+/F1 12 Tf
+50 620 Td
+(5. Multi-Tenant Architecture..............................Page 3) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Length 400 >>
+stream
+BT
+/F2 16 Tf
+50 750 Td
+(Project Summary & Architecture Overview) Tj
+ET
+BT
+/F1 11 Tf
+50 700 Td
+(RestaurantOS is a multi-tenant B2B/B2C SaaS Restaurant Management System.) Tj
+ET
+BT
+/F1 11 Tf
+50 680 Td
+(It integrates diner mobile ordering, KDS, and owner dashboards.) Tj
+ET
+BT
+/F1 11 Tf
+50 660 Td
+(All database transactions are logically isolated using tenantId keys.) Tj
+ET
+BT
+/F1 11 Tf
+50 640 Td
+(To view the full documentation, please refer to the markdown files in docs/.) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+10 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000125 00000 n 
+0000000282 00000 n 
+0000000439 00000 n 
+0000000596 00000 n 
+0000000907 00000 n 
+0000001338 00000 n 
+0000001789 00000 n 
+0000001856 00000 n 
+trailer
+<< /Size 11 /Root 1 0 R >>
+startxref
+1928
+%%EOF

@@ -28,20 +28,22 @@ export class FirestoreService<T extends Record<string, any>> {
 
   // Get collection reference dynamically (handles subcollections too)
   private getRef(tenantId?: string) {
+    const parts = this.collectionName.split('/').filter(Boolean);
     if (tenantId && this.isTenantSubcollection()) {
-      return collection(db, 'restaurants', tenantId, this.collectionName);
+      return collection(db, 'restaurants', tenantId, ...parts);
     }
-    return collection(db, this.collectionName);
+    return collection(db, parts[0], ...parts.slice(1));
   }
 
   private isTenantSubcollection(): boolean {
     const rootCollections = ['tenants', 'users', 'supportTickets', 'featureFlags', 'systemSettings', 'auditLogs'];
-    return !rootCollections.includes(this.collectionName);
+    return !rootCollections.includes(this.collectionName.split('/')[0]);
   }
 
   // CREATE
-  async create(data: Omit<T, 'id'> & { id?: string }, metadata: IServiceMetadata): Promise<string> {
-    const tenantId = metadata.tenantId || data.tenantId;
+  async create(data: Omit<T, 'id'> & { id?: string }, metadata?: IServiceMetadata | string): Promise<string> {
+    const metaObj = typeof metadata === 'string' ? { tenantId: metadata } : (metadata || {});
+    const tenantId = metaObj.tenantId || (data as any).tenantId;
     const colRef = this.getRef(tenantId);
     const id = data.id || doc(colRef).id;
     const docRef = doc(colRef, id);
@@ -50,8 +52,8 @@ export class FirestoreService<T extends Record<string, any>> {
       ...data,
       id,
       tenantId: tenantId || '',
-      branchId: metadata.branchId || data.branchId || 'main',
-      createdBy: metadata.createdBy || 'system',
+      branchId: metaObj.branchId || (data as any).branchId || 'main',
+      createdBy: metaObj.createdBy || 'system',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -61,8 +63,9 @@ export class FirestoreService<T extends Record<string, any>> {
   }
 
   // UPDATE
-  async update(id: string, data: Partial<T>, metadata?: IServiceMetadata): Promise<void> {
-    const tenantId = metadata?.tenantId || data.tenantId;
+  async update(id: string, data: Partial<T>, metadata?: IServiceMetadata | string): Promise<void> {
+    const metaObj = typeof metadata === 'string' ? { tenantId: metadata } : (metadata || {});
+    const tenantId = metaObj.tenantId || (data as any).tenantId;
     const colRef = this.getRef(tenantId);
     const docRef = doc(colRef, id);
 

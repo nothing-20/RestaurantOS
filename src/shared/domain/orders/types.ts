@@ -14,7 +14,7 @@ export interface IOrderItem {
 }
 
 export interface ITimelineEvent {
-  type: 'ORDER_CREATED' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'DELIVERED' | 'COMPLETED' | 'ARCHIVED' | 'CANCELLED' | 'PAUSED' | 'RESUMED' | 'RECALLED';
+  type: 'ORDER_CREATED' | 'ACCEPTED' | 'CHEF_ASSIGNED' | 'PREPARING' | 'READY' | 'PICKED_UP' | 'SERVED' | 'COMPLETED' | 'PAID' | 'CLOSED' | 'ARCHIVED' | 'CANCELLED' | 'PAUSED' | 'RESUMED' | 'RECALLED' | 'BATCH_REFILL' | 'WASTE';
   title: string;
   description?: string;
   performedBy?: string;
@@ -39,7 +39,7 @@ export interface IOrder {
   subtotal: number; // in cents
   tax: number; // in cents
   total: number; // in cents
-  status: 'NEW' | 'PLACED' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'DELIVERED' | 'CANCELLED' | 'COMPLETED' | 'ARCHIVED' | 'PAUSED';
+  status: TOrderStatus;
   createdAt: string;
   updatedAt?: string;
   timeline?: ITimelineEvent[];
@@ -49,6 +49,11 @@ export interface IOrder {
   assignedChefName?: string;
   assignedAt?: string;
   assignedBy?: string;
+
+  // Prep & Cook tracking
+  cookingStartedAt?: string;
+  readyAt?: string;
+  estimatedPrepTime?: number;
 
   // Pause / Resume
   pauseReason?: string;
@@ -65,6 +70,8 @@ export interface IOrder {
   customerNotes?: string;
   kitchenNotes?: string;
   chefNotes?: string;
+  notes?: string;
+  allergyNotes?: string;
 
   // Queue and priority
   queueOrder?: number;
@@ -77,10 +84,12 @@ export interface IOrder {
   deliveryDurationSeconds?: number;
   waiterId?: string;
   waiterName?: string;
+  guestsCount?: number;
 
   // ── Billing & POS fields ──────────────────────────────────────────────────
   paymentStatus?: TPaymentStatus;
   paymentMethods?: IPaymentBreakdown;
+  paymentMethod?: string;
   invoiceNumber?: string;         // e.g. INV-20260705-0001
   discount?: number;              // in cents — flat discount after percentage calc
   discountType?: 'percentage' | 'fixed' | 'coupon' | 'manager' | 'staff';
@@ -113,19 +122,24 @@ export interface IOrder {
 
 // ── KDS / Kitchen Specific Types ─────────────────────────────────────────────
 
-export type TKdsTab = 'table' | 'category' | 'station' | 'item-queue' | 'queue';
+export type TKdsTab = 'table' | 'category' | 'station' | 'item-queue' | 'queue' | 'inventory' | 'reservations';
 
 export type TOrderStatus =
-  | 'NEW' | 'PLACED' | 'ACCEPTED' | 'PREPARING' | 'PAUSED'
-  | 'READY' | 'DELIVERED' | 'COMPLETED' | 'ARCHIVED' | 'CANCELLED';
+  | 'NEW' | 'PLACED' | 'ACCEPTED' | 'CHEF_ASSIGNED' | 'PREPARING' | 'PAUSED'
+  | 'READY' | 'PICKED_UP' | 'DELIVERED' | 'SERVED' | 'COMPLETED' | 'PAID' | 'CLOSED' | 'ARCHIVED' | 'CANCELLED'
+  | 'CREATED' | 'VERIFIED' | 'SENT_TO_KITCHEN' | 'DELIVERING' | 'DINING' | 'BILL_REQUESTED' | 'PAYMENT_COMPLETED' | 'TABLE_CLEANING' | 'TABLE_AVAILABLE';
 
 export type TPriority = 'critical' | 'high' | 'normal' | 'low';
+
+export type TChefStatus = 'available' | 'busy' | 'break' | 'offline';
 
 export interface IKdsOrder extends IOrder {
   id?: string;
   tableId?: string;
-  notes?: string;
-  estimatedPrepTime?: number;
+  customerType?: 'dine-in' | 'takeaway' | 'delivery';
+  isRush?: boolean;
+  deliveryDeadline?: string; // ISO string
+  station?: string;
 }
 
 export interface IKdsMetrics {
@@ -143,6 +157,7 @@ export interface IKdsMetrics {
   ordersOver15Min: number;
   bottleneckStation: string | null;
   avgTicketTimeMinutes: number;
+  kitchenLoadPct?: number;
 }
 
 export interface IBulkConfirmDialog {
@@ -150,4 +165,100 @@ export interface IBulkConfirmDialog {
   action: string;
   nextStatus: TOrderStatus;
   count: number;
+}
+
+// ── Chef Availability ────────────────────────────────────────────────────────
+
+export interface IChefAvailability {
+  chefId: string;
+  chefName: string;
+  status: TChefStatus;
+  currentLoad: number;         // number of active orders assigned
+  ordersAssigned: number;      // total orders today
+  ordersCompleted: number;     // completed today
+  avgCookTimeMinutes: number;  // avg prep time today
+  currentOrderIds: string[];   // active order IDs
+  lastStatusChange?: string;   // ISO timestamp
+}
+
+// ── Kitchen Announcements ────────────────────────────────────────────────────
+
+export type TAnnouncementType = 'info' | 'warning' | 'urgent' | 'success';
+
+export interface IKitchenAnnouncement {
+  id?: string;
+  message: string;
+  type: TAnnouncementType;
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;       // ISO
+  expiresAt?: string;      // ISO — auto-hide after this time
+  isPinned?: boolean;
+  isActive?: boolean;
+}
+
+// ── Shift Management ─────────────────────────────────────────────────────────
+
+export interface IShiftRecord {
+  id?: string;
+  chefId: string;
+  chefName: string;
+  shiftStart: string;      // ISO
+  shiftEnd?: string;       // ISO — null if still on shift
+  ordersCompleted: number;
+  avgCookTimeMinutes: number;
+  breakTimeMinutes: number;
+  idleTimeMinutes: number;
+  efficiency: number;      // percentage 0-100
+  totalItems: number;
+}
+
+// ── Station Management ───────────────────────────────────────────────────────
+
+export interface IStationConfig {
+  id?: string;
+  name: string;
+  assignedCategories: string[];  // e.g. ['Pizza', 'Burgers']
+  assignedChefIds: string[];
+  isActive: boolean;
+  color?: string;                // for display
+  icon?: string;                 // lucide icon name
+  maxCapacity?: number;          // max concurrent orders
+  currentLoad?: number;
+}
+
+// ── Recipe Validation ────────────────────────────────────────────────────────
+
+export interface IIngredientCheck {
+  ingredientId: string;
+  ingredientName: string;
+  requiredQty: number;
+  availableQty: number;
+  unit: string;
+  status: 'available' | 'low' | 'out';
+  portionsRemaining?: number;
+  suggestedPurchase?: number;
+}
+
+export interface IRecipeValidation {
+  itemId: string;
+  itemName: string;
+  ingredients: IIngredientCheck[];
+  canPrepare: boolean;
+  batchAvailable?: number;       // for batch items, how many portions ready
+  missingCount: number;
+  lowStockCount: number;
+}
+
+// ── Voice Notification Framework ─────────────────────────────────────────────
+
+export type TVoiceEventType = 'ORDER_READY' | 'LOW_STOCK' | 'NEW_ORDER' | 'PREPARE_BATCH' | 'RUSH_ORDER' | 'ANNOUNCEMENT';
+
+export interface IVoiceNotification {
+  id: string;
+  type: TVoiceEventType;
+  message: string;
+  priority: TPriority;
+  createdAt: string;
+  acknowledged: boolean;
 }

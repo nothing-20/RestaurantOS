@@ -9,6 +9,7 @@ import WorkspaceGuard from './WorkspaceGuard';
 import RoleGuard from './RoleGuard';
 import AuthLayout from '../components/layout/AuthLayout';
 import DashboardLayout from '../components/layout/DashboardLayout';
+import CustomerLayout from '../components/layout/CustomerLayout';
 
 // Import newly created Authentication module components
 import LoginForm from '../features/auth/components/LoginForm';
@@ -32,14 +33,26 @@ import OwnerBilling from '../apps/owner/pages/OwnerBilling';
 import OwnerAnalytics from '../apps/owner/pages/OwnerAnalytics';
 import OwnerAutomationCenter from '../apps/owner/pages/OwnerAutomationCenter';
 import OwnerStrategyCenter from '../apps/owner/pages/OwnerStrategyCenter';
+import OwnerIntelligence from '../apps/owner/pages/OwnerIntelligence';
 
 // ── Kitchen App ────────────────────────────────────────────────────────────────
 import KitchenQueue from '../apps/owner/kitchen/KitchenQueue';
 import KitchenMenuControl from '../apps/owner/kitchen/KitchenMenuControl';
+import KitchenOrderHistoryPage from '../apps/owner/kitchen/KitchenOrderHistoryPage';
+import KitchenItemHistoryPage from '../apps/owner/kitchen/KitchenItemHistoryPage';
+import KitchenChefPerformancePage from '../apps/owner/kitchen/KitchenChefPerformancePage';
+import KitchenTimelinePage from '../apps/owner/kitchen/KitchenTimelinePage';
+import KitchenSettingsPage from '../apps/owner/kitchen/KitchenSettingsPage';
 
 // ── Waiter App ─────────────────────────────────────────────────────────────────
 import WaiterMatrix from '../apps/owner/waiter/WaiterMatrix';
 import WaiterAlerts from '../apps/owner/waiter/WaiterAlerts';
+import WaiterAssignedTablesPage from '../apps/owner/waiter/WaiterAssignedTablesPage';
+import WaiterOrderHistoryPage from '../apps/owner/waiter/WaiterOrderHistoryPage';
+import WaiterItemHistoryPage from '../apps/owner/waiter/WaiterItemHistoryPage';
+import WaiterPerformancePage from '../apps/owner/waiter/WaiterPerformancePage';
+import WaiterTimelinePage from '../apps/owner/waiter/WaiterTimelinePage';
+import WaiterShiftReportPage from '../apps/owner/waiter/WaiterShiftReportPage';
 
 // ── Super Admin App ────────────────────────────────────────────────────────────
 import SuperAdminOverview from '../apps/super-admin/pages/SuperAdminOverview';
@@ -49,14 +62,18 @@ import SuperAdminTenants from '../apps/super-admin/pages/SuperAdminTenants';
 import LandingPage from '../features/landing-page/LandingPage';
 
 // ── Customer App ───────────────────────────────────────────────────────────────
+import CustomerHome from '../apps/customer/pages/CustomerHome';
 import CustomerLogin from '../apps/customer/pages/CustomerLogin';
 import CustomerRegister from '../apps/customer/pages/CustomerRegister';
-import RestaurantDiscovery from '../apps/customer/pages/RestaurantDiscovery';
 import RestaurantDetails from '../apps/customer/pages/RestaurantDetails';
 import CustomerMenu from '../apps/customer/pages/CustomerMenu';
 import OrderTracking from '../apps/customer/pages/OrderTracking';
 import CustomerPortal from '../apps/customer/pages/CustomerPortal';
 import CustomerWelcome from '../apps/customer/pages/CustomerWelcome';
+import TableBooking from '../apps/customer/pages/TableBooking';
+import CartPage from '../apps/customer/pages/CartPage';
+import PaymentPage from '../apps/customer/pages/PaymentPage';
+import ProfilePage from '../apps/customer/pages/ProfilePage';
 
 // Mock UI Pages (Operational Dashboards)
 const ManagerDashboard: React.FC = () => (
@@ -148,9 +165,19 @@ export const AppRoutes: React.FC = () => {
       
       {/* Protected customer routes */}
       <Route element={<CustomerGuard />}>
-        <Route path="/customer/restaurants" element={<RestaurantDiscovery />} />
-        <Route path="/customer/restaurant/:tenantId" element={<RestaurantDetails />} />
-        <Route path="/customer/home" element={<RestaurantDiscovery />} />
+        <Route element={<CustomerLayout />}>
+          <Route path="/customer/home" element={<CustomerHome />} />
+          <Route path="/customer/discover" element={<Navigate to="/customer/home" replace />} />
+          <Route path="/customer/restaurants" element={<Navigate to="/customer/home" replace />} />
+          <Route path="/customer/restaurant/:tenantId" element={<RestaurantDetails />} />
+          <Route path="/customer/booking" element={<TableBooking />} />
+          <Route path="/customer/cart" element={<CartPage />} />
+          <Route path="/customer/payment" element={<PaymentPage />} />
+          <Route path="/customer/reservations" element={<Navigate to="/customer/profile?section=reservations" replace />} />
+          <Route path="/customer/profile" element={<ProfilePage />} />
+          <Route path="/customer/settings" element={<Navigate to="/customer/profile?section=settings" replace />} />
+          <Route path="/customer/rewards" element={<Navigate to="/customer/profile?section=rewards" replace />} />
+        </Route>
       </Route>
       
       {/* Backward compatibility redirects for old login routes */}
@@ -191,9 +218,11 @@ export const AppRoutes: React.FC = () => {
               <Route path="/dashboard/owner/tables" element={<OwnerTablesManager />} />
               <Route path="/dashboard/owner/billing" element={<OwnerBilling />} />
               <Route path="/dashboard/owner/inventory" element={<OwnerInventoryManager />} />
+              <Route path="/dashboard/owner/inventory/purchase-orders" element={<OwnerInventoryManager />} />
               <Route path="/dashboard/owner/analytics" element={<OwnerAnalytics />} />
               <Route path="/dashboard/owner/automation" element={<OwnerAutomationCenter />} />
               <Route path="/dashboard/owner/strategy" element={<OwnerStrategyCenter />} />
+              <Route path="/dashboard/owner/intelligence" element={<OwnerIntelligence />} />
               <Route path="/dashboard/owner/settings" element={<OwnerSettings />} />
             </Route>
             
@@ -216,12 +245,23 @@ export const AppRoutes: React.FC = () => {
             <Route element={<RoleGuard allowedRoles={['owner', 'admin', 'manager', 'kitchen']} />}>
               <Route path="/dashboard/kitchen" element={<KitchenQueue />} />
               <Route path="/dashboard/kitchen/menu-control" element={<KitchenMenuControl />} />
+              <Route path="/dashboard/kitchen/order-history" element={<KitchenOrderHistoryPage />} />
+              <Route path="/dashboard/kitchen/item-history" element={<KitchenItemHistoryPage />} />
+              <Route path="/dashboard/kitchen/chef-performance" element={<KitchenChefPerformancePage />} />
+              <Route path="/dashboard/kitchen/timeline" element={<KitchenTimelinePage />} />
+              <Route path="/dashboard/kitchen/settings" element={<KitchenSettingsPage />} />
             </Route>
 
             {/* Waiter Dashboards */}
             <Route element={<RoleGuard allowedRoles={['owner', 'admin', 'manager', 'waiter']} />}>
               <Route path="/dashboard/waiter" element={<WaiterMatrix />} />
               <Route path="/dashboard/waiter/alerts" element={<WaiterAlerts />} />
+              <Route path="/dashboard/waiter/assigned-tables" element={<WaiterAssignedTablesPage />} />
+              <Route path="/dashboard/waiter/order-history" element={<WaiterOrderHistoryPage />} />
+              <Route path="/dashboard/waiter/item-history" element={<WaiterItemHistoryPage />} />
+              <Route path="/dashboard/waiter/performance" element={<WaiterPerformancePage />} />
+              <Route path="/dashboard/waiter/timeline" element={<WaiterTimelinePage />} />
+              <Route path="/dashboard/waiter/shift-report" element={<WaiterShiftReportPage />} />
             </Route>
 
             {/* Branch Admin/Logs Dashboards */}

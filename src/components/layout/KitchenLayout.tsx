@@ -1,3 +1,2 @@
-export * from '../../shared/ui/layouts/KitchenLayout';
-import KitchenLayout from '../../shared/ui/layouts/KitchenLayout';
-export default KitchenLayout;
+// Deprecated during clean-up. This file has been cleared and is no longer used.
+export default null;

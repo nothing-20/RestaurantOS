@@ -48,6 +48,7 @@ export const OwnerAnalytics: React.FC = () => {
   const [inventory, setInventory] = useState<any[]>([]);
   const [wasteLogs, setWasteLogs] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Active BI tab
@@ -107,6 +108,12 @@ export const OwnerAnalytics: React.FC = () => {
       setSuppliers(list);
     });
 
+    const unsubMenuItems = onSnapshot(collection(db, 'restaurants', tenantId, 'menuItems'), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+      setMenuItems(list);
+    });
+
     return () => {
       unsubOrders();
       unsubRequests();
@@ -114,6 +121,7 @@ export const OwnerAnalytics: React.FC = () => {
       unsubInv();
       unsubWaste();
       unsubSuppliers();
+      unsubMenuItems();
     };
   }, [tenantId]);
 
@@ -223,19 +231,39 @@ export const OwnerAnalytics: React.FC = () => {
         }
       }
     });
-    const avgPrep = prepCount > 0 ? Math.round(totalPrepTime / prepCount) : 12; // default 12 mins
 
-    // Average rating
-    const avgRating = filteredData.ratings.length > 0
-      ? filteredData.ratings.reduce((sum, r) => {
-          let score = 5;
-          if (r.rating === 'Good') score = 4;
-          if (r.rating === 'Neutral') score = 3;
-          if (r.rating === 'Needs Attention') score = 2;
-          if (r.rating === 'Complaint') score = 1;
-          return sum + score;
-        }, 0) / filteredData.ratings.length
-      : 4.8; // default 4.8
+    const allCompleted = orders.filter(o => o.status === 'COMPLETED' || o.status === 'DELIVERED');
+    let allPrepTime = 0;
+    let allPrepCount = 0;
+    allCompleted.forEach(o => {
+      if (o.createdAt && o.updatedAt) {
+        const diff = (new Date(o.updatedAt).getTime() - new Date(o.createdAt).getTime()) / 60000;
+        if (diff > 0 && diff < 180) {
+          allPrepTime += diff;
+          allPrepCount++;
+        }
+      }
+    });
+    const fallbackPrep = allPrepCount > 0 ? Math.round(allPrepTime / allPrepCount) : 10;
+    const avgPrep = prepCount > 0 ? Math.round(totalPrepTime / prepCount) : fallbackPrep;
+
+    // Average rating calculation helper
+    const getRatingsAverage = (list: any[]) => {
+      if (list.length === 0) return 5.0;
+      const sum = list.reduce((acc, r) => {
+        let score = 5;
+        if (r.rating === 'Good') score = 4;
+        if (r.rating === 'Neutral') score = 3;
+        if (r.rating === 'Needs Attention') score = 2;
+        if (r.rating === 'Complaint') score = 1;
+        return acc + score;
+      }, 0);
+      return sum / list.length;
+    };
+
+    const avgRating = filteredData.ratings.length > 0 
+      ? getRatingsAverage(filteredData.ratings) 
+      : getRatingsAverage(ratings);
 
     // Active tables count
     const activeTables = new Set(
@@ -248,21 +276,26 @@ export const OwnerAnalytics: React.FC = () => {
     const lowStockCount = inventory.filter(i => i.status === 'low' || i.status === 'critical' || i.status === 'out_of_stock').length;
 
     return { totalRev, count, aov, avgPrep, avgRating, activeTables, lowStockCount };
-  }, [filteredData, orders, inventory]);
+  }, [filteredData, orders, inventory, ratings]);
 
   // 4. Sales metrics
   const salesMetrics = useMemo(() => {
     const freqMap: Record<string, { name: string; count: number; value: number }> = {};
-    filteredData.orders.forEach(o => {
-      o.items?.forEach((i: any) => {
-        if (freqMap[i.itemId]) {
-          freqMap[i.itemId].count += i.count;
-          freqMap[i.itemId].value += (i.pricePerUnit || i.price) * i.count;
+    (filteredData?.orders || []).forEach(o => {
+      o?.items?.forEach((i: any) => {
+        const itemId = i?.itemId || 'unknown';
+        const name = i?.name || 'Unnamed Item';
+        const count = typeof i?.count === 'number' ? i.count : (parseInt(i?.count) || 1);
+        const price = typeof i?.pricePerUnit === 'number' ? i.pricePerUnit : (typeof i?.price === 'number' ? i.price : 0);
+        
+        if (freqMap[itemId]) {
+          freqMap[itemId].count += count;
+          freqMap[itemId].value += price * count;
         } else {
-          freqMap[i.itemId] = {
-            name: i.name,
-            count: i.count,
-            value: (i.pricePerUnit || i.price) * i.count
+          freqMap[itemId] = {
+            name,
+            count,
+            value: price * count
           };
         }
       });
@@ -274,14 +307,16 @@ export const OwnerAnalytics: React.FC = () => {
 
     // Table revenue splits
     const tableMap: Record<string, number> = {};
-    filteredData.orders.forEach(o => {
-      tableMap[o.tableNumber] = (tableMap[o.tableNumber] || 0) + (o.total || 0);
+    (filteredData?.orders || []).forEach(o => {
+      if (o?.tableNumber !== undefined) {
+        tableMap[o.tableNumber] = (tableMap[o.tableNumber] || 0) + (o.total || 0);
+      }
     });
 
     // Waiter revenue splits
     const waiterMap: Record<string, number> = {};
-    filteredData.orders.forEach(o => {
-      if (o.waiterName) {
+    (filteredData?.orders || []).forEach(o => {
+      if (o?.waiterName) {
         waiterMap[o.waiterName] = (waiterMap[o.waiterName] || 0) + (o.total || 0);
       }
     });
@@ -350,6 +385,12 @@ export const OwnerAnalytics: React.FC = () => {
     return { cash, upi, card, wallet, subtotal, tax, serviceCharge, refundValue };
   }, [filteredData]);
 
+  // stockMetrics calculation
+  const stockMetrics = useMemo(() => {
+    const wasteCost = (filteredData?.waste || []).reduce((sum, w) => sum + (w?.valueLost || w?.value || 0), 0);
+    return { wasteCost };
+  }, [filteredData]);
+
   // 7. Business Health Score Algorithm
   const healthScore = useMemo(() => {
     // 1. CSAT component (max 25 pts)
@@ -413,46 +454,49 @@ export const OwnerAnalytics: React.FC = () => {
   const forecasts = useMemo(() => {
     const list: string[] = [];
 
-    // Forecast stock depletion
-    inventory.forEach(i => {
-      if (i.status === 'low' || i.status === 'critical') {
-        list.push(`Chicken stock may run out in 3 days based on current consumption trend.`);
-      }
-    });
-
-    // Busy days predictions
-    const peakHourCount = operationsMetrics.hoursCount;
-    const totalPeakOrders = peakHourCount.slice(18, 22).reduce((a, b) => a + b, 0);
-    if (totalPeakOrders > 5) {
-      list.push(`Friday and Saturday dinner (19:00 - 21:00) is expected to be busy. Schedule extra kitchen staff.`);
-    }
-
-    // Dish popularity forecast
-    const BiryaniOrder = orders.filter(o => o.items?.some((i: any) => i.name.toLowerCase().includes('biryani'))).length;
-    if (BiryaniOrder > 3) {
-      list.push(`Biryani demand is increasing. Replenish spice inventories.`);
-    }
-
-    // CSAT decline alert
-    if (biOverview.avgRating < 4.5) {
-      list.push(`Customer satisfaction decreased this week. Average turnaround latency increased.`);
+    // 1. Forecast stock depletion & likely shortages
+    const lowItems = inventory.filter(i => i.status === 'low' || i.status === 'critical' || i.status === 'out_of_stock');
+    if (lowItems.length > 0) {
+      const names = lowItems.slice(0, 2).map(i => i.name).join(', ');
+      list.push(`Likely shortages: [${names}] are below safety limits. Supplier reorders recommended.`);
     } else {
-      list.push(`Customer retention looks stable. Standard menu configurations are matching expectations.`);
+      list.push('Inventory stock levels look healthy with no imminent ingredient shortages.');
     }
+
+    // 2. Busy days/Weekend Traffic predictions
+    const weekendCount = orders.filter(o => {
+      const day = new Date(o.createdAt).getDay();
+      return day === 0 || day === 6;
+    }).length;
+    const totalCount = orders.length;
+    if (totalCount > 0) {
+      const ratio = Math.round((weekendCount / totalCount) * 100);
+      list.push(`Weekend transactions account for ${ratio}% of order volume. Adjust prep schedules for weekend traffic.`);
+    }
+
+    // 3. Expected Demand Prediction
+    const weeklyAvg = Math.round(orders.length / 4) || 5;
+    list.push(`Expected demand: ~${weeklyAvg} orders expected over the next 7-day trailing window.`);
+
+    // 4. CSAT/Customer retention
+    const repeatRatio = ratings.length > 0
+      ? Math.round((ratings.filter(r => r.repeatCustomer).length / ratings.length) * 100)
+      : 80;
+    list.push(`Customer retention: CSAT feedback indicates a ${repeatRatio}% customer loyalty level.`);
 
     return list.slice(0, 4);
-  }, [inventory, operationsMetrics, orders, biOverview]);
+  }, [inventory, orders, ratings]);
 
   // 9. Smart Insights Engines
   const smartInsights = useMemo(() => {
     const list: { type: 'success' | 'warning' | 'info'; title: string; text: string }[] = [];
 
     // Revenue growth insights
-    if (biOverview.totalRev > 50000) {
+    if (biOverview.totalRev > 0) {
       list.push({
         type: 'success',
-        title: 'Strong Revenue Growth',
-        text: `Revenue increased compared to last trailing window. Total logged: ${formatPrice(biOverview.totalRev)}.`
+        title: 'Revenue Flow Insights',
+        text: `Completed ticket sales generated a gross revenue of ${formatPrice(biOverview.totalRev)}.`
       });
     }
 
@@ -461,22 +505,40 @@ export const OwnerAnalytics: React.FC = () => {
     if (topDish) {
       list.push({
         type: 'info',
-        title: 'Dish Spotlight',
-        text: `"${topDish.name}" is today's top seller with ${topDish.count} servings.`
+        title: 'Top Selling Dish',
+        text: `"${topDish.name}" is your highest volume menu item, totaling ${topDish.count} servings.`
       });
     }
 
-    // Kitchen prep latency warnings
-    if (biOverview.avgPrep > 15) {
+    // Slowest moving item
+    const bottomDish = salesMetrics.worstSelling[salesMetrics.worstSelling.length - 1];
+    if (bottomDish) {
       list.push({
-        type: 'warning',
-        title: 'Kitchen Latency Alert',
-        text: `Average kitchen preparation time has increased to ${biOverview.avgPrep} mins. Check station bottlenecks.`
+        type: 'info',
+        title: 'Slowest Moving Dish',
+        text: `"${bottomDish.name}" is your lowest volume menu item, totaling only ${bottomDish.count} servings.`
+      });
+    }
+
+    // Peak ordering hour
+    let peakHr = 0;
+    let peakCount = 0;
+    operationsMetrics.hoursCount.forEach((c, h) => {
+      if (c > peakCount) {
+        peakCount = c;
+        peakHr = h;
+      }
+    });
+    if (peakCount > 0) {
+      list.push({
+        type: 'success',
+        title: 'Peak Seating Hour',
+        text: `Most orders are processed at ${peakHr}:00. Ensure staffing matches peak volume.`
       });
     }
 
     // Top waiter stars highlight
-    let topWaiter = 'Rahul';
+    let topWaiter = '';
     let maxServings = 0;
     Object.entries(operationsMetrics.waiterOrders).forEach(([w, c]) => {
       if (c > maxServings) {
@@ -487,30 +549,76 @@ export const OwnerAnalytics: React.FC = () => {
     if (maxServings > 0) {
       list.push({
         type: 'success',
-        title: 'Staff Spotlight',
-        text: `Waiter ${topWaiter} has the highest turnaround count this shift (${maxServings} orders).`
+        title: 'Highest Performing Waiter',
+        text: `${topWaiter} resolved the highest number of customer orders (${maxServings} orders).`
       });
     }
 
-    // Low stock warnings
-    const lowIng = inventory.find(i => i.status === 'low' || i.status === 'critical');
-    if (lowIng) {
+    // Cancelled Item Audit
+    const cancelledOrders = filteredData.orders.filter(o => o.status === 'CANCELLED');
+    const cancelledItemsMap: Record<string, number> = {};
+    cancelledOrders.forEach(o => {
+      o.items?.forEach((i: any) => {
+        cancelledItemsMap[i.name] = (cancelledItemsMap[i.name] || 0) + (i.count || 1);
+      });
+    });
+    const topCancelled = Object.entries(cancelledItemsMap).sort((a,b) => b[1] - a[1])[0];
+    if (topCancelled) {
       list.push({
         type: 'warning',
-        title: 'Reorder Suggestion',
-        text: `Ingredients for "${lowIng.name}" are approaching safety margins. Supplier reorder is suggested.`
+        title: 'Cancellation Warning',
+        text: `"${topCancelled[0]}" had the highest cancellation rate (${topCancelled[1]} cancellations logged).`
+      });
+    }
+
+    // Most profitable category
+    const categoryRevMap: Record<string, number> = {};
+    filteredData.orders.forEach(o => {
+      if (o.status === 'COMPLETED' || o.status === 'DELIVERED') {
+        o.items?.forEach((i: any) => {
+          const cat = i.category || 'Other';
+          const count = i.count || 1;
+          const price = i.price || i.pricePerUnit || 0;
+          categoryRevMap[cat] = (categoryRevMap[cat] || 0) + (price * count);
+        });
+      }
+    });
+    const topCategory = Object.entries(categoryRevMap).sort((a,b) => b[1] - a[1])[0];
+    if (topCategory) {
+      list.push({
+        type: 'success',
+        title: 'Most Profitable Category',
+        text: `Category "${topCategory[0]}" generated the highest sales revenue of ${formatPrice(topCategory[1])}.`
+      });
+    }
+
+    // Spoilage waste insight
+    if (stockMetrics.wasteCost > 0) {
+      list.push({
+        type: 'warning',
+        title: 'Stock Spoilage offset',
+        text: `Spoiled ingredients resulted in an offset loss of ${formatPrice(stockMetrics.wasteCost)}.`
       });
     }
 
     return list.slice(0, 4);
-  }, [biOverview, salesMetrics, operationsMetrics, inventory]);
+  }, [biOverview, salesMetrics, operationsMetrics, filteredData, stockMetrics, ratings]);
 
-  // Custom Line Chart for trailing period sales
+  // Custom Line Chart for trailing period sales (Revenue graph)
   const renderPeriodSalesChart = () => {
+    if (filteredData.orders.length === 0) {
+      return (
+        <div className="h-44 flex flex-col items-center justify-center text-slate-500 border border-slate-850/50 rounded-xl bg-slate-900/10">
+          <Activity className="w-8 h-8 mb-2 animate-pulse text-slate-700" />
+          <span className="text-xs font-semibold">No revenue data available for selected filters.</span>
+        </div>
+      );
+    }
+
     const dataPoints = Array.from({ length: 7 }, (_, i) => {
       const d = new Date();
       d.setDate(d.getDate() - (6 - i));
-      const total = orders
+      const total = filteredData.orders
         .filter(o => (o.status === 'COMPLETED' || o.status === 'DELIVERED') && new Date(o.createdAt).toDateString() === d.toDateString())
         .reduce((sum, o) => sum + (o.total || 0), 0);
       return { 
@@ -558,10 +666,235 @@ export const OwnerAnalytics: React.FC = () => {
     );
   };
 
+  // Custom Line Chart for items sold count (Sales graph)
+  const renderSalesCurveChart = () => {
+    if (filteredData.orders.length === 0) {
+      return (
+        <div className="h-44 flex flex-col items-center justify-center text-slate-500 border border-slate-850/50 rounded-xl bg-slate-900/10">
+          <TrendingUp className="w-8 h-8 mb-2 text-slate-700 animate-pulse" />
+          <span className="text-xs font-semibold">No items sold data available for selected filters.</span>
+        </div>
+      );
+    }
+
+    const dataPoints = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const count = filteredData.orders
+        .filter(o => new Date(o.createdAt).toDateString() === d.toDateString())
+        .reduce((sum, o) => sum + (o.items?.reduce((s: number, item: any) => s + (item.count || 1), 0) || 0), 0);
+      return { 
+        label: d.toLocaleDateString(undefined, { weekday: 'short' }), 
+        count 
+      };
+    });
+
+    const maxCount = Math.max(...dataPoints.map(d => d.count), 5);
+    const padding = 45;
+    const width = 600;
+    const height = 220;
+
+    const points = dataPoints.map((d, i) => {
+      const x = padding + (i * (width - padding * 2)) / 6;
+      const y = height - padding - (d.count / maxCount) * (height - padding * 2);
+      return { x, y, label: d.label, count: d.count };
+    });
+
+    const pathD = points.reduce((acc, p, i) => {
+      return i === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`;
+    }, '');
+
+    return (
+      <div className="w-full select-none">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full overflow-visible text-slate-500">
+          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#1e293b" strokeWidth="1" />
+          <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#1e293b" strokeWidth="1" />
+          {points.length > 1 && (
+            <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          )}
+          {points.map((p, i) => (
+            <g key={i}>
+              <circle cx={p.x} cy={p.y} r="4.5" fill="#3b82f6" className="cursor-pointer" />
+              <text x={p.x} y={height - 18} textAnchor="middle" fill="#64748b" className="text-[10px] font-bold">
+                {p.label}
+              </text>
+              <text x={p.x} y={p.y - 10} textAnchor="middle" fill="#e2e8f0" className="text-[9.5px] font-semibold">
+                {p.count} qty
+              </text>
+            </g>
+          ))}
+        </svg>
+      </div>
+    );
+  };
+
+  // Custom Staff Performance Bar Chart (Performance graph)
+  const renderWaiterPerformanceChart = () => {
+    const waiterStats = Object.entries(operationsMetrics.waiterOrders);
+    if (waiterStats.length === 0) {
+      return (
+        <div className="h-44 flex flex-col items-center justify-center text-slate-500 border border-slate-850/50 rounded-xl bg-slate-900/10">
+          <Users className="w-8 h-8 mb-2 text-slate-700 animate-pulse" />
+          <span className="text-xs font-semibold">No staff performance data available.</span>
+        </div>
+      );
+    }
+
+    const maxOrders = Math.max(...waiterStats.map(([_, count]) => count), 5);
+    const padding = 45;
+    const width = 600;
+    const height = 220;
+
+    return (
+      <div className="w-full select-none">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full overflow-visible text-slate-500">
+          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#1e293b" strokeWidth="1" />
+          <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#1e293b" strokeWidth="1" />
+          {waiterStats.map(([waiter, count], i) => {
+            const barWidth = 40;
+            const gap = (width - padding * 2 - barWidth * waiterStats.length) / Math.max(1, waiterStats.length - 1);
+            const x = padding + i * (barWidth + gap);
+            const barHeight = (count / maxOrders) * (height - padding * 2);
+            const y = height - padding - barHeight;
+
+            return (
+              <g key={waiter}>
+                <rect x={x} y={y} width={barWidth} height={barHeight} fill="#10b981" rx="4" />
+                <text x={x + barWidth / 2} y={height - 18} textAnchor="middle" fill="#64748b" className="text-[10px] font-bold">
+                  {waiter}
+                </text>
+                <text x={x + barWidth / 2} y={y - 8} textAnchor="middle" fill="#e2e8f0" className="text-[9.5px] font-semibold font-mono">
+                  {count}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    );
+  };
+
+  // Custom Spoilage Waste Cost Bar Chart (Stock graph)
+  const renderStockWasteChart = () => {
+    if (filteredData.waste.length === 0) {
+      return (
+        <div className="h-44 flex flex-col items-center justify-center text-slate-500 border border-slate-850/50 rounded-xl bg-slate-900/10">
+          <Package className="w-8 h-8 mb-2 text-slate-700 animate-pulse" />
+          <span className="text-xs font-semibold">No stock waste logs logged.</span>
+        </div>
+      );
+    }
+
+    const wasteMap: Record<string, number> = {};
+    filteredData.waste.forEach(w => {
+      wasteMap[w.ingredientName] = (wasteMap[w.ingredientName] || 0) + (w.valueLost || w.value || 0);
+    });
+
+    const wasteStats = Object.entries(wasteMap).slice(0, 5);
+    const maxWaste = Math.max(...wasteStats.map(([_, cost]) => cost), 10);
+    const padding = 45;
+    const width = 600;
+    const height = 220;
+
+    return (
+      <div className="w-full select-none">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full overflow-visible text-slate-500">
+          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#1e293b" strokeWidth="1" />
+          <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#1e293b" strokeWidth="1" />
+          {wasteStats.map(([ing, cost], i) => {
+            const barWidth = 45;
+            const gap = (width - padding * 2 - barWidth * wasteStats.length) / Math.max(1, wasteStats.length - 1);
+            const x = padding + i * (barWidth + gap);
+            const barHeight = (cost / maxWaste) * (height - padding * 2);
+            const y = height - padding - barHeight;
+
+            return (
+              <g key={ing}>
+                <rect x={x} y={y} width={barWidth} height={barHeight} fill="#ef4444" rx="4" />
+                <text x={x + barWidth / 2} y={height - 18} textAnchor="middle" fill="#64748b" className="text-[9px] font-bold">
+                  {ing.substring(0, 8)}
+                </text>
+                <text x={x + barWidth / 2} y={y - 8} textAnchor="middle" fill="#e2e8f0" className="text-[9px] font-semibold font-mono">
+                  ${cost.toFixed(0)}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    );
+  };
+
+  // Custom Finance Payment Methods Splits Chart (Finance graph)
+  const renderFinanceMethodsChart = () => {
+    const methods = [
+      { name: 'UPI', amount: financialMetrics.upi, color: '#f59e0b' },
+      { name: 'Card', amount: financialMetrics.card, color: '#10b981' },
+      { name: 'Cash', amount: financialMetrics.cash, color: '#3b82f6' },
+      { name: 'Wallet', amount: financialMetrics.wallet, color: '#8b5cf6' }
+    ].filter(m => m.amount > 0);
+
+    if (methods.length === 0) {
+      return (
+        <div className="h-44 flex flex-col items-center justify-center text-slate-550 border border-slate-850/50 rounded-xl bg-slate-900/10">
+          <DollarSign className="w-8 h-8 mb-2 text-slate-700 animate-pulse" />
+          <span className="text-xs font-semibold">No transaction settlement records found.</span>
+        </div>
+      );
+    }
+
+    const maxAmt = Math.max(...methods.map(m => m.amount), 50);
+    const padding = 45;
+    const width = 600;
+    const height = 220;
+
+    return (
+      <div className="w-full select-none">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full overflow-visible text-slate-500">
+          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#1e293b" strokeWidth="1" />
+          <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#1e293b" strokeWidth="1" />
+          {methods.map((m, i) => {
+            const barWidth = 50;
+            const gap = (width - padding * 2 - barWidth * methods.length) / Math.max(1, methods.length - 1);
+            const x = padding + i * (barWidth + gap);
+            const barHeight = (m.amount / maxAmt) * (height - padding * 2);
+            const y = height - padding - barHeight;
+
+            return (
+              <g key={m.name}>
+                <rect x={x} y={y} width={barWidth} height={barHeight} fill={m.color} rx="4" />
+                <text x={x + barWidth / 2} y={height - 18} textAnchor="middle" fill="#64748b" className="text-[10px] font-bold">
+                  {m.name}
+                </text>
+                <text x={x + barWidth / 2} y={y - 8} textAnchor="middle" fill="#e2e8f0" className="text-[9.5px] font-semibold font-mono">
+                  ${(m.amount / 100).toFixed(0)}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="h-64 flex items-center justify-center">
         <LoadingSpinner label="Compiling business intelligence diagnostics..." />
+      </div>
+    );
+  }
+
+  if (orders.length === 0) {
+    return (
+      <div className="space-y-6 text-left select-none antialiased">
+        <Card className="p-8 text-center border border-dashed border-slate-850 rounded-2xl bg-slate-900/10">
+          <Activity className="w-12 h-12 text-slate-700 mx-auto mb-3 animate-pulse" />
+          <h3 className="text-sm font-bold text-textPearl uppercase tracking-wider mb-2">Insufficient Analytics Data</h3>
+          <p className="text-xs text-slate-500 font-semibold max-w-md mx-auto leading-relaxed">
+            Analytics metrics, trend forecasts, and business intelligence diagnostics will become available here as orders, transactions, and reviews are recorded.
+          </p>
+        </Card>
       </div>
     );
   }
@@ -655,7 +988,8 @@ export const OwnerAnalytics: React.FC = () => {
           { id: 'operations', label: 'Operations Performance', icon: Utensils },
           { id: 'inventory', label: 'Stock analytics', icon: Package },
           { id: 'customer', label: 'CSAT & ratings', icon: Users },
-          { id: 'financial', label: 'Finance Ledgers', icon: Percent }
+          { id: 'financial', label: 'Finance Ledgers', icon: Percent },
+          { id: 'batch_prepared', label: 'Batch Portions', icon: Sparkles }
         ]}
       />
 
@@ -767,6 +1101,14 @@ export const OwnerAnalytics: React.FC = () => {
       {/* Sales Analytics Tab */}
       {activeTab === 'sales' && (
         <div className="space-y-6">
+          <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
+            <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider pb-2 border-b border-slate-850/60">
+              Sales Volume Trailing Curve
+            </h3>
+            <div className="pt-2">
+              {renderSalesCurveChart()}
+            </div>
+          </Card>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
               <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider pb-2 border-b border-slate-850/60">
@@ -838,18 +1180,30 @@ export const OwnerAnalytics: React.FC = () => {
       {/* Operations Analytics Tab */}
       {activeTab === 'operations' && (
         <div className="space-y-6">
+          <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
+            <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider pb-2 border-b border-slate-850/60">
+              Waiter Service Performance
+            </h3>
+            <div className="pt-2">
+              {renderWaiterPerformanceChart()}
+            </div>
+          </Card>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
               <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider pb-2 border-b border-slate-850/60">
                 Fastest Orders Turnaround (Mins)
               </h3>
               <div className="space-y-2.5">
-                {operationsMetrics.fastest.map((t, idx) => (
-                  <div key={idx} className="flex justify-between items-center bg-slate-950/40 p-3 border border-slate-855 rounded-xl text-xs">
-                    <span className="font-semibold text-textPearl">Order: #{t.id.split('-')[1] || t.id}</span>
-                    <span className="font-bold text-emerald-500">{t.elapsed.toFixed(1)} mins</span>
-                  </div>
-                ))}
+                {operationsMetrics.fastest.length === 0 ? (
+                  <p className="text-xs text-slate-550 font-bold uppercase text-center py-4">No completed orders</p>
+                ) : (
+                  operationsMetrics.fastest.map((t, idx) => (
+                    <div key={idx} className="flex justify-between items-center bg-slate-950/40 p-3 border border-slate-855 rounded-xl text-xs">
+                      <span className="font-semibold text-textPearl">Order: #{t?.id ? (t.id.split('-')[1] || t.id) : 'N/A'}</span>
+                      <span className="font-bold text-emerald-500">{t?.elapsed !== undefined ? t.elapsed.toFixed(1) : '10'} mins</span>
+                    </div>
+                  ))
+                )}
               </div>
             </Card>
 
@@ -858,12 +1212,16 @@ export const OwnerAnalytics: React.FC = () => {
                 Kitchen Prep Bottlenecks (Slowest Mins)
               </h3>
               <div className="space-y-2.5">
-                {operationsMetrics.slowest.map((t, idx) => (
-                  <div key={idx} className="flex justify-between items-center bg-slate-950/40 p-3 border border-slate-855 rounded-xl text-xs">
-                    <span className="font-semibold text-textPearl">Order: #{t.id.split('-')[1] || t.id}</span>
-                    <span className="font-bold text-red-500">{t.elapsed.toFixed(1)} mins</span>
-                  </div>
-                ))}
+                {operationsMetrics.slowest.length === 0 ? (
+                  <p className="text-xs text-slate-550 font-bold uppercase text-center py-4">No completed orders</p>
+                ) : (
+                  operationsMetrics.slowest.map((t, idx) => (
+                    <div key={idx} className="flex justify-between items-center bg-slate-950/40 p-3 border border-slate-855 rounded-xl text-xs">
+                      <span className="font-semibold text-textPearl">Order: #{t?.id ? (t.id.split('-')[1] || t.id) : 'N/A'}</span>
+                      <span className="font-bold text-red-500">{t?.elapsed !== undefined ? t.elapsed.toFixed(1) : '10'} mins</span>
+                    </div>
+                  ))
+                )}
               </div>
             </Card>
           </div>
@@ -899,6 +1257,14 @@ export const OwnerAnalytics: React.FC = () => {
       {/* Inventory Analytics Tab */}
       {activeTab === 'inventory' && (
         <div className="space-y-6">
+          <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
+            <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider pb-2 border-b border-slate-850/60">
+              Stock Spoilage & Waste Loss
+            </h3>
+            <div className="pt-2">
+              {renderStockWasteChart()}
+            </div>
+          </Card>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
               <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider pb-2 border-b border-slate-850/60">
@@ -1017,6 +1383,15 @@ export const OwnerAnalytics: React.FC = () => {
 
           <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
             <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider pb-2 border-b border-slate-850/60">
+              Payment Methods Splits
+            </h3>
+            <div className="pt-2">
+              {renderFinanceMethodsChart()}
+            </div>
+          </Card>
+
+          <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
+            <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider pb-2 border-b border-slate-850/60">
               Invoicing margins summary
             </h3>
             <div className="space-y-3.5 text-xs font-medium text-slate-400">
@@ -1044,6 +1419,133 @@ export const OwnerAnalytics: React.FC = () => {
           </Card>
         </div>
       )}
+
+      {/* Batch Portions tab */}
+      {activeTab === 'batch_prepared' && (() => {
+        const batchItems = menuItems.filter(i => i.preparationMethod === 'batch');
+        const totalBatches = batchItems.length;
+        const totalPrepared = batchItems.reduce((acc, curr) => acc + (curr.defaultBatchSize ?? 50), 0);
+        const totalRemaining = batchItems.reduce((acc, curr) => acc + (curr.availableServings ?? 0), 0);
+        
+        let totalConsumed = 0;
+        const itemConsumptionMap: Record<string, number> = {};
+        
+        orders.forEach(order => {
+          if (order.status === 'COMPLETED' || order.status === 'DELIVERED') {
+            order.items?.forEach((item: any) => {
+              const matchingItem = batchItems.find(bi => bi.id === item.itemId);
+              if (matchingItem) {
+                const count = Number(item.count || 1);
+                totalConsumed += count;
+                itemConsumptionMap[matchingItem.name] = (itemConsumptionMap[matchingItem.name] || 0) + count;
+              }
+            });
+          }
+        });
+
+        const uniqueDays = new Set<string>();
+        orders.forEach(order => {
+          if (order.createdAt) {
+            uniqueDays.add(order.createdAt.substring(0, 10));
+          }
+        });
+        const daysCount = Math.max(1, uniqueDays.size);
+        const avgDailyConsumption = totalConsumed / daysCount;
+        const estimatedDaysUntilExhaustion = avgDailyConsumption > 0 
+          ? (totalRemaining / avgDailyConsumption)
+          : Infinity;
+
+        return (
+          <div className="space-y-6 animate-in fade-in duration-200 text-left">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card className="p-5 border-slate-850 bg-slate-900/30">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Active Batch Items</span>
+                <h2 className="text-2xl font-display font-extrabold text-textPearl mt-1">{totalBatches} items</h2>
+                <div className="text-[10px] text-slate-400 mt-1">Configured for Advance Prep</div>
+              </Card>
+
+              <Card className="p-5 border-slate-850 bg-slate-900/30">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Total Batch Prepared</span>
+                <h2 className="text-2xl font-display font-extrabold text-textPearl mt-1">{totalPrepared} portions</h2>
+                <div className="text-[10px] text-slate-400 mt-1">Total Capacity Across Batches</div>
+              </Card>
+
+              <Card className="p-5 border-slate-850 bg-slate-900/30">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Total Batch Consumed</span>
+                <h2 className="text-2xl font-display font-extrabold text-emerald-400 mt-1">{totalConsumed} portions</h2>
+                <div className="text-[10px] text-slate-400 mt-1">Served from Batches (All Time)</div>
+              </Card>
+
+              <Card className="p-5 border-slate-850 bg-slate-900/30">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Remaining portions</span>
+                <h2 className="text-2xl font-display font-extrabold text-amber-400 mt-1">{totalRemaining} portions</h2>
+                <div className="text-[10px] text-slate-400 mt-1">Available in Stock</div>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
+                <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider pb-2 border-b border-slate-850/60">
+                  Consumption Rates & Exhaustion forecast
+                </h3>
+                
+                <div className="space-y-4 py-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-400">Average Daily Consumption:</span>
+                    <strong className="text-textPearl text-sm">{avgDailyConsumption.toFixed(1)} portions/day</strong>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-400">Current Stock Portion Level:</span>
+                    <strong className="text-textPearl text-sm">{totalRemaining} / {totalPrepared} portions</strong>
+                  </div>
+
+                  <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-xl space-y-1.5">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Exhaustion Forecast</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-350">Estimated Time Until Exhaustion:</span>
+                      <strong className="text-sm text-primary font-mono font-extrabold">
+                        {estimatedDaysUntilExhaustion === Infinity ? 'N/A (No sales)' : `${estimatedDaysUntilExhaustion.toFixed(1)} days`}
+                      </strong>
+                    </div>
+                    <p className="text-[9px] text-slate-505 mt-1 leading-relaxed">
+                      Based on historical order logs. We advise checking the low portions warnings inside the KDS prepared batches panel to schedule next preps.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
+                <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider pb-2 border-b border-slate-850/60">
+                  Batch Consumed Breakdowns
+                </h3>
+                {Object.keys(itemConsumptionMap).length === 0 ? (
+                  <p className="text-xs text-slate-500 py-4 text-center font-semibold">No servings have been ordered yet.</p>
+                ) : (
+                  <div className="space-y-3.5 max-h-64 overflow-y-auto pr-1">
+                    {Object.entries(itemConsumptionMap).map(([name, count]) => {
+                      const matchedItem = menuItems.find(i => i.name === name);
+                      const remaining = matchedItem?.availableServings ?? 0;
+                      return (
+                        <div key={name} className="flex justify-between items-center bg-slate-950/40 p-3 border border-slate-855 rounded-xl text-xs">
+                          <div>
+                            <span className="font-bold text-textPearl block">{name}</span>
+                            <span className="text-[9px] text-slate-550 block mt-0.5">Remaining Stock: {remaining} portions</span>
+                          </div>
+                          <div className="text-right">
+                            <strong className="font-mono text-emerald-400 font-extrabold text-sm">{count} portions</strong>
+                            <span className="text-[8px] text-slate-500 block uppercase mt-0.5">Ordered</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

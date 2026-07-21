@@ -1,4 +1,5 @@
 export interface ITable {
+  tableNumber: string;
   id: string;
   tenantId: string;
   number: string;
@@ -6,6 +7,8 @@ export interface ITable {
   status: 'empty' | 'occupied' | 'service_requested' | 'bill_requested' | 'cleaning';
   activeOrderId?: string;
   qrCodeUrl: string;
+  capacity?: number;
+  floor?: string;
   
   // Waiter assignments
   assignedWaiterId?: string;
@@ -14,4 +17,6 @@ export interface ITable {
   currentOrderId?: string;
   section?: string;
   tableNotes?: string;
+  seatingTime?: string;
 }
+

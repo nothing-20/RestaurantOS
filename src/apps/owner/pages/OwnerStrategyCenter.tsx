@@ -34,7 +34,10 @@ export const OwnerStrategyCenter: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState('goals');
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') || 'goals';
+  });
 
   // Form states for creating a goal
   const [newGoalType, setNewGoalType] = useState<'revenue' | 'waste' | 'csat' | 'prep_time'>('revenue');

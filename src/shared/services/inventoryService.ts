@@ -302,5 +302,213 @@ export const inventoryService = {
     }
 
     return docRef.id;
+  },
+
+  // Deduct prepared batch portions when an order transitions to PREPARING status
+  deductBatchServings: async (tenantId: string, orderId: string) => {
+    const orderRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
+
+    await runTransaction(db, async (transaction) => {
+      const orderSnap = await transaction.get(orderRef);
+      if (!orderSnap.exists()) return;
+      const data = orderSnap.data();
+
+      // If already processed, ignore
+      if (data.batchServingsDeducted) return;
+
+      const items = data.items || [];
+      if (items.length === 0) {
+        transaction.update(orderRef, { batchServingsDeducted: true });
+        return;
+      }
+
+      for (const item of items) {
+        const itemRef = doc(db, 'restaurants', tenantId, 'menu', 'default', 'items', item.itemId);
+        const itemSnap = await transaction.get(itemRef);
+
+        if (itemSnap.exists()) {
+          const itemData = itemSnap.data();
+          const isBatch = itemData.preparationMethod === 'batch' || itemData.productionMode === 'Batch Production';
+          if (isBatch) {
+            const currentServings = itemData.availableServings ?? 0;
+            const countToDeduct = item.count || 1;
+            const newServings = Math.max(0, currentServings - countToDeduct);
+
+            const updateFields: any = {
+              availableServings: newServings,
+              updatedAt: new Date().toISOString()
+            };
+
+            // Auto mark unavailable if config is set and servings hit 0
+            if (newServings === 0 && itemData.autoUnavailable !== false) {
+              updateFields.isAvailable = false;
+              updateFields.available = false;
+            }
+
+            transaction.update(itemRef, updateFields);
+
+            // Trigger log event/notifications if stock level status transitions
+            const lowThreshold = itemData.lowStockThreshold ?? 10;
+            const oldStatus = currentServings === 0 ? 'critical' : currentServings <= lowThreshold ? 'low' : 'healthy';
+            const newStatus = newServings === 0 ? 'critical' : newServings <= lowThreshold ? 'low' : 'healthy';
+
+            if (oldStatus !== newStatus) {
+              const eventType = newStatus === 'critical' ? 'Batch Portion Critical' : 'Batch Portion Low';
+              const title = newStatus === 'critical' ? `Prepared Batch Sold Out: ${itemData.name}` : `Low Prepared portions: ${itemData.name}`;
+              const description = newStatus === 'critical'
+                ? `Prepared batch portions for "${itemData.name}" are sold out!`
+                : `Prepared batch portions for "${itemData.name}" are low (${newServings} portions remaining, threshold ${lowThreshold})`;
+
+              logEvent(tenantId, {
+                eventType,
+                eventCategory: 'Operations',
+                tenantId,
+                performedBy: 'System',
+                performedByRole: 'System',
+                title,
+                description,
+                metadata: { itemId: item.itemId, itemName: itemData.name, availableServings: newServings }
+              });
+            }
+          }
+        }
+      }
+
+      // Update Order document
+      transaction.update(orderRef, { batchServingsDeducted: true });
+    });
+  },
+
+  // Restore prepared batch portions when an order is cancelled or refunded
+  restockBatchServings: async (tenantId: string, orderId: string, type: 'refund_restock' | 'cancellation_restock') => {
+    const orderRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
+
+    await runTransaction(db, async (transaction) => {
+      const orderSnap = await transaction.get(orderRef);
+      if (!orderSnap.exists()) return;
+      const data = orderSnap.data();
+
+      // Only restore if previously deducted, and not already restocked
+      if (!data.batchServingsDeducted || data.batchServingsRestocked) return;
+
+      const items = data.items || [];
+      if (items.length === 0) {
+        transaction.update(orderRef, { batchServingsRestocked: true });
+        return;
+      }
+
+      for (const item of items) {
+        const itemRef = doc(db, 'restaurants', tenantId, 'menu', 'default', 'items', item.itemId);
+        const itemSnap = await transaction.get(itemRef);
+
+        if (itemSnap.exists()) {
+          const itemData = itemSnap.data();
+          const isBatch = itemData.preparationMethod === 'batch' || itemData.productionMode === 'Batch Production';
+          if (isBatch) {
+            const currentServings = itemData.availableServings ?? 0;
+            const countToRestore = item.count || 1;
+            const newServings = currentServings + countToRestore;
+
+            const updateFields: any = {
+              availableServings: newServings,
+              updatedAt: new Date().toISOString()
+            };
+
+            // If it was auto marked unavailable and we are restocking, make it available again
+            if (newServings > 0 && !itemData.isAvailable && itemData.autoUnavailable !== false) {
+              updateFields.isAvailable = true;
+              updateFields.available = true;
+            }
+
+            transaction.update(itemRef, updateFields);
+
+            // Log event
+            logEvent(tenantId, {
+              eventType: 'Stock Adjustment',
+              eventCategory: 'Operations',
+              tenantId,
+              performedBy: 'System',
+              performedByRole: 'System',
+              title: `Restocked portions: ${itemData.name}`,
+              description: `Restored ${countToRestore} portions for "${itemData.name}" due to order ${type.replace('_', ' ')}. New total: ${newServings}`,
+              metadata: { itemId: item.itemId, itemName: itemData.name, restoredAmount: countToRestore, availableServings: newServings }
+            });
+          }
+        }
+      }
+
+      transaction.update(orderRef, { batchServingsRestocked: true });
+    });
+  },
+
+  // Deduct ingredient stock when preparing a new batch of portions
+  deductIngredientsForBatch: async (tenantId: string, itemId: string, batchSize: number) => {
+    const recipeRef = doc(db, 'restaurants', tenantId, 'recipes', itemId);
+
+    await runTransaction(db, async (transaction) => {
+      const recipeSnap = await transaction.get(recipeRef);
+      if (!recipeSnap.exists()) {
+        throw new Error('No recipe defined for this item. Unable to prepare batch.');
+      }
+      
+      const recipe = recipeSnap.data() as IRecipe;
+      const yieldQty = recipe.yieldQuantity || 1;
+      const wasteFactor = 1 + (recipe.wastePercentage || 0) / 100;
+
+      // First check if there is sufficient stock for all ingredients
+      const ingSnaps: Record<string, { ref: any; data: IStockIngredient; needed: number }> = {};
+      for (const ing of recipe.ingredients) {
+        const neededQty = (ing.quantity / yieldQty) * batchSize * wasteFactor;
+        const ingRef = doc(db, 'restaurants', tenantId, 'inventory', ing.ingredientId);
+        const ingSnap = await transaction.get(ingRef);
+
+        if (!ingSnap.exists()) {
+          throw new Error(`Ingredient stock record for "${ing.ingredientName}" not found.`);
+        }
+
+        const ingData = ingSnap.data() as IStockIngredient;
+        if ((ingData.currentStock || 0) < neededQty) {
+          throw new Error(`Insufficient stock for "${ing.ingredientName}". Needed: ${neededQty.toFixed(1)} ${ingData.unit}, Available: ${ingData.currentStock?.toFixed(1) ?? 0} ${ingData.unit}`);
+        }
+
+        ingSnaps[ing.ingredientId] = {
+          ref: ingRef,
+          data: ingData,
+          needed: neededQty
+        };
+      }
+
+      // Deduct stock for all ingredients
+      for (const ingredientId of Object.keys(ingSnaps)) {
+        const { ref, data: ingData, needed } = ingSnaps[ingredientId];
+        const newStock = Math.max(0, (ingData.currentStock || 0) - needed);
+
+        let status: IStockIngredient['status'] = 'healthy';
+        if (newStock === 0) status = 'out_of_stock';
+        else if (newStock <= ingData.minimumStock * 0.5) status = 'critical';
+        else if (newStock <= ingData.minimumStock) status = 'low';
+
+        transaction.update(ref, {
+          currentStock: newStock,
+          status,
+          updatedAt: new Date().toISOString()
+        });
+
+        // Log movement
+        const movementId = `MVT-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+        const movementRef = doc(collection(db, 'restaurants', tenantId, 'stockMovements'), movementId);
+        transaction.set(movementRef, {
+          id: movementId,
+          ingredientId,
+          ingredientName: ingData.name,
+          quantity: -needed,
+          type: 'consumption',
+          reason: `Batch prep cooked: ${batchSize} portions`,
+          submittedBy: 'system',
+          submittedByName: 'Kitchen Chef',
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
   }
 };

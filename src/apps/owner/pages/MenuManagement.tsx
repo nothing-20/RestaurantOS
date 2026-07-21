@@ -37,6 +37,7 @@ import LoadingSpinner from '../../../components/ui/LoadingSpinner/LoadingSpinner
 
 // Hot Toast for feedback alerts
 import toast from 'react-hot-toast';
+import { logEvent } from '../../../shared/services/eventEngine';
 import { 
   Plus, 
   Edit2, 
@@ -89,7 +90,24 @@ const menuItemSchema = z.object({
     (val) => Number(val),
     z.number().min(1, 'Prep time must be at least 1 minute')
   ),
-  image: z.string().url('Must be a valid URL').or(z.literal(''))
+  image: z.string().url('Must be a valid URL').or(z.literal('')),
+  preparationMethod: z.string().default('fresh'),
+  productionMode: z.enum(['On Demand', 'Batch Production']).default('On Demand'),
+  defaultBatchSize: z.preprocess(
+    (val) => (val === '' || val === undefined || val === null ? undefined : Number(val)),
+    z.number().min(1).optional()
+  ),
+  availableServings: z.preprocess(
+    (val) => (val === '' || val === undefined || val === null ? undefined : Number(val)),
+    z.number().min(0).optional()
+  ),
+  lowStockThreshold: z.preprocess(
+    (val) => (val === '' || val === undefined || val === null ? undefined : Number(val)),
+    z.number().min(0).optional()
+  ),
+  autoUnavailable: z.boolean().default(true),
+  showServingsToStaff: z.boolean().default(true),
+  allowRefill: z.boolean().default(true)
 });
 
 type TCategoryForm = z.infer<typeof categorySchema>;
@@ -127,6 +145,11 @@ export const MenuManagement: React.FC = () => {
   const [targetCategoryId, setTargetCategoryId] = useState<string | null>(null);
   const [targetItemId, setTargetItemId] = useState<string | null>(null);
 
+  // Batch Prepared targets
+  const [refillItem, setRefillItem] = useState<IMenuItem | null>(null);
+  const [refillAmount, setRefillAmount] = useState<number>(50);
+  const [isRefillOpen, setIsRefillOpen] = useState(false);
+
   // Image Upload / Preview States
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -159,7 +182,14 @@ export const MenuManagement: React.FC = () => {
       isRecommended: false,
       spiceLevel: 'none',
       preparationTime: 10,
-      image: ''
+      image: '',
+      preparationMethod: 'fresh',
+      productionMode: 'On Demand',
+      defaultBatchSize: 50,
+      availableServings: 50,
+      lowStockThreshold: 10,
+      autoUnavailable: true,
+      showServingsToStaff: true
     }
   });
 
@@ -167,6 +197,9 @@ export const MenuManagement: React.FC = () => {
   const watchIsAvailable = watchItem('isAvailable');
   const watchIsBestSeller = watchItem('isBestSeller');
   const watchIsRecommended = watchItem('isRecommended');
+  const watchImage = watchItem('image');
+  const watchPrepMethod = watchItem('preparationMethod');
+  const watchProductionMode = watchItem('productionMode');
 
   // Real-time Firestore Listeners
   useEffect(() => {
@@ -346,6 +379,44 @@ export const MenuManagement: React.FC = () => {
     }
   };
 
+  const openRefillModal = (item: IMenuItem) => {
+    setRefillItem(item);
+    setRefillAmount(item.defaultBatchSize ?? 50);
+    setIsRefillOpen(true);
+  };
+
+  const handleConfirmRefill = async () => {
+    if (!refillItem || !user?.tenantId) return;
+    try {
+      const docRef = doc(db, getMenuItemPath(user.tenantId), refillItem.id);
+      const newServings = Number(refillAmount);
+      const isNowAvailable = newServings > 0;
+      
+      await updateDoc(docRef, {
+        availableServings: newServings,
+        isAvailable: isNowAvailable,
+        available: isNowAvailable
+      });
+
+      await logEvent(user.tenantId, {
+        tenantId: user.tenantId,
+        eventType: 'Batch Refilled',
+        eventCategory: 'Operations',
+        performedBy: user.displayName || user.email || 'Owner',
+        performedByRole: 'owner',
+        title: 'Prepared Batch Refilled',
+        description: `Refilled batch for "${refillItem.name}" to ${newServings} available servings.`
+      });
+
+      toast.success(`Refilled ${refillItem.name} batch to ${newServings} portions!`);
+      setIsRefillOpen(false);
+      setRefillItem(null);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to refill batch.');
+    }
+  };
+
   // ----------------------------------------------------
   // MENU ITEM OPERATIONS
   // ----------------------------------------------------
@@ -365,7 +436,15 @@ export const MenuManagement: React.FC = () => {
       isRecommended: false,
       spiceLevel: 'none',
       preparationTime: 10,
-      image: ''
+      image: '',
+      preparationMethod: 'fresh',
+      productionMode: 'On Demand',
+      defaultBatchSize: 50,
+      availableServings: 50,
+      lowStockThreshold: 10,
+      autoUnavailable: true,
+      showServingsToStaff: true,
+      allowRefill: true
     });
     setIsItemModalOpen(true);
   };
@@ -386,7 +465,15 @@ export const MenuManagement: React.FC = () => {
       isRecommended: item.isRecommended,
       spiceLevel: item.spiceLevel || 'none',
       preparationTime: item.preparationTime,
-      image: item.image || ''
+      image: item.image || '',
+      preparationMethod: item.preparationMethod || 'fresh',
+      productionMode: item.productionMode || (item.preparationMethod === 'batch' ? 'Batch Production' : 'On Demand'),
+      defaultBatchSize: item.defaultBatchSize ?? 50,
+      availableServings: item.availableServings ?? 50,
+      lowStockThreshold: item.lowStockThreshold ?? 10,
+      autoUnavailable: item.autoUnavailable ?? true,
+      showServingsToStaff: item.showServingsToStaff ?? true,
+      allowRefill: item.allowRefill !== false
     });
     setIsItemModalOpen(true);
   };
@@ -444,7 +531,17 @@ export const MenuManagement: React.FC = () => {
         spiceLevel: data.spiceLevel,
         tags: [data.isVeg ? 'Veg' : 'Non-Veg'],
         createdAt: editingItem ? editingItem.createdAt : new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        
+        // Batch properties
+        productionMode: data.productionMode,
+        preparationMethod: data.productionMode === 'Batch Production' ? 'batch' : 'fresh',
+        defaultBatchSize: data.productionMode === 'Batch Production' ? (data.defaultBatchSize ?? 50) : undefined,
+        availableServings: data.productionMode === 'Batch Production' ? (data.availableServings ?? 50) : undefined,
+        lowStockThreshold: data.productionMode === 'Batch Production' ? (data.lowStockThreshold ?? 10) : undefined,
+        autoUnavailable: data.productionMode === 'Batch Production' ? (data.autoUnavailable ?? true) : undefined,
+        showServingsToStaff: data.productionMode === 'Batch Production' ? (data.showServingsToStaff ?? true) : undefined,
+        allowRefill: data.productionMode === 'Batch Production' ? (data.allowRefill ?? true) : undefined
       };
 
       await setDoc(docRef, itemData);
@@ -837,6 +934,37 @@ export const MenuManagement: React.FC = () => {
                               {categories.find(c => c.id === item.categoryId)?.name || 'Uncategorized'}
                             </div>
                           </div>
+
+                          {/* Batch Prepared indicators (Conditional) */}
+                          {item.preparationMethod === 'batch' && (
+                            <div className="mt-3 p-3 bg-slate-950/40 border border-slate-850/60 rounded-xl space-y-1.5 text-[10px] leading-tight font-medium text-slate-400">
+                              <div className="flex justify-between items-center">
+                                <span className="font-bold text-slate-500">Prep Method:</span>
+                                <Badge variant="primary" className="text-[8.5px] px-1 py-0 uppercase">Prepared in Batch</Badge>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="font-bold text-slate-500">Available Servings:</span>
+                                <span className="font-extrabold text-textPearl">
+                                  {item.availableServings ?? 0} / {item.defaultBatchSize ?? 50}
+                                </span>
+                              </div>
+                              {((item.availableServings ?? 0) <= (item.lowStockThreshold ?? 10)) && (
+                                <div className="flex justify-between items-center">
+                                  <span className="font-bold text-rose-500">Status:</span>
+                                  <span className="text-rose-450 font-extrabold bg-rose-500/10 px-1.5 py-0.5 rounded text-[8px] uppercase">
+                                    {(item.availableServings ?? 0) === 0 ? 'SOLD OUT' : 'LOW PORTIONS'}
+                                  </span>
+                                </div>
+                              )}
+                              <Button 
+                                size="xs" 
+                                className="w-full mt-1.5 bg-slate-800 hover:bg-slate-700 py-1 text-[9.5px] font-bold text-textPearl"
+                                onClick={() => openRefillModal(item)}
+                              >
+                                Refill Batch
+                              </Button>
+                            </div>
+                          )}
                         </div>
 
                         <div className="mt-4 pt-3 border-t border-slate-850/60 flex items-center justify-between">
@@ -926,80 +1054,80 @@ export const MenuManagement: React.FC = () => {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <p className="text-xs font-semibold text-slate-450">Instantly modify prices and discounts. Changes save on blur.</p>
-              </div>
-
-              <Card className="p-0 overflow-hidden border-slate-850">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-850 bg-slate-900/30 text-xs font-bold text-slate-400 uppercase">
-                      <th className="p-4">Item Details</th>
-                      <th className="p-4 w-48">Base Price ($)</th>
-                      <th className="p-4 w-48">Discount Price ($)</th>
-                      <th className="p-4 w-40">Flags</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-850/40 text-xs">
-                    {menuItems.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-900/25 transition-all">
-                        <td className="p-4">
-                          <div className="font-bold text-textPearl text-sm">{item.name}</div>
-                          <div className="text-[10px] text-slate-500">
-                            {categories.find(c => c.id === item.categoryId)?.name || 'Uncategorized'}
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center space-x-1.5 bg-slate-950/40 border border-slate-850 rounded-xl px-2.5 py-1">
-                            <span className="text-slate-500 font-bold">$</span>
-                            <input 
-                              type="number"
-                              step="0.01"
-                              defaultValue={(item.price / 100).toFixed(2)}
-                              onBlur={(e) => handlePriceBlur(item, e.target.value, 'price')}
-                              className="bg-transparent text-slate-200 outline-none w-full font-semibold text-xs"
-                            />
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center space-x-1.5 bg-slate-950/40 border border-slate-850 rounded-xl px-2.5 py-1">
-                            <span className="text-slate-500 font-bold">$</span>
-                            <input 
-                              type="number"
-                              step="0.01"
-                              defaultValue={item.discountPrice ? (item.discountPrice / 100).toFixed(2) : ''}
-                              placeholder="No discount"
-                              onBlur={(e) => handlePriceBlur(item, e.target.value, 'discountPrice')}
-                              className="bg-transparent text-slate-200 outline-none w-full font-semibold text-xs"
-                            />
-                          </div>
-                        </td>
-                        <td className="p-4 space-y-1">
-                          <div className="flex space-x-1">
-                            <button 
-                              onClick={() => toggleItemBestSeller(item)}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-all ${
-                                item.isBestSeller 
-                                  ? 'bg-primary/10 text-primary border-primary/20' 
-                                  : 'bg-slate-900/30 text-slate-500 border-slate-850'
-                              }`}
-                            >
-                              Bestseller
-                            </button>
-                            <button 
-                              onClick={() => toggleItemRecommended(item)}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-all ${
-                                item.isRecommended 
-                                  ? 'bg-warning/10 text-warning border-warning/20' 
-                                  : 'bg-slate-900/30 text-slate-500 border-slate-850'
-                              }`}
-                            >
-                              Rec
-                            </button>
-                          </div>
-                        </td>
+              </div>              <Card className="p-0 overflow-hidden border-slate-850">
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-850 bg-slate-900/30 text-xs font-bold text-slate-400 uppercase">
+                        <th className="p-4">Item Details</th>
+                        <th className="p-4 w-48">Base Price ($)</th>
+                        <th className="p-4 w-48">Discount Price ($)</th>
+                        <th className="p-4 w-40">Flags</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-850/40 text-xs">
+                      {menuItems.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-900/25 transition-all">
+                          <td className="p-4">
+                            <div className="font-bold text-textPearl text-sm">{item.name}</div>
+                            <div className="text-[10px] text-slate-500">
+                              {categories.find(c => c.id === item.categoryId)?.name || 'Uncategorized'}
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center space-x-1.5 bg-slate-950/40 border border-slate-850 rounded-xl px-2.5 py-1">
+                              <span className="text-slate-500 font-bold">$</span>
+                              <input 
+                                type="number"
+                                step="0.01"
+                                defaultValue={(item.price / 100).toFixed(2)}
+                                onBlur={(e) => handlePriceBlur(item, e.target.value, 'price')}
+                                className="bg-transparent text-slate-200 outline-none w-full font-semibold text-xs"
+                              />
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center space-x-1.5 bg-slate-950/40 border border-slate-850 rounded-xl px-2.5 py-1">
+                              <span className="text-slate-500 font-bold">$</span>
+                              <input 
+                                type="number"
+                                step="0.01"
+                                defaultValue={item.discountPrice ? (item.discountPrice / 100).toFixed(2) : ''}
+                                placeholder="No discount"
+                                onBlur={(e) => handlePriceBlur(item, e.target.value, 'discountPrice')}
+                                className="bg-transparent text-slate-200 outline-none w-full font-semibold text-xs"
+                              />
+                            </div>
+                          </td>
+                          <td className="p-4 space-y-1">
+                            <div className="flex space-x-1">
+                              <button 
+                                onClick={() => toggleItemBestSeller(item)}
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-all ${
+                                  item.isBestSeller 
+                                    ? 'bg-primary/10 text-primary border-primary/20' 
+                                    : 'bg-slate-900/30 text-slate-500 border-slate-850'
+                                }`}
+                              >
+                                Bestseller
+                              </button>
+                              <button 
+                                onClick={() => toggleItemRecommended(item)}
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-all ${
+                                  item.isRecommended 
+                                    ? 'bg-warning/10 text-warning border-warning/20' 
+                                    : 'bg-slate-900/30 text-slate-500 border-slate-850'
+                                }`}
+                              >
+                                Rec
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </Card>
             </div>
           )}
@@ -1202,136 +1330,284 @@ export const MenuManagement: React.FC = () => {
         isOpen={isItemModalOpen}
         onClose={() => setIsItemModalOpen(false)}
         title={editingItem ? 'Edit Menu Item' : 'Add Menu Item'}
-        className="max-w-lg"
+        className="max-w-3xl max-h-[90vh] flex flex-col"
       >
-        <form onSubmit={handleSubmitItem(onSubmitItem)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Input 
-              label="Item Name *"
-              type="text"
-              placeholder="e.g. Paneer Tikka"
-              error={itemErrors.name?.message}
-              disabled={isSubmitting}
-              {...registerItem('name')}
-            />
-            <Select 
-              label="Category *"
-              options={categories.map((c) => ({ value: c.id, label: c.name }))}
-              error={itemErrors.categoryId?.message}
-              disabled={isSubmitting}
-              {...registerItem('categoryId')}
-            />
-          </div>
-
-          <TextArea 
-            label="Description *"
-            placeholder="List ingredients and notes..."
-            error={itemErrors.description?.message}
-            disabled={isSubmitting}
-            {...registerItem('description')}
-          />
-
-          <div className="grid grid-cols-3 gap-4">
-            <Input 
-              label="Base Price ($) *"
-              type="number"
-              step="0.01"
-              placeholder="9.99"
-              error={itemErrors.price?.message}
-              disabled={isSubmitting}
-              {...registerItem('price')}
-            />
-            <Input 
-              label="Discount Price ($)"
-              type="number"
-              step="0.01"
-              placeholder="e.g. 7.99"
-              error={itemErrors.discountPrice?.message}
-              disabled={isSubmitting}
-              {...registerItem('discountPrice')}
-            />
-            <Input 
-              label="Prep Time (mins) *"
-              type="number"
-              placeholder="15"
-              error={itemErrors.preparationTime?.message}
-              disabled={isSubmitting}
-              {...registerItem('preparationTime')}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 py-2 border-y border-slate-800/40">
-            <Switch 
-              checked={watchIsVeg}
-              onChange={(val) => setValueItem('isVeg', val)}
-              label="Vegetarian (Veg)"
-            />
-            <Switch 
-              checked={watchIsAvailable}
-              onChange={(val) => setValueItem('isAvailable', val)}
-              label="Available / In Stock"
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-4 py-1">
-            <Switch 
-              checked={watchIsBestSeller}
-              onChange={(val) => setValueItem('isBestSeller', val)}
-              label="Bestseller"
-            />
-            <Switch 
-              checked={watchIsRecommended}
-              onChange={(val) => setValueItem('isRecommended', val)}
-              label="Recommended"
-            />
-            <Select 
-              label="Spice Level"
-              options={[
-                { value: 'none', label: 'Not Spicy' },
-                { value: 'mild', label: 'Mild' },
-                { value: 'medium', label: 'Medium' },
-                { value: 'hot', label: 'Hot' }
-              ]}
-              disabled={isSubmitting}
-              {...registerItem('spiceLevel')}
-            />
-          </div>
-
-          <Input 
-            label="Image URL"
-            type="text"
-            placeholder="https://example.com/food.jpg"
-            error={itemErrors.image?.message}
-            disabled={isSubmitting}
-            {...registerItem('image')}
-          />
-
-          <div className="space-y-1.5">
-            <span className="text-xs font-semibold text-slate-450 select-none">Or Upload Photo</span>
-            <div className="flex items-center space-x-3">
-              <input
-                id="item-photo"
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                disabled={isSubmitting}
-                className="hidden"
-              />
-              <label 
-                htmlFor="item-photo"
-                className="px-4 py-2 border border-slate-800 bg-slate-900 text-slate-300 rounded-xl text-xs font-bold hover:border-primary hover:text-primary transition-all cursor-pointer select-none"
-              >
-                Choose File
-              </label>
-              {imagePreview && (
-                <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-800">
-                  <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+        <form onSubmit={handleSubmitItem(onSubmitItem)} className="flex flex-col flex-1 min-h-0">
+          
+          {/* Scrollable Form Body Container */}
+          <div className="flex-1 overflow-y-auto pr-1 space-y-4 max-h-[calc(90vh-170px)]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+              
+              {/* Left Column: Form Text Inputs */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <Input 
+                    label="Item Name *"
+                    type="text"
+                    placeholder="Paneer Tikka"
+                    error={itemErrors.name?.message}
+                    disabled={isSubmitting}
+                    {...registerItem('name')}
+                  />
+                  <Select 
+                    label="Category *"
+                    options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                    error={itemErrors.categoryId?.message}
+                    disabled={isSubmitting}
+                    {...registerItem('categoryId')}
+                  />
                 </div>
-              )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Input 
+                    label="Base Price ($) *"
+                    type="number"
+                    step="0.01"
+                    placeholder="9.99"
+                    error={itemErrors.price?.message}
+                    disabled={isSubmitting}
+                    {...registerItem('price')}
+                  />
+                  <Input 
+                    label="Discount Price ($)"
+                    type="number"
+                    step="0.01"
+                    placeholder="7.99"
+                    error={itemErrors.discountPrice?.message}
+                    disabled={isSubmitting}
+                    {...registerItem('discountPrice')}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Input 
+                    label="Prep Time (mins) *"
+                    type="number"
+                    placeholder="15"
+                    error={itemErrors.preparationTime?.message}
+                    disabled={isSubmitting}
+                    {...registerItem('preparationTime')}
+                  />
+                  <Select 
+                    label="Spice Level"
+                    options={[
+                      { value: 'none', label: 'Not Spicy' },
+                      { value: 'mild', label: 'Mild' },
+                      { value: 'medium', label: 'Medium' },
+                      { value: 'hot', label: 'Hot' }
+                    ]}
+                    disabled={isSubmitting}
+                    {...registerItem('spiceLevel')}
+                  />
+                </div>
+
+                <div className="space-y-1.5 p-3 bg-slate-955/20 border border-slate-850 rounded-xl">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block tracking-wider">Production Mode</span>
+                  <div className="flex items-center space-x-6">
+                    <label className="flex items-center space-x-2 text-xs font-semibold text-slate-350 cursor-pointer select-none">
+                      <input 
+                        type="radio" 
+                        value="On Demand" 
+                        checked={watchProductionMode === 'On Demand'} 
+                        onChange={() => {
+                          setValueItem('productionMode', 'On Demand');
+                          setValueItem('preparationMethod', 'fresh');
+                        }} 
+                        className="text-primary focus:ring-primary/40 bg-slate-950 border-slate-850"
+                      />
+                      <span>On Demand</span>
+                    </label>
+                    <label className="flex items-center space-x-2 text-xs font-semibold text-slate-350 cursor-pointer select-none">
+                      <input 
+                        type="radio" 
+                        value="Batch Production" 
+                        checked={watchProductionMode === 'Batch Production'} 
+                        onChange={() => {
+                          setValueItem('productionMode', 'Batch Production');
+                          setValueItem('preparationMethod', 'batch');
+                        }} 
+                        className="text-primary focus:ring-primary/40 bg-slate-950 border-slate-850"
+                      />
+                      <span>Batch Production</span>
+                    </label>
+                  </div>
+                </div>
+
+                <TextArea 
+                  label="Description *"
+                  placeholder="List ingredients and notes..."
+                  error={itemErrors.description?.message}
+                  disabled={isSubmitting}
+                  {...registerItem('description')}
+                  rows={3}
+                />
+              </div>
+
+              {/* Right Column: Toggle Switches & Image Upload */}
+              <div className="space-y-4">
+                
+                {/* Switches Config Box (2x2 Grid) */}
+                <div className="p-3.5 bg-slate-955/20 border border-slate-850 rounded-xl space-y-2.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block tracking-wider">Item Flag Configs</span>
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <Switch 
+                      checked={watchIsVeg}
+                      onChange={(val) => setValueItem('isVeg', val)}
+                      label="Vegetarian"
+                    />
+                    <Switch 
+                      checked={watchIsAvailable}
+                      onChange={(val) => setValueItem('isAvailable', val)}
+                      label="In Stock"
+                    />
+                    <Switch 
+                      checked={watchIsBestSeller}
+                      onChange={(val) => setValueItem('isBestSeller', val)}
+                      label="Bestseller"
+                    />
+                    <Switch 
+                      checked={watchIsRecommended}
+                      onChange={(val) => setValueItem('isRecommended', val)}
+                      label="Recommended"
+                    />
+                  </div>
+                </div>
+
+                {/* Batch Preparation Config Card (Conditional) */}
+                {(watchProductionMode === 'Batch Production' || watchPrepMethod === 'batch') && (
+                  <div className="p-3.5 bg-slate-955/40 border border-slate-855 rounded-xl space-y-3.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block tracking-wider">Batch Preparation Settings</span>
+                    
+                    <div className="grid grid-cols-3 gap-2.5">
+                      <Input 
+                        label="Default Batch"
+                        type="number"
+                        placeholder="50"
+                        error={itemErrors.defaultBatchSize?.message}
+                        disabled={isSubmitting}
+                        {...registerItem('defaultBatchSize')}
+                      />
+                      <Input 
+                        label="Available"
+                        type="number"
+                        placeholder="50"
+                        error={itemErrors.availableServings?.message}
+                        disabled={isSubmitting}
+                        {...registerItem('availableServings')}
+                      />
+                      <Input 
+                        label="Low Threshold"
+                        type="number"
+                        placeholder="10"
+                        error={itemErrors.lowStockThreshold?.message}
+                        disabled={isSubmitting}
+                        {...registerItem('lowStockThreshold')}
+                      />
+                    </div>
+
+                    <div className="space-y-2.5 pt-2.5 border-t border-slate-850/60">
+                      <label className="flex items-center space-x-2.5 text-xs font-semibold text-slate-350 cursor-pointer select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={watchItem('autoUnavailable') !== false}
+                          onChange={(e) => setValueItem('autoUnavailable', e.target.checked)}
+                          className="rounded text-primary focus:ring-primary/40 bg-slate-950 border-slate-850"
+                        />
+                        <span>Auto mark unavailable at 0 servings</span>
+                      </label>
+                      
+                      <label className="flex items-center space-x-2.5 text-xs font-semibold text-slate-350 cursor-pointer select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={watchItem('showServingsToStaff') !== false}
+                          onChange={(e) => setValueItem('showServingsToStaff', e.target.checked)}
+                          className="rounded text-primary focus:ring-primary/40 bg-slate-950 border-slate-850"
+                        />
+                        <span>Show remaining servings to staff</span>
+                      </label>
+
+                      <label className="flex items-center space-x-2.5 text-xs font-semibold text-slate-350 cursor-pointer select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={watchItem('allowRefill') !== false}
+                          onChange={(e) => setValueItem('allowRefill', e.target.checked)}
+                          className="rounded text-primary focus:ring-primary/40 bg-slate-950 border-slate-850"
+                        />
+                        <span>Allow owner to refill batch</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* Media Section: Left Inputs & Right Preview */}
+                <div className="space-y-3 p-3.5 bg-slate-950/20 border border-slate-850 rounded-xl">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block tracking-wider">Item Image & Media</span>
+                  
+                  <div className="grid grid-cols-5 gap-3.5 items-center">
+                    {/* Media Inputs (Left 3 Columns) */}
+                    <div className="col-span-3 space-y-3">
+                      <Input 
+                        label="Image URL"
+                        type="text"
+                        placeholder="https://example.com/food.jpg"
+                        error={itemErrors.image?.message}
+                        disabled={isSubmitting}
+                        {...registerItem('image')}
+                      />
+                      
+                      <div className="flex items-center justify-center space-x-1.5 text-[9px] font-bold text-slate-650 uppercase tracking-wider">
+                        <div className="h-[1px] bg-slate-850/60 flex-1" />
+                        <span>OR</span>
+                        <div className="h-[1px] bg-slate-850/60 flex-1" />
+                      </div>
+
+                      <div className="border border-dashed border-slate-800 hover:border-primary/50 bg-slate-950/40 rounded-xl p-2.5 transition-all flex flex-col items-center justify-center text-center space-y-1 relative min-h-[75px]">
+                        <input
+                          id="item-photo"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          disabled={isSubmitting}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <Plus className="w-4 h-4 text-slate-500" />
+                        <div className="text-[10px] font-bold text-slate-350 leading-none">Upload Photo</div>
+                        <div className="text-[8px] text-slate-550 font-medium leading-none">Drag here or <span className="text-primary hover:underline">Choose</span></div>
+                      </div>
+                    </div>
+
+                    {/* Live Preview section (Right 2 Columns) */}
+                    <div className="col-span-2 flex flex-col items-center justify-center h-full border border-slate-850 bg-slate-900/30 rounded-xl p-2.5 space-y-1.5 self-stretch min-h-[135px]">
+                      <span className="text-[8px] font-extrabold uppercase text-slate-550 block">Live Preview</span>
+                      {(imagePreview || watchImage) ? (
+                        <div className="w-14 h-14 rounded-lg overflow-hidden border border-slate-800 bg-slate-900 shrink-0">
+                          <img 
+                            src={imagePreview || watchImage} 
+                            alt="Item preview" 
+                            className="w-full h-full object-cover" 
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = FALLBACK_ITEM_IMAGE;
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg border border-dashed border-slate-850 flex items-center justify-center text-slate-700 shrink-0">
+                          <ShoppingBag className="w-5 h-5" />
+                        </div>
+                      )}
+                      <span className="text-[9px] font-bold text-slate-500 leading-tight text-center truncate w-full text-center">
+                        {watchItem('name') || 'Unnamed'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3 pt-4 border-t border-slate-800/40">
+          {/* Sticky/Fixed Footer Container */}
+          <div className="flex items-center space-x-3 pt-4 border-t border-slate-800/40 mt-4 bg-slate-900 z-10 shrink-0">
             <Button type="button" variant="secondary" className="flex-1" onClick={() => setIsItemModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
@@ -1361,6 +1637,32 @@ export const MenuManagement: React.FC = () => {
         confirmLabel="Delete"
         isDangerous
       />
+ 
+      {/* Refill Batch Modal */}
+      <Modal
+        isOpen={isRefillOpen}
+        onClose={() => setIsRefillOpen(false)}
+        title={refillItem ? `Refill portions: ${refillItem.name}` : 'Refill portions'}
+      >
+        <div className="space-y-4 text-left text-xs font-sans select-none">
+          <p className="text-slate-400">Specify the new available portions count to serve for this batch item:</p>
+          <Input 
+            label="Available Servings"
+            type="number"
+            value={refillAmount}
+            onChange={(e) => setRefillAmount(Number(e.target.value))}
+            placeholder="e.g. 50"
+          />
+          <div className="flex items-center space-x-3 pt-3 border-t border-slate-800/40">
+            <Button variant="secondary" className="flex-1" onClick={() => setIsRefillOpen(false)}>
+              Cancel
+            </Button>
+            <Button className="flex-1" onClick={handleConfirmRefill}>
+              Refill portions
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
     </div>
   );

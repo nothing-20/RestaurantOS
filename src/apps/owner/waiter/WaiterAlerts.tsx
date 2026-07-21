@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { 
   collection, 
   onSnapshot, 
   doc, 
   deleteDoc,
   updateDoc,
+  addDoc,
   query,
   where,
   arrayUnion
@@ -17,8 +18,6 @@ import { IServiceRequest, IOrder } from '../../../types';
 import Card from '../../../components/ui/Card/Card';
 import Badge from '../../../components/ui/Badge/Badge';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner/LoadingSpinner';
-
-// Hot Toast notifications
 import toast from 'react-hot-toast';
 import { 
   Coffee, 
@@ -29,10 +28,12 @@ import {
   Clock,
   CheckSquare,
   UtensilsCrossed,
-  ChefHat
+  ChefHat,
+  Filter,
+  Bell,
+  Trash2,
+  AlertOctagon
 } from 'lucide-react';
-
-type TAlertTab = 'ready_orders' | 'qr_alerts' | 'customer_requests';
 
 export const WaiterAlerts: React.FC = () => {
   const { user } = useAuth();
@@ -42,10 +43,13 @@ export const WaiterAlerts: React.FC = () => {
   const [readyOrders, setReadyOrders] = useState<IOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Default to kitchen-ready tab (kitchen-first operational flow)
-  const [activeTab, setActiveTab] = useState<TAlertTab>('ready_orders');
+  // Filters state
+  const [filterPriority, setFilterPriority] = useState('all');
+  const [filterTable, setFilterTable] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
 
-  // ── Subscribe to READY orders from kitchen ──────────────────────────────────
+  // Subscribe to READY orders from kitchen
   useEffect(() => {
     if (!user?.tenantId) return;
 
@@ -71,7 +75,7 @@ export const WaiterAlerts: React.FC = () => {
     return () => unsubscribe();
   }, [user?.tenantId]);
 
-  // ── Subscribe to Legacy QR Table Alerts ─────────────────────────────────────
+  // Subscribe to Legacy QR Table Alerts
   useEffect(() => {
     if (!user?.tenantId) return;
 
@@ -83,7 +87,7 @@ export const WaiterAlerts: React.FC = () => {
       (snapshot) => {
         const list: IServiceRequest[] = [];
         snapshot.forEach((docSnap) => {
-          list.push({ ...docSnap.data() } as IServiceRequest);
+          list.push({ id: docSnap.id, ...docSnap.data() } as IServiceRequest);
         });
         list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setRequests(list);
@@ -99,7 +103,7 @@ export const WaiterAlerts: React.FC = () => {
     return () => unsubscribe();
   }, [user?.tenantId]);
 
-  // ── Subscribe to Call Waiter Assistance Requests ─────────────────────────────
+  // Subscribe to Call Waiter Assistance Requests
   useEffect(() => {
     if (!user?.tenantId) return;
 
@@ -127,294 +131,367 @@ export const WaiterAlerts: React.FC = () => {
     return () => unsubscribe();
   }, [user?.tenantId]);
 
-  // ── Mark order as DELIVERED ──────────────────────────────────────────────────
-  const handleMarkDelivered = useCallback(async (orderId: string) => {
+  // Actions
+  const handleAcceptAlert = async (alert: any) => {
     if (!user?.tenantId) return;
     try {
-      const docRef = doc(db, 'restaurants', user.tenantId, 'orders', orderId);
-      const timelineEvent = {
-        type: 'DELIVERED',
-        title: 'Delivered',
-        description: `Delivered by Waiter ${user.displayName || user.email}`,
-        timestamp: new Date().toISOString(),
-        performedBy: user.displayName || 'Waiter'
-      };
-      await updateDoc(docRef, { 
-        status: 'DELIVERED', 
-        deliveredAt: new Date().toISOString(),
-        timeline: arrayUnion(timelineEvent)
+      if (alert.rawType === 'waiter_request') {
+        const docRef = doc(db, 'restaurants', user.tenantId, 'waiterRequests', alert.id);
+        await updateDoc(docRef, { 
+          status: 'Accepted',
+          acceptedBy: user.displayName || user.email || 'Waiter'
+        });
+      } else {
+        toast.error('Only table alerts require acceptance claim.');
+        return;
+      }
+      toast.success('Alert accepted for service.');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to accept alert.');
+    }
+  };
+
+  const handleResolveAlert = async (alert: any) => {
+    if (!user?.tenantId) return;
+    try {
+      if (alert.rawType === 'ready_order') {
+        const docRef = doc(db, 'restaurants', user.tenantId, 'orders', alert.orderId);
+        const timelineEvent = {
+          type: 'DELIVERED',
+          title: 'Served',
+          description: `Delivered by Waiter ${user.displayName || user.email}`,
+          timestamp: new Date().toISOString(),
+          performedBy: user.displayName || 'Waiter'
+        };
+        await updateDoc(docRef, { 
+          status: 'DELIVERED', 
+          deliveredAt: new Date().toISOString(),
+          timeline: arrayUnion(timelineEvent)
+        });
+      } else if (alert.rawType === 'qr_request') {
+        const docRef = doc(db, 'restaurants', user.tenantId, 'requests', alert.id);
+        await deleteDoc(docRef);
+      } else if (alert.rawType === 'waiter_request') {
+        const docRef = doc(db, 'restaurants', user.tenantId, 'waiterRequests', alert.id);
+        await updateDoc(docRef, { 
+          status: 'Completed',
+          resolvedAt: new Date().toISOString()
+        });
+      }
+      toast.success('Alert resolved!');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to resolve alert.');
+    }
+  };
+
+  const handleEscalateAlert = async (alert: any) => {
+    if (!user?.tenantId) return;
+    try {
+      const docRef = collection(db, 'restaurants', user.tenantId, 'waiterRequests');
+      await addDoc(docRef, {
+        tenantId: user.tenantId,
+        tableNumber: Number(alert.tableNumber) || alert.tableNumber,
+        requestType: 'Manager Call',
+        status: 'Pending',
+        priority: 'critical',
+        createdAt: new Date().toISOString(),
+        description: `CRITICAL ESCALATION for Alert: "${alert.type}" (Table ${alert.tableNumber})`,
+        acceptedBy: '',
+        resolvedAt: '',
+        orderId: alert.orderId || '—'
       });
-      toast.success('Order marked as Delivered! ✓', { id: `deliver-${orderId}` });
+      toast.success('Alert escalated to manager console.');
     } catch (e) {
       console.error(e);
-      toast.error('Failed to mark order as delivered.');
-    }
-  }, [user?.tenantId, user?.displayName]);
-
-  // ── Clear Legacy QR Alert ────────────────────────────────────────────────────
-  const handleResolveAlert = async (id: string) => {
-    if (!user?.tenantId) return;
-    try {
-      const docRef = doc(db, 'restaurants', user.tenantId, 'requests', id);
-      await deleteDoc(docRef);
-      toast.success('Request marked as completed!', { id: 'alert-clear-toast' });
-    } catch (e) {
-      console.error(e);
-      toast.error('Failed to clear request.');
+      toast.error('Failed to escalate alert.');
     }
   };
 
-  // ── Accept / Complete Call Waiter Requests ───────────────────────────────────
-  const handleUpdateStatus = async (requestId: string, nextStatus: 'Accepted' | 'Completed') => {
+  const handleDismissAlert = async (alert: any) => {
     if (!user?.tenantId) return;
     try {
-      const docRef = doc(db, 'restaurants', user.tenantId, 'waiterRequests', requestId);
-      await updateDoc(docRef, { status: nextStatus });
-      toast.success(`Request marked as ${nextStatus}!`);
+      if (alert.rawType === 'qr_request') {
+        const docRef = doc(db, 'restaurants', user.tenantId, 'requests', alert.id);
+        await deleteDoc(docRef);
+      } else if (alert.rawType === 'waiter_request') {
+        const docRef = doc(db, 'restaurants', user.tenantId, 'waiterRequests', alert.id);
+        await deleteDoc(docRef);
+      } else {
+        toast.error('Kitchen ready alerts cannot be dismissed, only delivered.');
+        return;
+      }
+      toast.success('Alert dismissed.');
     } catch (e) {
       console.error(e);
-      toast.error('Failed to update request.');
+      toast.error('Failed to dismiss alert.');
     }
   };
+
+  // Compile unified alerts stream
+  const combinedAlerts = useMemo(() => {
+    const list: any[] = [];
+    
+    // 1. Kitchen Ready Alerts
+    readyOrders.forEach(o => {
+      list.push({
+        id: `ready-${o.orderId}`,
+        orderId: o.orderId,
+        tableNumber: String(o.tableNumber),
+        type: 'Kitchen Ready',
+        priority: 'high',
+        createdAt: o.createdAt,
+        description: `Order #${o.orderId.substring(0, 8)} is ready for table pickup.`,
+        status: 'Pending',
+        assignedWaiter: o.waiterName || 'Unassigned',
+        rawType: 'ready_order',
+        rawObj: o
+      });
+    });
+
+    // 2. Legacy QR Alerts
+    requests.forEach(r => {
+      list.push({
+        id: r.id || `qr-${r.createdAt}`,
+        orderId: r.orderId || '—',
+        tableNumber: String(r.tableNumber),
+        type: r.type || 'Need Waiter',
+        priority: r.type === 'Bill' ? 'high' : 'medium',
+        createdAt: r.createdAt,
+        description: r.description || `Table QR alert: ${r.type}`,
+        status: 'Pending',
+        assignedWaiter: 'Unassigned',
+        rawType: 'qr_request',
+        rawObj: r
+      });
+    });
+
+    // 3. Diner Call Waiter Requests
+    waiterRequests.forEach(r => {
+      list.push({
+        id: r.id,
+        orderId: r.orderId || '—',
+        tableNumber: String(r.tableNumber),
+        type: r.requestType || 'Need Waiter',
+        priority: r.priority || 'medium',
+        createdAt: r.createdAt,
+        description: r.description || `${r.requestType} request for Table ${r.tableNumber}`,
+        status: r.status || 'Pending',
+        assignedWaiter: r.acceptedBy || 'Unassigned',
+        rawType: 'waiter_request',
+        rawObj: r
+      });
+    });
+
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [readyOrders, requests, waiterRequests]);
+
+  // Derived filter helper arrays
+  const uniqueTables = useMemo(() => {
+    const set = new Set<string>();
+    combinedAlerts.forEach(a => set.add(a.tableNumber));
+    return Array.from(set).sort((a, b) => Number(a) - Number(b));
+  }, [combinedAlerts]);
+
+  const uniqueTypes = useMemo(() => {
+    const set = new Set<string>();
+    combinedAlerts.forEach(a => set.add(a.type));
+    return Array.from(set).sort();
+  }, [combinedAlerts]);
+
+  const filteredAlerts = useMemo(() => {
+    return combinedAlerts.filter(a => {
+      const matchesPriority = filterPriority === 'all' || a.priority === filterPriority;
+      const matchesTable = filterTable === 'all' || a.tableNumber === filterTable;
+      const matchesStatus = filterStatus === 'all' || a.status === filterStatus;
+      const matchesType = filterType === 'all' || a.type === filterType;
+      return matchesPriority && matchesTable && matchesStatus && matchesType;
+    });
+  }, [combinedAlerts, filterPriority, filterTable, filterStatus, filterType]);
 
   const getAlertIcon = (type: string) => {
     switch (type) {
-      case 'Call Waiter':
-      case 'Request Waiter':
-        return <User className="w-5 h-5 text-primary" />;
-      case 'Water':
       case 'Need Water':
-        return <Coffee className="w-5 h-5 text-sky-400" />;
+      case 'Request Water':
+      case 'Water':
+        return <Coffee className="w-4 h-4 text-sky-400" />;
+      case 'Need Bill':
+      case 'Request Bill':
       case 'Bill':
-      case 'Ready to Pay':
-        return <DollarSign className="w-5 h-5 text-emerald-500" />;
+        return <DollarSign className="w-4 h-4 text-emerald-500" />;
+      case 'Kitchen Ready':
+        return <UtensilsCrossed className="w-4 h-4 text-emerald-455" />;
+      case 'Manager Call':
+      case 'Manager Message':
+        return <AlertOctagon className="w-4 h-4 text-rose-500 animate-pulse" />;
       default:
-        return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
+        return <Bell className="w-4 h-4 text-indigo-400" />;
     }
   };
 
-  const getMinutesElapsed = (createdAtStr: string) => {
-    if (!createdAtStr) return 'Just now';
-    const elapsedMs = new Date().getTime() - new Date(createdAtStr).getTime();
-    const elapsedMins = Math.floor(elapsedMs / 60000);
-    if (elapsedMins < 1) return 'Just now';
-    return `${elapsedMins}m ago`;
+  const getMinutesElapsed = (isoStr: string) => {
+    if (!isoStr) return 'Just now';
+    const diff = (Date.now() - new Date(isoStr).getTime()) / 60000;
+    if (diff < 1) return 'Just now';
+    return `${Math.round(diff)}m ago`;
   };
 
-  const pendingCustomerRequestsCount = waiterRequests.filter(r => r.status === 'Pending').length;
-
   return (
-    <div className="space-y-6 text-left select-none pb-12">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-display font-extrabold text-textPearl">Waiter Alerts Hub</h1>
-          <p className="text-xs text-mutedAsh font-semibold">
-            Kitchen pickup alerts, QR table notifications, and guest assistance requests.
-          </p>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-805 p-1 rounded-xl flex items-center space-x-1 self-start flex-wrap gap-y-1">
-          <button
-            onClick={() => setActiveTab('ready_orders')}
-            className={`relative px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              activeTab === 'ready_orders'
-                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
-                : 'text-slate-400 hover:text-textPearl'
-            }`}
-          >
-            <UtensilsCrossed className="w-3.5 h-3.5" />
-            Kitchen Ready
-            {readyOrders.length > 0 && (
-              <span className="w-4 h-4 rounded-full bg-emerald-500 text-slate-950 text-[9px] font-extrabold flex items-center justify-center animate-pulse">
-                {readyOrders.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('qr_alerts')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'qr_alerts'
-                ? 'bg-slate-800 text-textPearl'
-                : 'text-slate-400 hover:text-textPearl'
-            }`}
-          >
-            QR Alerts ({requests.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('customer_requests')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              activeTab === 'customer_requests'
-                ? 'bg-slate-800 text-textPearl'
-                : 'text-slate-400 hover:text-textPearl'
-            }`}
-          >
-            Diner Requests ({waiterRequests.length})
-            {pendingCustomerRequestsCount > 0 && (
-              <span className="w-2.5 h-2.5 bg-primary rounded-full animate-pulse" />
-            )}
-          </button>
-        </div>
+    <div className="space-y-6 text-left select-none pb-24">
+      <div>
+        <h1 className="text-2xl font-display font-extrabold text-textPearl">Customer Alerts Center</h1>
+        <p className="text-xs text-mutedAsh font-semibold">
+          Real-time service alerts, kitchen orders ready, and diner requests console.
+        </p>
       </div>
 
-      {isLoading ? (
-        <div className="h-64 flex items-center justify-center">
-          <LoadingSpinner label="Connecting to requests feed..." />
+      {/* Filter Toolbar */}
+      <Card className="p-4 bg-slate-900/40 border-slate-850 grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div className="space-y-1">
+          <label className="text-[10px] text-slate-500 font-extrabold uppercase">Priority</label>
+          <select
+            value={filterPriority}
+            onChange={e => setFilterPriority(e.target.value)}
+            className="w-full bg-slate-955 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 outline-none"
+          >
+            <option value="all">All Priorities</option>
+            <option value="critical">💥 Critical</option>
+            <option value="high">🔴 High</option>
+            <option value="medium">🟡 Medium</option>
+            <option value="low">⚪ Low</option>
+          </select>
         </div>
-      ) : activeTab === 'ready_orders' ? (
-        readyOrders.length === 0 ? (
-          <div className="h-64 flex flex-col items-center justify-center text-center border border-dashed border-slate-850 rounded-3xl bg-slate-900/10">
-            <ChefHat className="w-10 h-10 text-slate-705 mb-3" />
-            <p className="text-sm font-semibold text-slate-500">No kitchen orders ready for pickup yet.</p>
-            <p className="text-xs text-slate-600 mt-1">Orders appear here when kitchen marks them Ready.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {readyOrders.map((order) => (
-              <Card
-                key={order.orderId}
-                className="p-0 border-emerald-500/20 bg-emerald-950/10 overflow-hidden rounded-2xl ring-1 ring-emerald-500/10"
-              >
-                <div className="px-4 py-3 bg-emerald-900/10 border-b border-emerald-500/15 flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-sm font-extrabold text-emerald-300">
-                      Table {order.tableNumber}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-[10px] text-slate-500">
-                    <Clock className="w-3 h-3" />
-                    <span>{getMinutesElapsed(order.createdAt)}</span>
-                    <span className="text-slate-700">·</span>
-                    <span className="font-mono">#{(order.orderId || '').substring(0, 8)}</span>
-                  </div>
-                </div>
 
-                <div className="p-4 space-y-2">
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="flex items-start space-x-2 text-xs">
-                      <span className="font-extrabold text-emerald-400 min-w-[20px]">×{item.count}</span>
-                      <div className="flex-1">
-                        <span className="font-semibold text-slate-300">{item.name}</span>
-                        {item.notes && (
-                          <p className="text-[10px] text-amber-400 italic mt-0.5">"{item.notes}"</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="px-4 pb-4">
-                  <button
-                    onClick={() => handleMarkDelivered(order.orderId)}
-                    className="w-full py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 transition-all flex items-center justify-center space-x-1.5"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Mark Delivered to Table</span>
-                  </button>
-                </div>
-              </Card>
+        <div className="space-y-1">
+          <label className="text-[10px] text-slate-500 font-extrabold uppercase">Table</label>
+          <select
+            value={filterTable}
+            onChange={e => setFilterTable(e.target.value)}
+            className="w-full bg-slate-955 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 outline-none"
+          >
+            <option value="all">All Tables</option>
+            {uniqueTables.map(num => (
+              <option key={num} value={num}>Table {num}</option>
             ))}
-          </div>
-        )
-      ) : activeTab === 'qr_alerts' ? (
-        requests.length === 0 ? (
-          <div className="h-64 flex flex-col items-center justify-center text-center border border-dashed border-slate-850 rounded-3xl bg-slate-900/10">
-            <Check className="w-10 h-10 text-slate-705 mb-2" />
-            <p className="text-sm font-semibold text-slate-450">Zero active service alerts.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {requests.map((req) => (
-              <Card 
-                key={req.id}
-                className="p-5 border-slate-850 bg-slate-900/40 flex items-center justify-between space-x-4 hover:border-slate-800 transition-all ring-1 ring-primary/10"
-              >
-                <div className="flex items-center space-x-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-slate-955 border border-slate-800 flex items-center justify-center shrink-0">
-                    {getAlertIcon(req.type)}
-                  </div>
-                  
-                  <div className="space-y-1 text-left">
-                    <div className="flex items-center space-x-2">
-                      <h3 className="font-display font-bold text-sm text-textPearl">{req.type}</h3>
-                      <Badge variant="warning">Table {req.tableNumber}</Badge>
-                    </div>
-                    <div className="flex items-center space-x-1 text-[10px] text-slate-500 font-semibold">
-                      <Clock className="w-3 h-3" />
-                      <span>{getMinutesElapsed(req.createdAt)}</span>
-                    </div>
-                  </div>
-                </div>
+          </select>
+        </div>
 
-                <button
-                  onClick={() => handleResolveAlert(req.id)}
-                  className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/20 hover:border-emerald-600 text-emerald-500 hover:text-slate-950 rounded-xl transition-all"
-                  title="Mark Completed"
-                >
-                  <Check className="w-4 h-4" />
-                </button>
-              </Card>
+        <div className="space-y-1">
+          <label className="text-[10px] text-slate-500 font-extrabold uppercase">Status</label>
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            className="w-full bg-slate-955 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 outline-none"
+          >
+            <option value="all">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Accepted">Accepted</option>
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[10px] text-slate-500 font-extrabold uppercase">Alert Type</label>
+          <select
+            value={filterType}
+            onChange={e => setFilterType(e.target.value)}
+            className="w-full bg-slate-955 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 outline-none"
+          >
+            <option value="all">All Types</option>
+            {uniqueTypes.map(t => (
+              <option key={t} value={t}>{t}</option>
             ))}
-          </div>
-        )
+          </select>
+        </div>
+      </Card>
+
+      {/* Alerts Feed */}
+      {filteredAlerts.length === 0 ? (
+        <Card className="p-12 text-center border-slate-850 bg-slate-900/10 rounded-3xl text-slate-500">
+          <Bell className="w-10 h-10 text-slate-700 mx-auto mb-3 animate-pulse" />
+          <p className="text-sm font-semibold">No active customer service alerts currently.</p>
+        </Card>
       ) : (
-        waiterRequests.length === 0 ? (
-          <div className="h-64 flex flex-col items-center justify-center text-center border border-dashed border-slate-850 rounded-3xl bg-slate-900/10">
-            <CheckSquare className="w-10 h-10 text-slate-705 mb-2" />
-            <p className="text-sm font-semibold text-slate-450">No diner requests pending. Keep it up!</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {waiterRequests.map((req) => (
-              <Card 
-                key={req.id}
-                className="p-5 border-slate-855 bg-slate-900/40 flex flex-col justify-between gap-4 hover:border-slate-800 transition-all ring-1 ring-primary/10"
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredAlerts.map(alert => {
+            const isCritical = alert.priority === 'critical';
+            return (
+              <Card
+                key={alert.id}
+                className={`p-5 border text-left rounded-2xl flex flex-col justify-between space-y-4 hover:brightness-110 transition-all ${
+                  isCritical 
+                    ? 'border-rose-500/30 bg-rose-500/5 ring-1 ring-rose-500/15'
+                    : 'border-slate-850 bg-slate-900/20'
+                }`}
               >
-                <div className="flex items-start justify-between space-x-4">
-                  <div className="flex items-center space-x-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-slate-955 border border-slate-800 flex items-center justify-center shrink-0">
-                      {getAlertIcon(req.requestType)}
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-slate-950 border border-slate-800 rounded-xl">
+                      {getAlertIcon(alert.type)}
                     </div>
-                    
-                    <div className="space-y-1 text-left">
-                      <div className="flex items-center space-x-2">
-                        <h3 className="font-display font-bold text-sm text-textPearl">{req.requestType}</h3>
-                        <Badge variant="warning">Table {req.tableNumber}</Badge>
-                      </div>
-                      <div className="flex items-center space-x-1 text-[10px] text-slate-500 font-semibold">
-                        <Clock className="w-3 h-3" />
-                        <span>{getMinutesElapsed(req.createdAt)}</span>
-                      </div>
+                    <div>
+                      <h3 className="font-extrabold text-sm text-textPearl">{alert.type}</h3>
+                      <span className="text-[9px] text-slate-500 font-extrabold uppercase">Table {alert.tableNumber}</span>
                     </div>
                   </div>
-
-                  <Badge variant={req.status === 'Accepted' ? 'success' : 'warning'}>
-                    {req.status === 'Accepted' ? 'Accepted' : 'Pending'}
+                  <Badge variant={isCritical ? 'danger' : alert.priority === 'high' ? 'warning' : 'muted'} className="uppercase">
+                    {alert.priority}
                   </Badge>
                 </div>
 
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-850/60 w-full">
-                  {req.status === 'Pending' && (
+                <div className="text-xs text-slate-400 space-y-1 font-semibold">
+                  <div>
+                    <span className="text-slate-500">Order ID:</span>{' '}
+                    <span className="font-mono text-[10px] text-slate-300">#{alert.orderId.substring(0, 10)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Assigned Waiter:</span>{' '}
+                    <span className="text-slate-350">{alert.assignedWaiter}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Request Details:</span>{' '}
+                    <p className="text-[11px] text-slate-200 font-bold leading-relaxed">{alert.description}</p>
+                  </div>
+                  <div className="flex items-center space-x-1.5 text-[10px] text-slate-500 pt-1 font-bold">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>{getMinutesElapsed(alert.createdAt)}</span>
+                  </div>
+                </div>
+
+                {/* Operations Control Center Buttons */}
+                <div className="flex gap-2 pt-2 border-t border-slate-800/40">
+                  {alert.status === 'Pending' && alert.rawType === 'waiter_request' && (
                     <button
-                      onClick={() => handleUpdateStatus(req.id, 'Accepted')}
-                      className="flex-1 py-2 bg-primary/10 hover:bg-primary border border-primary/20 hover:border-primary text-primary hover:text-slate-950 text-xs font-bold rounded-xl transition-all"
+                      onClick={() => handleAcceptAlert(alert)}
+                      className="flex-1 py-2 bg-primary text-slate-955 text-xs font-bold rounded-xl transition-all"
                     >
                       Accept
                     </button>
                   )}
                   <button
-                    onClick={() => handleUpdateStatus(req.id, 'Completed')}
-                    className="flex-1 py-2 bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/20 hover:border-emerald-600 text-emerald-500 hover:text-slate-950 text-xs font-bold rounded-xl transition-all"
+                    onClick={() => handleResolveAlert(alert)}
+                    className="flex-1 py-2 bg-emerald-500 text-slate-955 text-xs font-bold rounded-xl transition-all"
                   >
-                    Completed
+                    Resolve
+                  </button>
+                  <button
+                    onClick={() => handleEscalateAlert(alert)}
+                    className="flex-1 py-2 bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 text-xs font-bold rounded-xl transition-all"
+                  >
+                    Escalate
+                  </button>
+                  <button
+                    onClick={() => handleDismissAlert(alert)}
+                    className="p-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 rounded-xl transition-all"
+                    title="Dismiss"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </Card>
-            ))}
-          </div>
-        )
+            );
+          })}
+        </div>
       )}
     </div>
   );

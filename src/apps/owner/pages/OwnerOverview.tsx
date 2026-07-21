@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   collection, 
   onSnapshot, 
@@ -7,7 +8,8 @@ import {
   updateDoc, 
   where,
   addDoc,
-  getDocs
+  getDocs,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
@@ -30,7 +32,6 @@ import toast from 'react-hot-toast';
 import { 
   DollarSign, 
   Activity, 
-  Clock, 
   AlertTriangle,
   Sparkles,
   Target,
@@ -46,12 +47,18 @@ import {
   Compass,
   ShieldAlert,
   UserPlus,
-  Info
+  Info,
+  ChevronRight,
+  Smartphone,
+  CreditCard,
+  Wallet,
+  Calendar
 } from 'lucide-react';
 
 export const OwnerOverview: React.FC = () => {
   const { user } = useAuth();
   const tenantId = user?.tenantId;
+  const navigate = useNavigate();
 
   // Real-time Firestore States
   const [orders, setOrders] = useState<IOrder[]>([]);
@@ -63,7 +70,17 @@ export const OwnerOverview: React.FC = () => {
   const [automationRules, setAutomationRules] = useState<any[]>([]);
   const [managerReviews, setManagerReviews] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [eventsList, setEventsList] = useState<any[]>([]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [reservations, setReservations] = useState<any[]>([]);
+
+  // Reservation manager states
+  const [selectedRes, setSelectedRes] = useState<any | null>(null);
+  const [resActionType, setResActionType] = useState<'Accept' | 'Reject' | 'Modify' | 'AssignTable' | 'AssignWaiter' | 'Seat' | null>(null);
+  const [resDateInput, setResDateInput] = useState('');
+  const [resTimeInput, setResTimeInput] = useState('');
+  const [resGuestsInput, setResGuestsInput] = useState<number>(2);
+  const [resTableInput, setResTableInput] = useState('');
+  const [resWaiterInput, setResWaiterInput] = useState('');
 
   const [isLoading, setIsLoading] = useState(true);
   const [, setIntelData] = useState<any | null>(null);
@@ -85,6 +102,15 @@ export const OwnerOverview: React.FC = () => {
 
   const [isShiftsOpen, setIsShiftsOpen] = useState(false);
   const [shiftsType, setShiftsType] = useState<'waiter' | 'kitchen'>('waiter');
+
+  // Annual Revenue Explorer States
+  const [view, setView] = useState<'dashboard' | 'annual' | 'monthly' | 'reservations'>('dashboard');
+  const [selectedFY, setSelectedFY] = useState('2026-27');
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState<number>(0);
+  const [receiptSearch, setReceiptSearch] = useState('');
+  const [receiptPaymentFilter, setReceiptPaymentFilter] = useState('all');
+
+
 
   // 1. Subscribe to Firestore databases
   useEffect(() => {
@@ -162,12 +188,26 @@ export const OwnerOverview: React.FC = () => {
       }
     );
 
-    // 10. Chronological business events (Decision Feed)
-    const unsubEvents = onSnapshot(collection(db, 'restaurants', tenantId, 'events'), (snap) => {
-      const list: any[] = [];
-      snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-      setEventsList(list.sort((a, b) => new Date(b.timestamp || b.createdAt).getTime() - new Date(a.timestamp || a.createdAt).getTime()));
-    });
+    // 10. Menu Items subscription
+    const unsubMenuItems = onSnapshot(
+      collection(db, 'restaurants', tenantId, 'menuItems'),
+      (snap) => {
+        const list: any[] = [];
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        setMenuItems(list);
+      }
+    );
+
+    // 11. Reservations subscription
+    const unsubReservations = onSnapshot(
+      collection(db, 'restaurants', tenantId, 'reservations'),
+      (snap) => {
+        const list: any[] = [];
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        setReservations(list);
+      }
+    );
 
     return () => {
       unsubOrders();
@@ -179,7 +219,8 @@ export const OwnerOverview: React.FC = () => {
       unsubRules();
       unsubReviews();
       unsubEmployees();
-      unsubEvents();
+      unsubMenuItems();
+      unsubReservations();
     };
   }, [tenantId]);
 
@@ -359,6 +400,24 @@ export const OwnerOverview: React.FC = () => {
 
   // Today's Biggest Risk Calculation
   const biggestRisk = useMemo(() => {
+    // 0. Low batch prepared portions threat
+    const lowBatchItems = menuItems.filter(item => 
+      item.preparationMethod === 'batch' && 
+      (item.availableServings ?? 0) <= (item.lowStockThreshold ?? 10)
+    );
+
+    if (lowBatchItems.length > 0) {
+      const soldOutCount = lowBatchItems.filter(item => (item.availableServings ?? 0) === 0).length;
+      return {
+        title: 'Batch Food Portions Alert',
+        type: 'Batch Low Portions',
+        description: `${lowBatchItems.length} batch-prepared items are running low on portions (${soldOutCount} sold out completely).`,
+        actionLabel: 'Refill Prepared Batches',
+        actionLink: '/dashboard/owner/menu',
+        color: 'red'
+      };
+    }
+
     // 1. Low stock threat
     if (inventoryMetrics.low > 0 || inventoryMetrics.critical > 0) {
       return {
@@ -366,7 +425,7 @@ export const OwnerOverview: React.FC = () => {
         type: 'Low Stock',
         description: `${inventoryMetrics.low} items are running below reorder bounds and ${inventoryMetrics.critical} are fully depleted.`,
         actionLabel: 'Create Purchase Order',
-        actionLink: '/dashboard/owner/inventory',
+        actionLink: '/dashboard/owner/inventory/purchase-orders',
         color: 'red'
       };
     }
@@ -489,7 +548,24 @@ export const OwnerOverview: React.FC = () => {
   // Launch Opportunity Center promotion
   const handleLaunchCampaign = async (name: string, roi: string) => {
     if (!tenantId) return;
+    const toastId = toast.loading(`Activating campaign "${name}"...`);
     try {
+      // 1. Update Firestore: Add strategyPlans document
+      const parsedRoi = parseInt(roi.replace('%', '')) || 120;
+      await addDoc(collection(db, 'restaurants', tenantId, 'strategyPlans'), {
+        title: name,
+        objective: `Launched quick campaign promotion: "${name}"`,
+        category: 'marketing',
+        status: 'in_progress',
+        estimatedCost: 10000, // $100.00
+        expectedRoiPercent: parsedRoi,
+        difficulty: 'Medium',
+        timelineDays: 14,
+        reason: 'Manually launched from Dashboard Opportunity Growth Center.',
+        createdAt: new Date().toISOString()
+      });
+
+      // 2. Log event to track action history
       await logEvent(tenantId, {
         tenantId,
         eventType: 'Campaign Launched',
@@ -499,10 +575,11 @@ export const OwnerOverview: React.FC = () => {
         title: `Marketing Campaign Launched`,
         description: `Launched quick campaign promotion "${name}" with projected ROI of ${roi}.`
       });
-      toast.success(`Campaign "${name}" has been launched successfully!`);
+
+      toast.success(`Campaign "${name}" has been launched successfully!`, { id: toastId });
     } catch (err) {
       console.error(err);
-      toast.error('Failed to launch campaign.');
+      toast.error('Failed to launch campaign.', { id: toastId });
     }
   };
 
@@ -700,6 +777,229 @@ export const OwnerOverview: React.FC = () => {
     return automationRules.filter(r => r.enabled).length;
   }, [automationRules]);
 
+  // ── ANNUAL REVENUE EXPLORER CALCULATIONS ──────────────────────────────────────
+  const currentFY = useMemo(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    return month >= 3 ? `${year}-${(year + 1).toString().slice(-2)}` : `${year - 1}-${year.toString().slice(-2)}`;
+  }, []);
+
+  const currentFYMetrics = useMemo(() => {
+    const startYear = parseInt(currentFY.split('-')[0]);
+    const fyStart = new Date(startYear, 3, 1);
+    const fyEnd = new Date(startYear + 1, 2, 31, 23, 59, 59, 999);
+
+    const fyOrders = orders.filter(o => {
+      const isPaid = o.status === 'DELIVERED' || o.status === 'COMPLETED';
+      if (!isPaid || !o.createdAt) return false;
+      const orderDate = new Date(o.createdAt);
+      return orderDate >= fyStart && orderDate <= fyEnd;
+    });
+
+    const gross = fyOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+    const gst = fyOrders.reduce((sum, o) => sum + (o.tax || 0), 0);
+    const net = gross - gst;
+    const count = fyOrders.length;
+
+    const activeMonths = new Set(fyOrders.map(o => new Date(o.createdAt).getMonth())).size || 1;
+    const avgMonthly = net / Math.max(activeMonths, 1);
+
+    return { net, count, avgMonthly };
+  }, [orders, currentFY]);
+
+  const selectedFYMetrics = useMemo(() => {
+    const startYear = parseInt(selectedFY.split('-')[0]);
+    const fyStart = new Date(startYear, 3, 1);
+    const fyEnd = new Date(startYear + 1, 2, 31, 23, 59, 59, 999);
+
+    const fyOrders = orders.filter(o => {
+      const isPaid = o.status === 'DELIVERED' || o.status === 'COMPLETED';
+      if (!isPaid || !o.createdAt) return false;
+      const orderDate = new Date(o.createdAt);
+      return orderDate >= fyStart && orderDate <= fyEnd;
+    });
+
+    const gross = fyOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+    const gst = fyOrders.reduce((sum, o) => sum + (o.tax || 0), 0);
+    const net = gross - gst;
+    const count = fyOrders.length;
+    const aov = count > 0 ? gross / count : 0;
+
+    const activeMonths = new Set(fyOrders.map(o => new Date(o.createdAt).getMonth())).size || 1;
+    const avgMonthly = net / Math.max(activeMonths, 1);
+
+    return { gross, gst, net, count, aov, avgMonthly };
+  }, [orders, selectedFY]);
+
+  const monthsData = useMemo(() => {
+    const startYear = parseInt(selectedFY.split('-')[0]);
+    return Array.from({ length: 12 }, (_, i) => {
+      const monthIdx = i; // 0 = Apr, 11 = Mar
+      const calendarMonth = (monthIdx + 3) % 12; // 0 = Jan, ..., 11 = Dec
+      const year = calendarMonth < 3 ? startYear + 1 : startYear;
+      const monthName = new Date(year, calendarMonth).toLocaleString('default', { month: 'long' });
+      const label = `${monthName} ${year}`;
+
+      const mOrders = orders.filter(o => {
+        const isPaid = o.status === 'DELIVERED' || o.status === 'COMPLETED';
+        if (!isPaid || !o.createdAt) return false;
+        const d = new Date(o.createdAt);
+        return d.getFullYear() === year && d.getMonth() === calendarMonth;
+      });
+
+      const gross = mOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+      const gst = mOrders.reduce((sum, o) => sum + (o.tax || 0), 0);
+      const net = gross - gst;
+
+      const prevCalendarMonth = (calendarMonth - 1 + 12) % 12;
+      const prevYear = calendarMonth === 0 ? year - 1 : (calendarMonth < 3 && prevCalendarMonth >= 3 ? year - 1 : year);
+      const prevOrders = orders.filter(o => {
+        const isPaid = o.status === 'DELIVERED' || o.status === 'COMPLETED';
+        if (!isPaid || !o.createdAt) return false;
+        const d = new Date(o.createdAt);
+        return d.getFullYear() === prevYear && d.getMonth() === prevCalendarMonth;
+      });
+      const prevGross = prevOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+      const prevGst = prevOrders.reduce((sum, o) => sum + (o.tax || 0), 0);
+      const prevNet = prevGross - prevGst;
+
+      let trendPercent = 0;
+      if (prevNet > 0) {
+        trendPercent = Math.round(((net - prevNet) / prevNet) * 100);
+      }
+
+      return {
+        monthIdx,
+        calendarMonth,
+        year,
+        monthName,
+        label,
+        ordersCount: mOrders.length,
+        gross,
+        gst,
+        net,
+        trendPercent,
+        orders: mOrders
+      };
+    });
+  }, [orders, selectedFY]);
+
+  const selectedMonthData = useMemo(() => {
+    return monthsData[selectedMonthIndex] || monthsData[0];
+  }, [monthsData, selectedMonthIndex]);
+
+  const handleReservationActionSubmit = async () => {
+    if (!tenantId || !selectedRes || !resActionType) return;
+    try {
+      const batch = writeBatch(db);
+      const resRef = doc(db, 'restaurants', tenantId, 'reservations', selectedRes.id);
+      let custResRef = null;
+      if (selectedRes.customerId && selectedRes.customerId !== 'guest-uid') {
+        custResRef = doc(db, 'users', selectedRes.customerId, 'reservations', selectedRes.id);
+      }
+
+      if (resActionType === 'Accept') {
+        batch.update(resRef, { status: 'Confirmed' });
+        if (custResRef) batch.update(custResRef, { status: 'Confirmed' });
+        toast.success('Reservation successfully confirmed!');
+      } else if (resActionType === 'Reject') {
+        batch.update(resRef, { status: 'Rejected' });
+        if (custResRef) batch.update(custResRef, { status: 'Rejected' });
+        toast.success('Reservation successfully rejected.');
+      } else if (resActionType === 'Modify') {
+        const updateObj = { date: resDateInput, time: resTimeInput, guests: resGuestsInput };
+        batch.update(resRef, updateObj);
+        if (custResRef) batch.update(custResRef, updateObj);
+        toast.success('Reservation parameters modified.');
+      } else if (resActionType === 'AssignTable') {
+        const tableObj = tables.find(t => t.id === resTableInput);
+        const updateObj = { 
+          assignedTableId: resTableInput, 
+          assignedTableNumber: tableObj ? (tableObj.tableNumber || tableObj.number || '') : '' 
+        };
+        batch.update(resRef, updateObj);
+        if (custResRef) batch.update(custResRef, updateObj);
+        toast.success('Seating table assigned.');
+      } else if (resActionType === 'AssignWaiter') {
+        const waiterObj = employees.find(e => e.id === resWaiterInput);
+        const updateObj = { 
+          assignedWaiterId: resWaiterInput, 
+          assignedWaiterName: waiterObj ? (waiterObj.fullName || waiterObj.name || '') : '' 
+        };
+        batch.update(resRef, updateObj);
+        if (custResRef) batch.update(custResRef, updateObj);
+        toast.success('Service staff waiter assigned.');
+      } else if (resActionType === 'Seat') {
+        // Seat guests
+        batch.update(resRef, { status: 'Seated', seatedAt: new Date().toISOString() });
+        if (custResRef) batch.update(custResRef, { status: 'Seated', seatedAt: new Date().toISOString() });
+        
+        // Update physical Table
+        const targetTable = tables.find(t => t.id === resTableInput);
+        if (targetTable) {
+          const tableRef = doc(db, 'restaurants', tenantId, 'tables', targetTable.id);
+          
+          // Generate activeOrderId
+          const orderId = `ORD-${Math.floor(100000 + Math.random() * 900000)}`;
+          const orderRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
+          
+          // Create blank order to start dining session
+          batch.set(orderRef, {
+            id: orderId,
+            orderId,
+            customerId: selectedRes.customerId,
+            customerName: selectedRes.customerName,
+            tableNumber: targetTable.tableNumber || targetTable.number,
+            tableId: targetTable.id,
+            tenantId: tenantId,
+            items: [],
+            status: 'ACCEPTED',
+            subtotal: 0,
+            total: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+
+          batch.update(tableRef, {
+            status: 'Occupied',
+            activeOrderId: orderId,
+            seatingTime: new Date().toISOString(),
+            guestsCount: selectedRes.guests || 2,
+            assignedWaiterId: user?.uid || '',
+            assignedWaiterName: user?.displayName || user?.email || 'Host'
+          });
+        }
+        toast.success('Reservation checked in & table status set to Occupied.');
+      }
+
+      await batch.commit();
+      setSelectedRes(null);
+      setResActionType(null);
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to execute reservation update.');
+    }
+  };
+
+  const handleMarkArrived = async (res: any) => {
+    if (!tenantId) return;
+    try {
+      const batch = writeBatch(db);
+      const resRef = doc(db, 'restaurants', tenantId, 'reservations', res.id);
+      batch.update(resRef, { status: 'Arrived' });
+      if (res.customerId && res.customerId !== 'guest-uid') {
+        const custResRef = doc(db, 'users', res.customerId, 'reservations', res.id);
+        batch.update(custResRef, { status: 'Arrived' });
+      }
+      await batch.commit();
+      toast.success('Guest marked as Arrived.');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to update status.');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="h-64 flex flex-col items-center justify-center space-y-4">
@@ -710,6 +1010,28 @@ export const OwnerOverview: React.FC = () => {
 
   return (
     <div className="space-y-6 text-left select-none text-textPearl">
+      
+      {/* Breadcrumb Navigation */}
+      {view !== 'dashboard' && (
+        <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500 mb-6 bg-slate-900/30 p-3.5 border border-slate-850 rounded-2xl">
+          <button onClick={() => setView('dashboard')} className="hover:text-primary transition-colors text-slate-400">Owner Dashboard</button>
+          <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+          {view === 'annual' ? (
+            <span className="text-textPearl font-bold">Annual Revenue</span>
+          ) : view === 'reservations' ? (
+            <span className="text-textPearl font-bold">Reservation Management</span>
+          ) : (
+            <>
+              <button onClick={() => setView('annual')} className="hover:text-primary transition-colors text-slate-400">Annual Revenue</button>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+              <span className="text-textPearl font-bold">{selectedMonthData.label}</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {view === 'dashboard' && (
+        <>
       
       {/* 1. Header & Greetings Insight (Executive Greetings Card) */}
       <div className="glass-panel p-6 rounded-3xl border border-slate-800/40 relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -732,7 +1054,16 @@ export const OwnerOverview: React.FC = () => {
           <Button 
             size="sm" 
             variant="outline" 
-            onClick={() => window.location.href = '/dashboard/owner/strategy'}
+            onClick={() => setView('reservations')}
+            className="border-slate-800 text-xs font-semibold text-slate-300 hover:border-primary hover:text-primary flex items-center space-x-1.5"
+          >
+            <Calendar className="w-4 h-4 text-amber-500" />
+            <span>Reservation Manager</span>
+          </Button>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={() => navigate('/dashboard/owner/strategy')}
             className="border-slate-800 text-xs font-semibold text-slate-300 hover:border-primary hover:text-primary flex items-center space-x-1.5"
           >
             <Compass className="w-4 h-4" />
@@ -754,8 +1085,8 @@ export const OwnerOverview: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Top Grid - Macro KPIs (4 Columns) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* 2. Top Grid - Macro KPIs (5 Columns) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         
         {/* KPI 1: Business Health Score */}
         <Card className="p-5 border-slate-850 bg-slate-900/40 relative overflow-hidden flex flex-col justify-between h-44 hover:border-emerald-500/20 transition-all duration-300">
@@ -792,6 +1123,36 @@ export const OwnerOverview: React.FC = () => {
               {revenueChangePercent >= 0 ? `+${revenueChangePercent}%` : `${revenueChangePercent}%`} vs yesterday
             </span>
             <span className="text-slate-455">AOV: {formatPrice(averageOrderValue)}</span>
+          </div>
+        </Card>
+
+        {/* KPI 5: Annual Revenue Analysis */}
+        <Card className="p-5 border-slate-850 bg-slate-900/40 relative overflow-hidden flex flex-col justify-between h-44 hover:border-emerald-500/20 transition-all duration-300">
+          <div className="flex justify-between items-start">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-455">Annual Revenue Analysis</span>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-500/10 border border-emerald-500/20">
+              <Calendar className="w-4 h-4 text-emerald-500" />
+            </div>
+          </div>
+          <div className="my-1.5 space-y-1">
+            <div className="flex justify-between text-xs font-semibold text-slate-400">
+              <span>FY {currentFY}</span>
+              <strong className="text-textPearl">{formatPrice(currentFYMetrics.net)}</strong>
+            </div>
+            <div className="flex justify-between text-[10px] text-slate-500 font-semibold">
+              <span>Orders: {currentFYMetrics.count}</span>
+              <span>Avg: {formatPrice(currentFYMetrics.avgMonthly)}/mo</span>
+            </div>
+          </div>
+          <div className="border-t border-slate-850/65 pt-2 flex justify-end">
+            <Button
+              size="sm"
+              onClick={() => setView('annual')}
+              className="bg-emerald-500 text-slate-950 font-black hover:bg-emerald-600 rounded-lg text-[9px] px-2.5 py-1.5 flex items-center space-x-1"
+            >
+              <span>View Annual Analysis</span>
+              <ChevronRight className="w-3 h-3" />
+            </Button>
           </div>
         </Card>
 
@@ -888,79 +1249,21 @@ export const OwnerOverview: React.FC = () => {
                 <Button 
                   size="sm" 
                   variant="outline" 
-                  onClick={() => window.location.href = biggestRisk.actionLink}
+                  onClick={async () => {
+                    if (biggestRisk.actionLabel === 'Create Purchase Order') {
+                      const tid = toast.loading('Syncing low-stock replenishment list...');
+                      try {
+                        await automationService.runScheduledJob(tenantId || '', 'low_stock_check', 'Background Stock Safety Audit');
+                      } catch (e) {}
+                      toast.dismiss(tid);
+                    }
+                    navigate(biggestRisk.actionLink);
+                  }}
                   className="border-slate-850 hover:bg-rose-500/10 text-rose-455 font-bold text-[9px]"
                 >
                   {biggestRisk.actionLabel}
                 </Button>
               </div>
-            </div>
-          </Card>
-
-          {/* Decision Feed */}
-          <Card className="p-5 border-slate-850 bg-slate-900/40 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Clock className="w-5 h-5 text-amber-500" />
-                <h3 className="font-display font-bold text-sm text-textPearl">Decision Feed</h3>
-              </div>
-              <Badge variant="muted" className="border-slate-800 text-[9px] text-slate-455 font-mono">
-                Realtime Activity Log
-              </Badge>
-            </div>
-            
-            <div className="space-y-4 relative pl-3.5 before:absolute before:left-1 before:top-2 before:bottom-2 before:w-[1px] before:bg-slate-850">
-              {eventsList.slice(0, 7).map((ev, idx) => {
-                let IconComponent = Clock;
-                let colorClass = 'text-slate-400 bg-slate-955/40 border-slate-850';
-                
-                if (ev.eventCategory === 'Inventory') {
-                  IconComponent = ClipboardList;
-                  colorClass = 'text-amber-500 bg-amber-500/10 border-amber-500/20';
-                } else if (ev.eventCategory === 'Operations' || ev.eventCategory === 'Kitchen') {
-                  IconComponent = ChefHat;
-                  colorClass = 'text-primary bg-primary/10 border-primary/20';
-                } else if (ev.eventCategory === 'Financial') {
-                  IconComponent = DollarSign;
-                  colorClass = 'text-emerald-455 bg-emerald-500/10 border-emerald-500/20';
-                } else if (ev.eventCategory === 'Strategy' || ev.eventCategory === 'Management') {
-                  IconComponent = Target;
-                  colorClass = 'text-sky-500 bg-sky-500/10 border-sky-500/20';
-                }
-
-                const timeStr = ev.timestamp 
-                  ? new Date(ev.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-                  : '00:00';
-
-                return (
-                  <div key={ev.id || idx} className="relative flex items-start space-x-3 text-xs leading-normal">
-                    {/* Circle timeline point */}
-                    <div className="absolute -left-[18.5px] top-2 w-2 h-2 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center">
-                      <div className="w-1 h-1 rounded-full bg-slate-500" />
-                    </div>
-
-                    {/* Icon container */}
-                    <div className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${colorClass}`}>
-                      <IconComponent className="w-3.5 h-3.5" />
-                    </div>
-
-                    <div className="space-y-0.5 text-left flex-1 min-w-0">
-                      <div className="flex justify-between items-baseline gap-2">
-                        <span className="font-bold text-textPearl truncate">{ev.title}</span>
-                        <span className="text-[9px] text-slate-500 font-mono shrink-0">{timeStr}</span>
-                      </div>
-                      <p className="text-[10px] text-slate-455 font-semibold leading-relaxed">
-                        {ev.description}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-              {eventsList.length === 0 && (
-                <div className="text-slate-700 italic text-center py-6 text-xs font-semibold">
-                  No chronological events logged yet. Seed demo data to populate.
-                </div>
-              )}
             </div>
           </Card>
         </div>
@@ -1222,7 +1525,7 @@ export const OwnerOverview: React.FC = () => {
             <Button 
               size="xs" 
               variant="outline"
-              onClick={() => window.location.href = '/dashboard/owner/staff'}
+              onClick={() => navigate('/dashboard/owner/staff?role=waiter')}
               className="border-slate-800 text-slate-400 hover:text-textPearl font-bold rounded-xl py-2"
             >
               Manage Staff
@@ -1302,7 +1605,7 @@ export const OwnerOverview: React.FC = () => {
               <Button 
                 size="xs" 
                 variant="outline"
-                onClick={() => window.location.href = '/dashboard/owner/staff'}
+                onClick={() => navigate('/dashboard/owner/staff?role=kitchen')}
                 className="border-slate-800 text-slate-400 hover:text-textPearl font-bold rounded-xl py-2"
               >
                 Manage Staff
@@ -1327,7 +1630,16 @@ export const OwnerOverview: React.FC = () => {
           <Button 
             size="sm" 
             variant="outline" 
-            onClick={() => window.location.href = '/dashboard/owner/inventory'}
+            onClick={async () => {
+              if (inventoryMetrics.low > 0 || inventoryMetrics.critical > 0) {
+                const tid = toast.loading('Syncing low-stock replenishment list...');
+                try {
+                  await automationService.runScheduledJob(tenantId || '', 'low_stock_check', 'Background Stock Safety Audit');
+                } catch (e) {}
+                toast.dismiss(tid);
+              }
+              navigate('/dashboard/owner/inventory/purchase-orders');
+            }}
             className="border-slate-800 text-[10px] font-black text-slate-300 hover:border-amber-500 hover:text-amber-500 flex items-center space-x-1.5 py-2 px-3.5"
           >
             <Plus className="w-3.5 h-3.5 mr-0.5 text-amber-500" />
@@ -1336,7 +1648,7 @@ export const OwnerOverview: React.FC = () => {
           <Button 
             size="sm" 
             variant="outline" 
-            onClick={() => window.location.href = '/dashboard/owner/staff'}
+            onClick={() => navigate('/dashboard/owner/staff?action=invite')}
             className="border-slate-800 text-[10px] font-black text-slate-300 hover:border-emerald-500 hover:text-emerald-500 flex items-center space-x-1.5 py-2 px-3.5"
           >
             <Plus className="w-3.5 h-3.5 mr-0.5 text-emerald-500" />
@@ -1345,7 +1657,7 @@ export const OwnerOverview: React.FC = () => {
           <Button 
             size="sm" 
             variant="outline" 
-            onClick={() => window.location.href = '/dashboard/owner/strategy'}
+            onClick={() => navigate('/dashboard/owner/strategy?tab=marketing')}
             className="border-slate-800 text-[10px] font-black text-slate-300 hover:border-primary hover:text-primary flex items-center space-x-1.5 py-2 px-3.5"
           >
             <Plus className="w-3.5 h-3.5 mr-0.5 text-primary" />
@@ -1354,7 +1666,7 @@ export const OwnerOverview: React.FC = () => {
           <Button 
             size="sm" 
             variant="outline" 
-            onClick={() => window.location.href = '/dashboard/owner/inventory'}
+            onClick={() => navigate('/dashboard/owner/inventory')}
             className="border-slate-800 text-[10px] font-black text-slate-400 hover:text-textPearl py-2 px-3.5"
           >
             Open Inventory
@@ -1362,7 +1674,7 @@ export const OwnerOverview: React.FC = () => {
           <Button 
             size="sm" 
             variant="outline" 
-            onClick={() => window.location.href = '/dashboard/owner/billing'}
+            onClick={() => navigate('/dashboard/owner/billing')}
             className="border-slate-800 text-[10px] font-black text-slate-400 hover:text-textPearl py-2 px-3.5"
           >
             Open Billing desk
@@ -1370,13 +1682,665 @@ export const OwnerOverview: React.FC = () => {
           <Button 
             size="sm" 
             variant="outline" 
-            onClick={() => window.location.href = '/dashboard/owner/analytics'}
+            onClick={() => navigate('/dashboard/owner/analytics')}
             className="border-slate-800 text-[10px] font-black text-slate-400 hover:text-textPearl py-2 px-3.5"
           >
             View Analytics
           </Button>
         </div>
       </Card>
+      </>
+      )}
+
+      {view === 'reservations' && (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/30 p-6 border border-slate-850 rounded-3xl">
+            <div>
+              <h1 className="text-2xl font-display font-extrabold text-textPearl">Reservation Management Dashboard</h1>
+              <p className="text-xs text-mutedAsh font-semibold mt-1">Review table booking requests, seat arrived parties, and check staff allocation assignments.</p>
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => setView('dashboard')}
+              className="text-xs font-bold py-2 px-3 border border-slate-800"
+            >
+              Back to Dashboard
+            </Button>
+          </div>
+
+          {/* Stats cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Total Bookings</span>
+              <h3 className="text-lg font-display font-black text-white mt-1">{reservations.length}</h3>
+            </Card>
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Pending Requests</span>
+              <h3 className="text-lg font-display font-black text-yellow-500 mt-1">{reservations.filter(r => r.status === 'Pending').length}</h3>
+            </Card>
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Confirmed Seated</span>
+              <h3 className="text-lg font-display font-black text-emerald-500 mt-1">{reservations.filter(r => r.status === 'Seated').length}</h3>
+            </Card>
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Upcoming Today</span>
+              <h3 className="text-lg font-display font-black text-primary mt-1">{reservations.filter(r => r.status === 'Confirmed' || r.status === 'Arrived').length}</h3>
+            </Card>
+          </div>
+
+          {/* Table Booking Calendar & List */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Roster / Arrivals feed */}
+            <div className="lg:col-span-2 space-y-4">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bookings Arrivals Feed</h3>
+              
+              {reservations.length === 0 ? (
+                <div className="h-64 flex flex-col items-center justify-center text-slate-500 border border-dashed border-slate-850 rounded-3xl">
+                  <Calendar className="w-10 h-10 text-slate-700 mb-3" />
+                  <p className="text-sm font-semibold">No bookings registered in database.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {reservations.map((res) => (
+                    <Card key={res.id} className="p-5 border-slate-850 bg-slate-900/30 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs">
+                      <div className="space-y-1 text-left">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-extrabold text-sm text-textPearl">{res.customerName}</h4>
+                          <Badge variant={res.status === 'Seated' ? 'success' : res.status === 'Confirmed' ? 'primary' : res.status === 'Pending' ? 'warning' : 'muted'} className="text-[8px] py-0.5 uppercase font-bold">
+                            {res.status}
+                          </Badge>
+                        </div>
+                        <p className="text-[10px] text-slate-500">Ref: {res.id} · {res.guests} dinersparty</p>
+                        <div className="text-slate-400 mt-2 space-y-1">
+                          <div className="flex gap-2">
+                            <span className="text-slate-550">Date & Time:</span>
+                            <span className="font-bold text-white">{res.date} @ {res.time}</span>
+                          </div>
+                          {res.seatingPreference && (
+                            <div className="flex gap-2">
+                              <span className="text-slate-550">Zone Req:</span>
+                              <span className="font-semibold text-primary">{res.seatingPreference}</span>
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <span className="text-slate-500">Table:</span>
+                            <span className="font-bold text-slate-300">{res.assignedTableNumber ? `Table ${res.assignedTableNumber}` : 'Unassigned'}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-slate-500">Staff Waiter:</span>
+                            <span className="font-semibold text-slate-300">{res.assignedWaiterName || 'Unassigned'}</span>
+                          </div>
+                          {res.specialNotes && (
+                            <p className="text-[10.5px] italic text-slate-400 mt-1">"{res.specialNotes}"</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex flex-wrap gap-2 shrink-0">
+                        {res.status === 'Pending' && (
+                          <>
+                            <button
+                              onClick={() => { setSelectedRes(res); setResActionType('Accept'); }}
+                              className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-450 hover:bg-emerald-500 hover:text-slate-950 font-bold rounded-lg transition-all"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => { setSelectedRes(res); setResActionType('Reject'); }}
+                              className="px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white font-bold rounded-lg transition-all"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        {res.status === 'Confirmed' && (
+                          <button
+                            onClick={() => handleMarkArrived(res)}
+                            className="px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-slate-950 font-bold rounded-lg transition-all"
+                          >
+                            Mark Arrived
+                          </button>
+                        )}
+                        {res.status !== 'Seated' && res.status !== 'Rejected' && res.status !== 'Cancelled' && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setSelectedRes(res);
+                                setResActionType('Seat');
+                                setResTableInput(tables.find(t => t.status === 'Available')?.id || '');
+                              }}
+                              className="px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary hover:bg-primary hover:text-slate-950 font-bold rounded-lg transition-all"
+                            >
+                              Seat Party
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedRes(res);
+                                setResActionType('AssignTable');
+                                setResTableInput(res.assignedTableId || '');
+                              }}
+                              className="px-2.5 py-1.5 border border-slate-800 text-slate-400 hover:text-white font-semibold rounded-lg hover:bg-slate-900"
+                            >
+                              Set Table
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedRes(res);
+                                setResActionType('AssignWaiter');
+                                setResWaiterInput(res.assignedWaiterId || '');
+                              }}
+                              className="px-2.5 py-1.5 border border-slate-800 text-slate-400 hover:text-white font-semibold rounded-lg hover:bg-slate-900"
+                            >
+                              Set Waiter
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedRes(res);
+                                setResActionType('Modify');
+                                setResDateInput(res.date);
+                                setResTimeInput(res.time);
+                                setResGuestsInput(res.guests);
+                              }}
+                              className="px-2.5 py-1.5 border border-slate-800 text-slate-400 hover:text-white font-semibold rounded-lg hover:bg-slate-900"
+                            >
+                              Modify
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right sidebar: Reservation Calendar Summary */}
+            <div className="space-y-4 text-left">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Table Calendar Status</h3>
+              <Card className="p-4 border-slate-850 bg-slate-900/30 rounded-2xl space-y-4">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase tracking-wider">Physical Seating Layout</span>
+                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                  {tables.map(t => {
+                    const assignedRes = reservations.find(r => r.assignedTableId === t.id && r.status !== 'Seated' && r.status !== 'Cancelled');
+                    return (
+                      <div key={t.id} className="p-3 bg-slate-955/20 border border-slate-900 rounded-xl flex items-center justify-between text-xs">
+                        <div>
+                          <span className="font-extrabold text-white">Table {t.number || t.tableNumber}</span>
+                          <span className="text-[10px] text-slate-500 block">Cap: {t.capacity} seats · Floor: {t.floor || 'Main'}</span>
+                        </div>
+                        <div>
+                          {assignedRes ? (
+                            <span className="text-amber-500 font-bold">Res: {assignedRes.time}</span>
+                          ) : (
+                            <span className="text-emerald-555 font-semibold">{t.status}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            </div>
+
+          </div>
+
+          {/* Action Modals */}
+          <Modal
+            isOpen={selectedRes !== null && resActionType !== null}
+            onClose={() => { setSelectedRes(null); setResActionType(null); }}
+            title={`${resActionType} Booking Reference`}
+            className="max-w-md"
+          >
+            {selectedRes && (
+              <div className="space-y-4 text-left text-xs">
+                {resActionType === 'Accept' && <p className="text-slate-400">Are you sure you want to approve this reservation for {selectedRes.customerName}?</p>}
+                {resActionType === 'Reject' && <p className="text-slate-400">Are you sure you want to decline this reservation for {selectedRes.customerName}?</p>}
+                
+                {resActionType === 'Modify' && (
+                  <div className="space-y-3">
+                    <Input 
+                      label="Modify Date" 
+                      type="date" 
+                      value={resDateInput} 
+                      onChange={(e) => setResDateInput(e.target.value)} 
+                    />
+                    <div className="space-y-1.5">
+                      <label className="text-[10.5px] uppercase font-bold text-slate-500">Modify Time slot</label>
+                      <input 
+                        type="text" 
+                        value={resTimeInput} 
+                        onChange={(e) => setResTimeInput(e.target.value)} 
+                        className="w-full p-2.5 bg-slate-950 border border-slate-900 text-white rounded-xl outline-none focus:border-primary/50" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10.5px] uppercase font-bold text-slate-500">Modify Party Size</label>
+                      <input 
+                        type="number" 
+                        value={resGuestsInput} 
+                        onChange={(e) => setResGuestsInput(Number(e.target.value))} 
+                        className="w-full p-2.5 bg-slate-950 border border-slate-900 text-white rounded-xl outline-none focus:border-primary/50" 
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {resActionType === 'AssignTable' && (
+                  <div className="space-y-2">
+                    <label className="text-[10.5px] uppercase font-bold text-slate-500">Select Seating Table</label>
+                    <select
+                      value={resTableInput}
+                      onChange={(e) => setResTableInput(e.target.value)}
+                      className="w-full p-3 bg-slate-950 border border-slate-900 focus:border-primary/50 text-white rounded-xl outline-none"
+                    >
+                      <option value="">-- Unassigned --</option>
+                      {tables.map(t => (
+                        <option key={t.id} value={t.id}>Table {t.number || t.tableNumber} (Cap: {t.capacity} seats)</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {resActionType === 'AssignWaiter' && (
+                  <div className="space-y-2">
+                    <label className="text-[10.5px] uppercase font-bold text-slate-500">Select Staff Waiter</label>
+                    <select
+                      value={resWaiterInput}
+                      onChange={(e) => setResWaiterInput(e.target.value)}
+                      className="w-full p-3 bg-slate-950 border border-slate-900 focus:border-primary/50 text-white rounded-xl outline-none"
+                    >
+                      <option value="">-- Unassigned --</option>
+                      {employees.map(e => (
+                        <option key={e.id} value={e.id}>{e.fullName || e.name} ({e.role})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {resActionType === 'Seat' && (
+                  <div className="space-y-3">
+                    <p className="text-slate-400">Please choose the table to seat the guest party immediately:</p>
+                    <select
+                      value={resTableInput}
+                      onChange={(e) => setResTableInput(e.target.value)}
+                      className="w-full p-3 bg-slate-950 border border-slate-900 focus:border-primary/50 text-white rounded-xl outline-none"
+                    >
+                      <option value="">-- Choose Seating Table --</option>
+                      {tables.map(t => (
+                        <option key={t.id} value={t.id}>Table {t.number || t.tableNumber} (Cap: {t.capacity} seats, Status: {t.status})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-4">
+                  <Button variant="secondary" className="flex-1" onClick={() => { setSelectedRes(null); setResActionType(null); }}>
+                    Cancel
+                  </Button>
+                  <Button className="flex-1" onClick={handleReservationActionSubmit} disabled={resActionType === 'Seat' && !resTableInput}>
+                    Confirm Action
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Modal>
+
+        </div>
+      )}
+
+      {view === 'annual' && (
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/30 p-6 border border-slate-850 rounded-3xl">
+            <div>
+              <h1 className="text-2xl font-display font-extrabold text-textPearl">Annual Revenue Explorer</h1>
+              <p className="text-xs text-mutedAsh font-semibold mt-1">Detailed performance tracking per fiscal period, monthly tax margins, and ticket distribution audits.</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">Fiscal Period:</label>
+              <select
+                value={selectedFY}
+                onChange={(e) => setSelectedFY(e.target.value)}
+                className="bg-slate-955 border border-slate-850 focus:border-primary rounded-xl p-2 text-xs font-semibold text-textPearl outline-none"
+              >
+                <option value="2026-27">FY 2026-27</option>
+                <option value="2025-26">FY 2025-26</option>
+                <option value="2024-25">FY 2024-25</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Annual Summary Metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Gross Revenue</span>
+              <h3 className="text-lg font-display font-black text-textPearl mt-1">{formatPrice(selectedFYMetrics.gross)}</h3>
+            </Card>
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Net Revenue</span>
+              <h3 className="text-lg font-display font-black text-emerald-500 mt-1">{formatPrice(selectedFYMetrics.net)}</h3>
+            </Card>
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">GST Collected</span>
+              <h3 className="text-lg font-display font-black text-amber-500 mt-1">{formatPrice(selectedFYMetrics.gst)}</h3>
+            </Card>
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Total Orders</span>
+              <h3 className="text-lg font-display font-black text-textPearl mt-1">{selectedFYMetrics.count}</h3>
+            </Card>
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Avg Order Value</span>
+              <h3 className="text-lg font-display font-black text-textPearl mt-1">{formatPrice(selectedFYMetrics.aov)}</h3>
+            </Card>
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Avg Monthly Rev</span>
+              <h3 className="text-lg font-display font-black text-textPearl mt-1">{formatPrice(selectedFYMetrics.avgMonthly)}</h3>
+            </Card>
+          </div>
+
+          {/* Month Cards Grid */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Breakdown</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {monthsData.map((m, idx) => (
+                <Card 
+                  key={idx} 
+                  onClick={() => {
+                    setSelectedMonthIndex(idx);
+                    setView('monthly');
+                  }}
+                  className="p-5 border-slate-850 bg-slate-900/40 relative overflow-hidden flex flex-col justify-between h-36 hover:border-primary/30 hover:bg-slate-900/60 cursor-pointer transition-all duration-300"
+                >
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs font-bold text-textPearl">{m.label}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${m.trendPercent >= 0 ? 'bg-emerald-500/10 text-emerald-450' : 'bg-rose-500/10 text-rose-455'}`}>
+                      {m.trendPercent >= 0 ? `↑ +${m.trendPercent}%` : `↓ ${m.trendPercent}%`}
+                    </span>
+                  </div>
+                  <div className="my-2">
+                    <span className="text-[10px] text-slate-500 font-semibold block">Net Revenue</span>
+                    <h4 className="text-xl font-display font-extrabold text-emerald-500 mt-0.5">{formatPrice(m.net)}</h4>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 border-t border-slate-850/65 pt-2">
+                    <span>{m.ordersCount} completed orders</span>
+                    <span className="text-primary hover:underline">View details →</span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {view === 'monthly' && (
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/30 p-6 border border-slate-850 rounded-3xl">
+            <div>
+              <h1 className="text-2xl font-display font-extrabold text-textPearl">Monthly Revenue Detail</h1>
+              <p className="text-xs text-mutedAsh font-semibold mt-1">Detailed checkout events log, tax allocations, and payment splits for {selectedMonthData.label}.</p>
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => setView('annual')}
+              className="text-xs font-bold py-2 px-3 border border-slate-800"
+            >
+              Back to Annual View
+            </Button>
+          </div>
+
+          {selectedMonthData.ordersCount === 0 ? (
+            <Card className="p-12 text-center border border-dashed border-slate-850 rounded-2xl bg-slate-900/10">
+              <Calendar className="w-12 h-12 text-slate-700 mx-auto mb-3 animate-pulse" />
+              <h3 className="text-sm font-bold text-textPearl uppercase tracking-wider mb-2">No Transactions Recorded</h3>
+              <p className="text-xs text-slate-500 font-semibold max-w-md mx-auto leading-relaxed">
+                No orders or settled payments were recorded for {selectedMonthData.label}. Revenue detail graphs, receipt logs, and tax breakdowns will automatically display when sales are generated.
+              </p>
+            </Card>
+          ) : (
+            <>
+              {/* Monthly KPI Summary */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="p-4 border-slate-850 bg-slate-900/30">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Gross Revenue</span>
+                  <h3 className="text-lg font-display font-black text-textPearl mt-1">{formatPrice(selectedMonthData.gross)}</h3>
+                </Card>
+                <Card className="p-4 border-slate-850 bg-slate-900/30">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Net Revenue</span>
+                  <h3 className="text-lg font-display font-black text-emerald-500 mt-1">{formatPrice(selectedMonthData.net)}</h3>
+                </Card>
+                <Card className="p-4 border-slate-850 bg-slate-900/30">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">GST Collected</span>
+                  <h3 className="text-lg font-display font-black text-amber-500 mt-1">{formatPrice(selectedMonthData.gst)}</h3>
+                </Card>
+                <Card className="p-4 border-slate-850 bg-slate-900/30">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Successful Orders</span>
+                  <h3 className="text-lg font-display font-black text-textPearl mt-1">{selectedMonthData.ordersCount} sales</h3>
+                </Card>
+              </div>
+
+              {/* Two Column details split */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Left column: Receipt log and Timeline */}
+                <div className="lg:col-span-2 space-y-6">
+                  
+                  {/* Receipt Log */}
+                  <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                      <div>
+                        <h3 className="font-display font-bold text-sm text-textPearl">Receipt Ledger Log</h3>
+                        <p className="text-[10px] text-slate-500">Historical list of invoice receipts settled during the month.</p>
+                      </div>
+                      
+                      {/* Interactive search and filter */}
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        <input
+                          type="text"
+                          placeholder="Search client..."
+                          value={receiptSearch}
+                          onChange={(e) => setReceiptSearch(e.target.value)}
+                          className="bg-slate-955 border border-slate-850 text-xs text-textPearl font-semibold rounded-xl px-3 py-1.5 outline-none focus:border-primary w-full sm:w-40"
+                        />
+                        <select
+                          value={receiptPaymentFilter}
+                          onChange={(e) => setReceiptPaymentFilter(e.target.value)}
+                          className="bg-slate-955 border border-slate-850 text-xs text-textPearl font-semibold rounded-xl px-2.5 py-1.5 outline-none"
+                        >
+                          <option value="all">All Modes</option>
+                          <option value="cash">Cash</option>
+                          <option value="upi">UPI</option>
+                          <option value="card">Card</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-850 text-slate-500 font-bold uppercase tracking-wider text-[9px]">
+                            <th className="pb-2.5">Invoice / ID</th>
+                            <th className="pb-2.5">Customer</th>
+                            <th className="pb-2.5">Table</th>
+                            <th className="pb-2.5">Payment</th>
+                            <th className="pb-2.5 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-850/40 text-slate-300 font-semibold">
+                          {selectedMonthData.orders
+                            .filter(o => {
+                              const matchSearch = (o.customerName || '').toLowerCase().includes(receiptSearch.toLowerCase()) || 
+                                (o.orderId || '').toLowerCase().includes(receiptSearch.toLowerCase());
+                              
+                              let matchPayment = true;
+                              if (receiptPaymentFilter !== 'all') {
+                                const mode = (o.paymentMethod || '').toLowerCase();
+                                const methods = o.paymentMethods;
+                                if (receiptPaymentFilter === 'cash') matchPayment = !!methods?.cash || mode.includes('cash');
+                                if (receiptPaymentFilter === 'upi') matchPayment = !!methods?.upi || mode.includes('upi');
+                                if (receiptPaymentFilter === 'card') matchPayment = !!methods?.card || mode.includes('card');
+                              }
+
+                              return matchSearch && matchPayment;
+                            })
+                            .map((o) => (
+                              <tr key={o.orderId} className="hover:bg-slate-900/10">
+                                <td className="py-3 font-mono text-[11px]">#{o.orderId.split('-')[1] || o.orderId}</td>
+                                <td className="py-3 text-textPearl">{o.customerName || 'Walk-in Client'}</td>
+                                <td className="py-3 text-primary font-bold">Table #{o.tableNumber}</td>
+                                <td className="py-3">
+                                  <Badge variant="muted" className="scale-90 origin-left uppercase">
+                                    {o.paymentMethod || (o.paymentMethods?.upi ? 'UPI' : (o.paymentMethods?.card ? 'CARD' : 'CASH'))}
+                                  </Badge>
+                                </td>
+                                <td className="py-3 text-right text-emerald-500 font-mono font-bold">{formatPrice(o.total)}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+
+                  {/* Receipt Timeline */}
+                  <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
+                    <div>
+                      <h3 className="font-display font-bold text-sm text-textPearl">Receipt Settlements Timeline</h3>
+                      <p className="text-[10px] text-slate-500">Real-time chronicle log of receipt transactions completed.</p>
+                    </div>
+                    <div className="relative border-l-2 border-slate-800 ml-3 pl-5 space-y-4">
+                      {selectedMonthData.orders
+                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                        .slice(0, 10)
+                        .map((o, idx) => (
+                          <div key={idx} className="relative">
+                            <div className="absolute -left-[27px] top-1 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-slate-955" />
+                            <div className="text-xs">
+                              <span className="text-[9px] text-slate-500 font-bold block">{new Date(o.createdAt).toLocaleString()}</span>
+                              <p className="text-slate-355 font-semibold mt-0.5">
+                                Invoice <strong className="text-textPearl">#{o.orderId.split('-')[1] || o.orderId}</strong> was completed for Table #{o.tableNumber}. Total amount <strong className="text-emerald-500 font-mono">{formatPrice(o.total)}</strong> paid.
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </Card>
+
+                </div>
+
+                {/* Right column: GST Tax and Payment Breakdowns */}
+                <div className="space-y-6">
+                  
+                  {/* GST Tax Breakdown */}
+                  <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
+                    <div>
+                      <h3 className="font-display font-bold text-sm text-textPearl">GST Margins Breakdown</h3>
+                      <p className="text-[10px] text-slate-500">Split allocations for Central and State tax rules.</p>
+                    </div>
+
+                    <div className="space-y-3.5 text-xs font-semibold text-slate-400">
+                      <div className="flex justify-between pb-2 border-b border-slate-850/60">
+                        <span>CGST (Central Tax 2.5%)</span>
+                        <span className="text-textPearl font-mono">{formatPrice(selectedMonthData.gst / 2)}</span>
+                      </div>
+                      <div className="flex justify-between pb-2 border-b border-slate-850/60">
+                        <span>SGST (State Tax 2.5%)</span>
+                        <span className="text-textPearl font-mono">{formatPrice(selectedMonthData.gst / 2)}</span>
+                      </div>
+                      <div className="flex justify-between pb-2 border-b border-slate-850/60">
+                        <span>IGST (Interstate Tax 0%)</span>
+                        <span className="text-slate-600 font-mono">$0.00</span>
+                      </div>
+                      <div className="flex justify-between text-textPearl font-extrabold pt-1">
+                        <span>Total GST Margins</span>
+                        <span className="text-amber-500 font-mono">{formatPrice(selectedMonthData.gst)}</span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Payment Method Breakdown */}
+                  <Card className="p-5 border-slate-850 bg-slate-900/30 space-y-4">
+                    <div>
+                      <h3 className="font-display font-bold text-sm text-textPearl">Settled Payments Mix</h3>
+                      <p className="text-[10px] text-slate-500">Breakdown of revenue collected across methods.</p>
+                    </div>
+
+                    {(() => {
+                      let cash = 0;
+                      let upi = 0;
+                      let card = 0;
+                      let wallet = 0;
+
+                      selectedMonthData.orders.forEach(o => {
+                        if (o.paymentMethods) {
+                          cash += o.paymentMethods.cash || 0;
+                          upi += o.paymentMethods.upi || 0;
+                          card += o.paymentMethods.card || 0;
+                          wallet += o.paymentMethods.wallet || 0;
+                        } else {
+                          const method = String(o.paymentMethod || 'cash').toLowerCase();
+                          if (method.includes('upi')) upi += o.total || 0;
+                          else if (method.includes('card')) card += o.total || 0;
+                          else if (method.includes('wallet')) wallet += o.total || 0;
+                          else cash += o.total || 0;
+                        }
+                      });
+
+                      const totalSum = cash + upi + card + wallet || 1;
+
+                      return (
+                        <div className="space-y-3.5 text-xs font-semibold text-slate-450">
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-slate-350">
+                              <span className="flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5 text-sky-400" /> UPI Transfer</span>
+                              <span className="font-mono">{formatPrice(upi)} ({Math.round(upi / totalSum * 100)}%)</span>
+                            </div>
+                            <div className="w-full bg-slate-955 h-1.5 rounded-full overflow-hidden">
+                              <div className="bg-sky-500 h-full rounded-full" style={{ width: `${(upi / totalSum * 100)}%` }} />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-slate-355">
+                              <span className="flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5 text-amber-400" /> Credit/Debit Card</span>
+                              <span className="font-mono">{formatPrice(card)} ({Math.round(card / totalSum * 100)}%)</span>
+                            </div>
+                            <div className="w-full bg-slate-955 h-1.5 rounded-full overflow-hidden">
+                              <div className="bg-amber-500 h-full rounded-full" style={{ width: `${(card / totalSum * 100)}%` }} />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-slate-355">
+                              <span className="flex items-center gap-1.5"><DollarSign className="w-3.5 h-3.5 text-emerald-400" /> Cash Settlements</span>
+                              <span className="font-mono">{formatPrice(cash)} ({Math.round(cash / totalSum * 100)}%)</span>
+                            </div>
+                            <div className="w-full bg-slate-955 h-1.5 rounded-full overflow-hidden">
+                              <div className="bg-emerald-455 h-full rounded-full" style={{ width: `${(cash / totalSum * 100)}%` }} />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-slate-355">
+                              <span className="flex items-center gap-1.5"><Wallet className="w-3.5 h-3.5 text-purple-400" /> Digital Wallets</span>
+                              <span className="font-mono">{formatPrice(wallet)} ({Math.round(wallet / totalSum * 100)}%)</span>
+                            </div>
+                            <div className="w-full bg-slate-955 h-1.5 rounded-full overflow-hidden">
+                              <div className="bg-purple-500 h-full rounded-full" style={{ width: `${(wallet / totalSum * 100)}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </Card>
+
+                </div>
+
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Invite Employee Modal */}
       <Modal
@@ -1527,6 +2491,8 @@ export const OwnerOverview: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+
 
     </div>
   );

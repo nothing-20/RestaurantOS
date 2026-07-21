@@ -8,7 +8,8 @@ import {
   setDoc, 
   updateDoc,
   query, 
-  where 
+  where, 
+  onSnapshot
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { getMenuItemPath } from '../../../firebase/collections';
@@ -17,6 +18,7 @@ import { useCart } from '../../../context/CartContext';
 import { formatPrice } from '../../../utils/format';
 import { useAuth } from '../../../context/AuthContext';
 import { customerService } from '../../../shared/services/customerService';
+import { generateUniqueOrderId } from '../../../shared/utils/orderUtils';
 
 // UI Kit components
 import Button from '../../../components/ui/Button/Button';
@@ -112,13 +114,16 @@ export const CustomerPortal: React.FC = () => {
     setIsCallingService(true);
     try {
       const requestId = `REQ-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      const docRef = doc(db, 'restaurants', tenantId, 'requests', requestId);
+      const docRef = doc(db, 'restaurants', tenantId, 'waiterRequests', requestId);
       await setDoc(docRef, {
         id: requestId,
-        tableNumber: tableId || 'Bar',
+        requestId,
+        tableNumber: tableId ? tableId.replace(/^TBL-/i, '') : 'Bar',
+        tableNum: tableId ? tableId.replace(/^TBL-/i, '') : 'Bar',
         type,
         status: 'pending',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       });
       toast.success(`${type} request sent to waiter!`);
       setIsServiceOpen(false);
@@ -130,40 +135,41 @@ export const CustomerPortal: React.FC = () => {
     }
   };
 
-  // Fetch menu collection restaurants/{tenantId}/menu
-  const fetchMenu = async () => {
+  // Subscribe to Menu, Tenant branding details, and handle QR table check-in
+  useEffect(() => {
     if (!tenantId) return;
     setIsLoading(true);
-    try {
-      // 1. Fetch Tenant details
-      const tenantRef = doc(db, 'tenants', tenantId);
-      const tenantSnap = await getDoc(tenantRef);
-      if (!tenantSnap.exists()) {
-        toast.error('Restaurant not found.');
-        navigate('/customer/restaurants');
-        return;
-      }
-      
-      const tenantData = tenantSnap.data();
-      setRestaurantName(tenantData.restaurantName || tenantData.name || 'Gourmet Bistro');
-      setCoverImage(tenantData.coverImage || '');
-      setLogoUrl(tenantData.logoUrl || '');
-      setBrandingColors({
-        primary: tenantData.primaryColor,
-        secondary: tenantData.secondaryColor
-      });
 
-      // Dynamic CSS Variable Overrides
-      if (tenantData.primaryColor) {
-        document.documentElement.style.setProperty('--color-primary', tenantData.primaryColor);
+    // 1. Fetch Tenant details
+    const fetchTenantInfo = async () => {
+      try {
+        const tenantRef = doc(db, 'tenants', tenantId);
+        const tenantSnap = await getDoc(tenantRef);
+        if (tenantSnap.exists()) {
+          const tenantData = tenantSnap.data();
+          setRestaurantName(tenantData.restaurantName || tenantData.name || 'Gourmet Bistro');
+          setCoverImage(tenantData.coverImage || '');
+          setLogoUrl(tenantData.logoUrl || '');
+          setBrandingColors({
+            primary: tenantData.primaryColor,
+            secondary: tenantData.secondaryColor
+          });
+          if (tenantData.primaryColor) {
+            document.documentElement.style.setProperty('--color-primary', tenantData.primaryColor);
+          }
+          if (tenantData.secondaryColor) {
+            document.documentElement.style.setProperty('--color-secondary', tenantData.secondaryColor);
+          }
+        }
+      } catch (err) {
+        console.error(err);
       }
-      if (tenantData.secondaryColor) {
-        document.documentElement.style.setProperty('--color-secondary', tenantData.secondaryColor);
-      }
+    };
+    fetchTenantInfo();
 
-      // 2. Fetch Menu Items
-      const colRef = collection(db, getMenuItemPath(tenantId));
-      const querySnap = await getDocs(query(colRef));
+    // 2. Subscribe to Menu items in real-time
+    const colRef = collection(db, getMenuItemPath(tenantId));
+    const unsubMenu = onSnapshot(query(colRef), (querySnap) => {
       const items: IMenuItem[] = [];
       const catSet = new Set<string>();
 
@@ -174,19 +180,73 @@ export const CustomerPortal: React.FC = () => {
       });
 
       setMenuItems(items);
-      setFilteredItems(items);
       setCategories(Array.from(catSet));
-    } catch (e: any) {
-      console.error(e);
-      toast.error('Failed to load restaurant menu catalog.');
-    } finally {
       setIsLoading(false);
-    }
-  };
+    }, (err) => {
+      console.error(err);
+      setIsLoading(false);
+    });
 
-  useEffect(() => {
-    fetchMenu();
-  }, [tenantId]);
+    // 3. Handle QR Table seating check-in
+    const checkInTable = async () => {
+      if (!tableId) return;
+      try {
+        const tableRef = doc(db, 'restaurants', tenantId, 'tables', tableId);
+        const tableSnap = await getDoc(tableRef);
+        
+        let existingOrderId = '';
+        let tableNeedsUpdate = true;
+        
+        if (tableSnap.exists()) {
+          const tableData = tableSnap.data();
+          if (tableData.status?.toLowerCase() === 'occupied' && tableData.activeOrderId) {
+            existingOrderId = tableData.activeOrderId;
+            tableNeedsUpdate = false;
+          }
+        }
+
+        if (tableNeedsUpdate) {
+          const orderId = generateUniqueOrderId();
+          
+          // Initial blank order payload
+          const orderRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
+          await setDoc(orderRef, {
+            id: orderId,
+            orderId,
+            customerId: user?.uid || 'guest-uid',
+            customerName: customerName || user?.displayName || 'Diner',
+            tableNumber: tableId ? tableId.replace(/^TBL-/i, '') : 'Bar',
+            tableId: tableId,
+            tenantId: tenantId,
+            items: [],
+            status: 'ACCEPTED',
+            subtotal: 0,
+            total: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+
+          // Seating table registration
+          await setDoc(tableRef, {
+            status: 'occupied',
+            activeOrderId: orderId,
+            seatingTime: new Date().toISOString(),
+            guestsCount: 2,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+
+          console.log(`[QR Check-In] Table ${tableId} set to occupied. Session order ${orderId} initialized.`);
+        }
+      } catch (err) {
+        console.error('[QR Check-In] Failed to seat table:', err);
+      }
+    };
+    checkInTable();
+
+    return () => {
+      unsubMenu();
+    };
+  }, [tenantId, tableId, user]);
 
   // Filters logic
   useEffect(() => {
@@ -261,7 +321,7 @@ export const CustomerPortal: React.FC = () => {
     try {
       console.log('[STEP 2] Validation passed');
 
-      const orderId = `ORD-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const orderId = generateUniqueOrderId();
       const docRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
 
       const itemsList = cartItems.map(item => ({

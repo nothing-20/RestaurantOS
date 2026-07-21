@@ -23,6 +23,8 @@ import {
   arrayUnion,
   query,
   where,
+  getDoc,
+  addDoc
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
@@ -35,6 +37,16 @@ import KitchenInsightsPanel from './KitchenInsightsPanel';
 import BulkActionsToolbar from './BulkActionsToolbar';
 import KitchenTicket from './KitchenTicket';
 import OrderTimeline from './OrderTimeline';
+import { inventoryService } from '../../../shared/services/inventoryService';
+import LivePreparedInventory from './LivePreparedInventory';
+
+// Enterprise Panels
+import ChefAvailabilityPanel from './ChefAvailabilityPanel';
+import IngredientAlertsPanel from './IngredientAlertsPanel';
+import KitchenAnnouncementsPanel from './KitchenAnnouncementsPanel';
+import ShiftManagementPanel from './ShiftManagementPanel';
+import KitchenLoadMeter from './KitchenLoadMeter';
+import SmartBatchPrediction from './SmartBatchPrediction';
 
 // UI Kit
 import Card from '../../../components/ui/Card/Card';
@@ -60,6 +72,8 @@ import {
   Zap,
   AlertTriangle,
   X,
+  History,
+  Activity,
 } from 'lucide-react';
 
 // KDS-specific types & utilities
@@ -132,6 +146,7 @@ export const KitchenQueue: React.FC = () => {
   // ── Core Data State ───────────────────────────────────────────────────────
   const [allOrders, setAllOrders] = useState<IKdsOrder[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // ── View State ────────────────────────────────────────────────────────────
@@ -160,6 +175,24 @@ export const KitchenQueue: React.FC = () => {
 
   // ── Peak Queue Tracking (session watermark) ───────────────────────────────
   const [peakQueue, setPeakQueue] = useState(0);
+  const [reservations, setReservations] = useState<any[]>([]);
+
+  // ── Realtime Reservations subscription for KDS Reservation Feed ───────────
+  useEffect(() => {
+    if (!user?.tenantId) return;
+    const colRef = collection(db, 'restaurants', user.tenantId, 'reservations');
+    const unsubscribe = onSnapshot(colRef, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((d) => {
+        list.push({ id: d.id, ...d.data() });
+      });
+      list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      setReservations(list);
+    }, (err) => {
+      console.error('KDS Reservations subscription error:', err);
+    });
+    return () => unsubscribe();
+  }, [user?.tenantId]);
 
   // ── Single Firestore Listener for Orders ──────────────────────────────────
   useEffect(() => {
@@ -217,6 +250,28 @@ export const KitchenQueue: React.FC = () => {
       },
       (error) => {
         console.error('Error fetching employees:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.tenantId]);
+
+  // ── Realtime Listener for Menu Items (Batch Portions Tracking) ─────────────
+  useEffect(() => {
+    if (!user?.tenantId) return;
+
+    const colRef = collection(db, 'restaurants', user.tenantId, 'menu', 'default', 'items');
+    const unsubscribe = onSnapshot(
+      colRef,
+      (snapshot) => {
+        const list: any[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        setMenuItems(list);
+      },
+      (error) => {
+        console.error('Error fetching menu items:', error);
       }
     );
 
@@ -353,23 +408,81 @@ export const KitchenQueue: React.FC = () => {
 
   const allSelected = selectedIds.size === filteredOrders.length && filteredOrders.length > 0;
 
+  // Local portion deductions are automated via background transaction listener
+
+  const handlePrepareBatch = async (item: any, size: number) => {
+    if (!user?.tenantId) return;
+    
+    // First validate ingredients and deduct from stock using inventoryService transaction
+    await inventoryService.deductIngredientsForBatch(user.tenantId, item.id, size);
+
+    // If validation passed, increment available servings
+    const docRef = doc(db, 'restaurants', user.tenantId, 'menu', 'default', 'items', item.id);
+    const currentServings = Number(item.availableServings ?? 0);
+    const newServings = currentServings + size;
+    
+    await updateDoc(docRef, {
+      availableServings: newServings,
+      isAvailable: true,
+      available: true,
+      lastPreparedAt: new Date().toISOString(),
+      lastPreparedBy: user.displayName || user.email || 'Kitchen Chef',
+      updatedAt: new Date().toISOString()
+    });
+
+    // Save history document
+    await addDoc(collection(db, 'restaurants', user.tenantId, 'preparedBatchesHistory'), {
+      itemId: item.id,
+      itemName: item.name,
+      portionsAdded: size,
+      timestamp: new Date().toISOString(),
+      preparedBy: user.displayName || user.email || 'Kitchen Chef'
+    });
+
+    await logEvent(user.tenantId, {
+      eventType: 'Batch Prepared',
+      eventCategory: 'Operations',
+      performedBy: user.displayName || user.email || 'Kitchen Chef',
+      performedByRole: 'kitchen',
+      title: 'New Prepared Batch Cooked',
+      description: `Prepared new batch of "${item.name}" adding ${size} portions. Required ingredients deducted from stock.`,
+      metadata: { itemId: item.id, batchSize: size, availableServings: newServings }
+    });
+
+    toast.success(`Prepared new batch of ${size} portions for ${item.name}!`);
+  };
+
   // ── Single Status Update (with timeline append) ───────────────────────────
   const handleStatusUpdate = useCallback(
     async (orderId: string, nextStatus: string) => {
       if (!user?.tenantId) return;
       try {
         const docRef = doc(db, 'restaurants', user.tenantId, 'orders', orderId);
+        const timestamp = new Date().toISOString();
         const timelineEvent: ITimelineEvent = {
           type: nextStatus as ITimelineEvent['type'],
           title: TIMELINE_TITLES[nextStatus] || nextStatus,
-          timestamp: new Date().toISOString(),
+          timestamp,
           performedBy: user?.displayName || 'Kitchen Staff',
         };
-        await updateDoc(docRef, {
+        const updateFields: any = {
           status: nextStatus,
-          updatedAt: new Date().toISOString(),
+          updatedAt: timestamp,
           timeline: arrayUnion(timelineEvent),
-        });
+        };
+
+        if (nextStatus === 'ACCEPTED') updateFields.acceptedAt = timestamp;
+        if (nextStatus === 'CHEF_ASSIGNED') updateFields.chefAssignedAt = timestamp;
+        if (nextStatus === 'PREPARING') updateFields.cookingStartedAt = timestamp;
+        if (nextStatus === 'READY') updateFields.readyAt = timestamp;
+        if (nextStatus === 'PICKED_UP' || nextStatus === 'DELIVERED') updateFields.pickupAt = timestamp;
+        if (nextStatus === 'SERVED') updateFields.servedAt = timestamp;
+        if (nextStatus === 'COMPLETED') updateFields.completedAt = timestamp;
+        if (nextStatus === 'PAID') updateFields.paymentAt = timestamp;
+
+        await updateDoc(docRef, updateFields);
+
+        // Portion deduction automated on status PREPARING / COMPLETED
         toast.success(`Order → ${TIMELINE_TITLES[nextStatus] || nextStatus}`, {
           id: `status-${orderId}`,
         });
@@ -422,14 +535,27 @@ export const KitchenQueue: React.FC = () => {
             performedBy: `${user?.displayName || 'Kitchen Staff'} (Bulk)`,
             description: `Bulk operation — ${selectedIds.size} orders`,
           };
-          batch.update(ref, {
+          const updateFields: any = {
             status: nextStatus,
             updatedAt: timestamp,
             timeline: arrayUnion(timelineEvent),
-          });
+          };
+
+          if (nextStatus === 'ACCEPTED') updateFields.acceptedAt = timestamp;
+          if (nextStatus === 'CHEF_ASSIGNED') updateFields.chefAssignedAt = timestamp;
+          if (nextStatus === 'PREPARING') updateFields.cookingStartedAt = timestamp;
+          if (nextStatus === 'READY') updateFields.readyAt = timestamp;
+          if (nextStatus === 'PICKED_UP' || nextStatus === 'DELIVERED') updateFields.pickupAt = timestamp;
+          if (nextStatus === 'SERVED') updateFields.servedAt = timestamp;
+          if (nextStatus === 'COMPLETED') updateFields.completedAt = timestamp;
+          if (nextStatus === 'PAID') updateFields.paymentAt = timestamp;
+
+          batch.update(ref, updateFields);
         }
 
         await batch.commit();
+
+        // Portion deduction automated on status PREPARING / COMPLETED
         toast.success(
           `${selectedIds.size} orders → ${TIMELINE_TITLES[nextStatus] || nextStatus}`,
           { id: toastId }
@@ -776,6 +902,60 @@ export const KitchenQueue: React.FC = () => {
 
   // ─── Tab View Renderers ─────────────────────────────────────────────────────
 
+  const renderReservationsView = () => {
+    if (reservations.length === 0) {
+      return (
+        <div className="h-64 flex flex-col items-center justify-center text-slate-500 border border-dashed border-slate-850 rounded-3xl">
+          <Calendar className="w-10 h-10 text-slate-700 mb-3" />
+          <p className="text-sm font-semibold">No reservations scheduled today.</p>
+        </div>
+      );
+    }
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        {reservations.map((res) => (
+          <Card key={res.id} className="p-4 border-slate-855 bg-slate-900/35 rounded-2xl space-y-3 text-xs text-left">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-extrabold text-sm text-textPearl">{res.customerName}</h4>
+                <p className="text-[10px] text-slate-500 font-mono mt-0.5">Ref: {res.id}</p>
+              </div>
+              <Badge variant={res.status === 'Confirmed' ? 'success' : res.status === 'Pending' ? 'warning' : 'muted'} className="text-[8px] py-0.5 uppercase font-bold">
+                {res.status}
+              </Badge>
+            </div>
+            <div className="space-y-1 text-[11px] text-slate-400">
+              <div className="flex justify-between">
+                <span>Date & Time:</span>
+                <span className="font-bold text-white">{res.date} @ {res.time}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Party Size:</span>
+                <span className="font-semibold text-slate-300">{res.guests} Guests</span>
+              </div>
+              {res.seatingPreference && (
+                <div className="flex justify-between">
+                  <span>Zone Req:</span>
+                  <span className="text-primary font-bold">{res.seatingPreference}</span>
+                </div>
+              )}
+              {res.specialNotes && (
+                <div className="flex flex-col gap-0.5 border-t border-slate-850/60 pt-1.5 mt-1.5">
+                  <span className="text-[9.5px] uppercase font-bold text-slate-500">Special Notes:</span>
+                  <span className="text-slate-350 italic">"{res.specialNotes}"</span>
+                </div>
+              )}
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  };
+
+  const renderPreparedInventoryView = () => {
+    return <LivePreparedInventory menuItems={menuItems} onPrepareBatch={handlePrepareBatch} />;
+  };
+
   const renderTableView = () => {
     const showBulkSelect = true;
 
@@ -806,6 +986,7 @@ export const KitchenQueue: React.FC = () => {
             onRecallOrder={handleRecallOrder}
             onUpdateNotes={handleUpdateNotes}
             onUpdatePriority={handleUpdatePriority}
+            menuItems={menuItems}
           />
         ))}
       </div>
@@ -1195,13 +1376,93 @@ export const KitchenQueue: React.FC = () => {
         </div>
       </div>
 
-      {!isLoading && <KitchenStatsBar metrics={metrics} targetPrepMinutes={targetPrepMinutes} />}
+      {/* Stats Bar + Load Meter */}
+      {!isLoading && (
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex-1">
+            <KitchenStatsBar metrics={metrics} targetPrepMinutes={targetPrepMinutes} />
+          </div>
+          <div className="lg:w-72 shrink-0">
+            <KitchenLoadMeter activeOrderCount={metrics.activeOrders} maxCapacity={20} />
+          </div>
+        </div>
+      )}
+
+      {/* Announcements Bar (always visible when announcements exist) */}
+      <KitchenAnnouncementsPanel />
 
       <div className="flex flex-col xl:flex-row gap-4">
 
         {showInsights && (
-          <div className="xl:w-64 shrink-0">
+          <div className="xl:w-72 shrink-0 space-y-4">
             <KitchenInsightsPanel metrics={metrics} orders={allOrders} />
+
+            {/* Chef Availability */}
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <ChefAvailabilityPanel employees={employees} orders={allOrders} />
+            </Card>
+
+            {/* Shift Management */}
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <ShiftManagementPanel employees={employees} />
+            </Card>
+
+            {/* Ingredient Alerts */}
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <IngredientAlertsPanel menuItems={menuItems} />
+            </Card>
+
+            {/* Smart Batch Prediction */}
+            <Card className="p-4 border-slate-850 bg-slate-900/30">
+              <SmartBatchPrediction menuItems={menuItems} orders={allOrders} onPrepareBatch={handlePrepareBatch} />
+            </Card>
+            
+            {/* Prepared Batch Panel */}
+            <Card className="p-4 border-slate-850 bg-slate-900/30 space-y-3.5">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-850/60">
+                <h4 className="text-xs font-bold text-textPearl uppercase tracking-wider">Prepared Batches</h4>
+                <span className="text-[9px] text-slate-550 font-extrabold uppercase bg-slate-900 px-1.5 py-0.5 rounded">Portions</span>
+              </div>
+              
+              {menuItems.filter(i => i.preparationMethod === 'batch').length === 0 ? (
+                <p className="text-[10px] text-slate-500 font-semibold py-2 text-center">No batch prepared items configured.</p>
+              ) : (
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                  {menuItems.filter(i => i.preparationMethod === 'batch').map(item => {
+                    const servings = item.availableServings ?? 0;
+                    const total = item.defaultBatchSize ?? 50;
+                    const threshold = item.lowStockThreshold ?? 10;
+                    const isOut = servings === 0;
+                    const isLow = servings <= threshold;
+
+                    return (
+                      <div key={item.id} className="bg-slate-950/40 p-2.5 border border-slate-855 rounded-xl space-y-2 text-[10px]">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-bold text-textPearl block leading-tight text-left">{item.name}</span>
+                            <span className="text-[8px] text-slate-550 font-bold block mt-0.5 text-left">Threshold: {threshold}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-bold text-textPearl font-mono block leading-none">{servings} / {total}</span>
+                            <span className={`inline-block text-[7.5px] font-extrabold px-1 py-0.2 rounded mt-1 uppercase ${
+                              isOut ? 'bg-red-500/10 text-red-400 border border-red-500/20' : isLow ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            }`}>
+                              {isOut ? 'Sold Out' : isLow ? 'Low' : 'Healthy'}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handlePrepareBatch(item)}
+                          className="w-full text-center py-1 bg-slate-800 hover:bg-slate-700/80 font-bold text-textPearl rounded-lg border border-slate-750 transition-all text-[9.5px]"
+                        >
+                          Prepare New Batch
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
           </div>
         )}
 
@@ -1210,11 +1471,13 @@ export const KitchenQueue: React.FC = () => {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center space-x-1 p-1 bg-slate-900/30 border border-slate-850 rounded-2xl flex-wrap gap-y-1">
               {([
-                { id: 'table',      label: 'Table View',    Icon: LayoutGrid,      activeColor: 'bg-blue-500/10 border-blue-500/30 text-blue-300',    iconColor: 'text-blue-400' },
-                { id: 'category',   label: 'Category View', Icon: UtensilsCrossed, activeColor: 'bg-green-500/10 border-green-500/30 text-green-300',  iconColor: 'text-green-400' },
-                { id: 'station',    label: 'Station View',  Icon: Layers,          activeColor: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300',iconColor: 'text-yellow-400' },
-                { id: 'item-queue', label: 'Item Queue',    Icon: ListOrdered,     activeColor: 'bg-red-500/10 border-red-500/30 text-red-300',         iconColor: 'text-red-400' },
-                { id: 'queue',      label: 'Cooking Queue', Icon: ListOrdered,     activeColor: 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300', iconColor: 'text-indigo-400' },
+                { id: 'table',            label: 'Table View',         Icon: LayoutGrid,      activeColor: 'bg-blue-500/10 border-blue-500/30 text-blue-300',         iconColor: 'text-blue-400' },
+                { id: 'category',         label: 'Category View',      Icon: UtensilsCrossed, activeColor: 'bg-green-500/10 border-green-500/30 text-green-300',     iconColor: 'text-green-400' },
+                { id: 'station',          label: 'Station View',       Icon: Layers,          activeColor: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300',   iconColor: 'text-yellow-400' },
+                { id: 'item-queue',       label: 'Item Queue',         Icon: ListOrdered,     activeColor: 'bg-red-500/10 border-red-500/30 text-red-300',            iconColor: 'text-red-400' },
+                { id: 'queue',            label: 'Cooking Queue',      Icon: ListOrdered,     activeColor: 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300',   iconColor: 'text-indigo-400' },
+                { id: 'inventory',        label: 'Prepared Inventory', Icon: Package,         activeColor: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300', iconColor: 'text-emerald-455' },
+                { id: 'reservations',     label: 'Reservation Feed',   Icon: Calendar,        activeColor: 'bg-amber-500/10 border-amber-500/30 text-amber-300',     iconColor: 'text-amber-400' },
               ] as const).map(({ id, label, Icon, activeColor, iconColor }) => (
                 <button
                   key={id}
@@ -1370,12 +1633,14 @@ export const KitchenQueue: React.FC = () => {
               <LoadingSpinner label="Connecting to kitchen order stream..." />
             </div>
           ) : (
-            <div>
+            <div className="space-y-4">
               {activeTab === 'table'      && renderTableView()}
               {activeTab === 'category'   && renderCategoryView()}
               {activeTab === 'station'    && renderStationView()}
               {activeTab === 'item-queue' && renderItemQueueView()}
               {activeTab === 'queue'      && renderQueueView()}
+              {activeTab === 'inventory'  && renderPreparedInventoryView()}
+              {activeTab === 'reservations' && renderReservationsView()}
             </div>
           )}
         </div>

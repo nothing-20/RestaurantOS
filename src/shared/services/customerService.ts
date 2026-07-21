@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { logEvent } from './eventEngine';
 import { TQrParams, TDiningSession } from '../domain/customer/validation';
@@ -70,13 +70,31 @@ export const customerService = {
       }
 
       // 3. Fetch Table
+      let tableData: any = null;
       const tableRef = doc(db, 'restaurants', params.r, 'tables', params.t);
       const tableSnap = await getDoc(tableRef);
-      if (!tableSnap.exists()) {
-        return { valid: false, errorType: 'qr-invalid' };
+      
+      if (tableSnap.exists()) {
+        tableData = { ...tableSnap.data(), id: tableSnap.id };
+      } else {
+        // Fallback: search by tableNumber/number field if document ID lookup fails
+        const tableNum = params.t.replace('TBL-', '');
+        const tablesRef = collection(db, 'restaurants', params.r, 'tables');
+        const q1 = query(tablesRef, where('tableNumber', '==', tableNum));
+        let querySnap = await getDocs(q1);
+        if (querySnap.empty) {
+          const q2 = query(tablesRef, where('number', '==', tableNum));
+          querySnap = await getDocs(q2);
+        }
+        if (!querySnap.empty) {
+          const matchedDoc = querySnap.docs[0];
+          tableData = { ...matchedDoc.data(), id: matchedDoc.id };
+        }
       }
 
-      const tableData = tableSnap.data();
+      if (!tableData) {
+        return { valid: false, errorType: 'qr-invalid' };
+      }
       if (tableData.isActive === false || tableData.status === 'Disabled') {
         return { valid: false, errorType: 'table-disabled' };
       }
@@ -138,6 +156,7 @@ export const customerService = {
 
     // Log operational events to central stream
     await logEvent(session.restaurantId, {
+      title: 'Dining Session Started',
       eventCategory: 'Customer',
       eventType: 'Dining Session Started',
       description: `New customer dining session started at table ${session.tableId.replace('TBL-', '')} using device ${session.deviceId.substring(0, 8)}`,
@@ -160,6 +179,7 @@ export const customerService = {
    */
   logCustomerEvent: async (restaurantId: string, eventType: string, description: string, metadata: Record<string, any> = {}) => {
     await logEvent(restaurantId, {
+      title: eventType,
       eventCategory: 'Customer',
       eventType,
       description,

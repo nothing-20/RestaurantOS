@@ -24,6 +24,7 @@ export interface IRecipeIngredient {
   quantity: number; // e.g. 250 (g) or 2 (pieces)
   unit: string;
   alternativeIngredientIds?: string[];
+  notes?: string;
 }
 
 export interface IRecipe {
@@ -35,6 +36,9 @@ export interface IRecipe {
   wastePercentage: number; // e.g. 5 for 5% waste
   ingredients: IRecipeIngredient[];
   updatedAt: string;
+  recipeName?: string;
+  portionSize?: string;
+  cookingNotes?: string;
 }
 
 export interface IStockMovement {
@@ -60,6 +64,10 @@ export interface ISupplier {
   deliveryTimeDays: number;
   rating: number; // 1-5 star
   updatedAt: string;
+  companyName?: string;
+  gstNumber?: string;
+  paymentTerms?: string;
+  deliverySchedule?: string;
 }
 
 export interface IPurchaseSuggestion {

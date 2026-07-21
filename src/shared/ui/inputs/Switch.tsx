@@ -29,19 +29,24 @@ export const Switch: React.FC<ISwitchProps> = ({
         onClick={handleToggle}
         disabled={disabled}
         className={cn(
-          "relative inline-flex h-5.5 w-10.5 items-center rounded-full transition-all duration-350 focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-40 disabled:cursor-not-allowed",
-          checked ? "bg-primary" : "bg-slate-800"
+          "relative inline-flex items-center rounded-full transition-all duration-350 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed",
+          checked ? "bg-primary" : "bg-slate-700"
         )}
+        style={{ width: '40px', height: '20px' }}
       >
         <span
           className={cn(
-            "inline-block h-4.5 w-4.5 transform rounded-full bg-white transition-all duration-350",
-            checked ? "translate-x-5" : "translate-x-0.75"
+            "inline-block rounded-full bg-white transition-all duration-350"
           )}
+          style={{
+            width: '14px',
+            height: '14px',
+            transform: checked ? 'translateX(22px)' : 'translateX(4px)'
+          }}
         />
       </button>
       {label ? (
-        <span className="text-xs text-slate-400 select-none font-medium">{label}</span>
+        <span className="text-xs text-slate-350 select-none font-semibold leading-none">{label}</span>
       ) : null}
     </div>
   );

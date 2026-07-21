@@ -1,7 +1,2 @@
-import React from 'react';
-import DashboardLayout from './DashboardLayout';
-
-export const AdminLayout: React.FC = () => {
-  return <DashboardLayout />;
-};
-export default AdminLayout;
+// Deprecated during clean-up. This file has been cleared and is no longer used.
+export default null;

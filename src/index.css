@@ -8,6 +8,14 @@
   body {
     @apply bg-background text-textPearl font-sans antialiased;
   }
+  select {
+    color: #e2e8f0 !important;
+    background-color: #0f172a !important;
+  }
+  option {
+    background-color: #0f172a !important;
+    color: #e2e8f0 !important;
+  }
 }
 
 /* Custom Scrollbar for dashboards */

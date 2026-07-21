@@ -1,3 +1,2 @@
-export * from '../../shared/ui/layouts/WaiterLayout';
-import WaiterLayout from '../../shared/ui/layouts/WaiterLayout';
-export default WaiterLayout;
+// Deprecated during clean-up. This file has been cleared and is no longer used.
+export default null;

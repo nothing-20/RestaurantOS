@@ -49,7 +49,9 @@ import {
   Gift,
   Play,
   Pause,
-  FolderOpen
+  FolderOpen,
+  Sparkles,
+  Lock
 } from 'lucide-react';
 
 export const OwnerBilling: React.FC = () => {
@@ -151,7 +153,7 @@ export const OwnerBilling: React.FC = () => {
     const ordersRef = collection(db, 'restaurants', user.tenantId, 'orders');
     const unsubOrders = onSnapshot(ordersRef, (snap) => {
       const list: IOrder[] = [];
-      snap.forEach((d) => list.push({ ...d.data() } as IOrder));
+      snap.forEach((d) => list.push({ orderId: d.id, id: d.id, ...d.data() } as IOrder));
       setOrders(list);
       setIsLoading(false);
     });
@@ -160,14 +162,22 @@ export const OwnerBilling: React.FC = () => {
     const unsubTrans = onSnapshot(transRef, (snap) => {
       const list: any[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
-      setTransactions(list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setTransactions(list.sort((a, b) => {
+        const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return isNaN(tA) || isNaN(tB) ? 0 : tB - tA;
+      }));
     });
 
     const refundsRef = collection(db, 'restaurants', user.tenantId, 'refunds');
     const unsubRefunds = onSnapshot(refundsRef, (snap) => {
       const list: any[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
-      setRefunds(list.sort((a, b) => new Date(b.refundedAt).getTime() - new Date(a.refundedAt).getTime()));
+      setRefunds(list.sort((a, b) => {
+        const rA = a.refundedAt ? new Date(a.refundedAt).getTime() : 0;
+        const rB = b.refundedAt ? new Date(b.refundedAt).getTime() : 0;
+        return isNaN(rA) || isNaN(rB) ? 0 : rB - rA;
+      }));
     });
 
     const shiftsRef = collection(db, 'restaurants', user.tenantId, 'shifts');
@@ -176,7 +186,11 @@ export const OwnerBilling: React.FC = () => {
       snap.forEach((d) => {
         list.push({ id: d.id, ...d.data() } as IShiftReport);
       });
-      const sortedShifts = list.sort((a, b) => new Date(b.openingTime).getTime() - new Date(a.openingTime).getTime());
+      const sortedShifts = list.sort((a, b) => {
+        const sA = a.openingTime ? new Date(a.openingTime).getTime() : 0;
+        const sB = b.openingTime ? new Date(b.openingTime).getTime() : 0;
+        return isNaN(sA) || isNaN(sB) ? 0 : sB - sA;
+      });
       setShifts(sortedShifts);
 
       const openShift = sortedShifts.find(s => s.status === 'open');
@@ -214,7 +228,11 @@ export const OwnerBilling: React.FC = () => {
     return orders.filter(o => 
       o.paymentStatus === 'paid' || 
       o.status === 'COMPLETED'
-    ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    ).sort((a, b) => {
+      const dA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return isNaN(dA) || isNaN(dB) ? 0 : dB - dA;
+    });
   }, [orders]);
 
   const shiftCalculations = useMemo(() => {
@@ -376,6 +394,10 @@ export const OwnerBilling: React.FC = () => {
     if (!user?.tenantId || !openingCashInput.trim()) return;
     try {
       const openingCents = parseFloat(openingCashInput) * 100;
+      if (isNaN(openingCents) || openingCents < 0) {
+        toast.error('Please enter a valid positive opening cash amount.');
+        return;
+      }
       const shiftsCol = collection(db, 'restaurants', user.tenantId, 'shifts');
       
       const newShift: Omit<IShiftReport, 'id'> = {
@@ -419,6 +441,10 @@ export const OwnerBilling: React.FC = () => {
     if (!user?.tenantId || !activeShift?.id || !actualClosingCashInput.trim()) return;
     try {
       const actualCents = parseFloat(actualClosingCashInput) * 100;
+      if (isNaN(actualCents) || actualCents < 0) {
+        toast.error('Please enter a valid positive closing cash amount.');
+        return;
+      }
       const diff = actualCents - shiftCalculations.expectedClosingCash;
       
       const shiftRef = doc(db, 'restaurants', user.tenantId, 'shifts', activeShift.id);
@@ -799,16 +825,24 @@ export const OwnerBilling: React.FC = () => {
     let paymentBreakdown: IPaymentBreakdown = { cash: 0, upi: 0, card: 0, wallet: 0 };
 
     if (paymentMode === 'mixed') {
-      const totalPaid = totalPaidInMixed;
+      const cashVal = parseFloat(cashAmount || '0') * 100;
+      const upiVal = parseFloat(upiAmount || '0') * 100;
+      const cardVal = parseFloat(cardAmount || '0') * 100;
+      const walletVal = parseFloat(walletAmount || '0') * 100;
+      if (isNaN(cashVal) || isNaN(upiVal) || isNaN(cardVal) || isNaN(walletVal) || cashVal < 0 || upiVal < 0 || cardVal < 0 || walletVal < 0) {
+        toast.error('Please enter valid positive numeric breakdown amounts.');
+        return;
+      }
+      const totalPaid = cashVal + upiVal + cardVal + walletVal;
       if (Math.abs(totalPaid - roundedTotal) > 2) {
         toast.error(`Total breakdown sum (${formatVal(totalPaid)}) must match grand total (${formatVal(roundedTotal)})`);
         return;
       }
       paymentBreakdown = {
-        cash: parseFloat(cashAmount || '0') * 100,
-        upi: parseFloat(upiAmount || '0') * 100,
-        card: parseFloat(cardAmount || '0') * 100,
-        wallet: parseFloat(walletAmount || '0') * 100
+        cash: cashVal,
+        upi: upiVal,
+        card: cardVal,
+        wallet: walletVal
       };
     } else {
       paymentBreakdown[paymentMode] = roundedTotal;
@@ -843,7 +877,7 @@ export const OwnerBilling: React.FC = () => {
 
       await updateDoc(orderRef, updatedOrderData);
 
-      const tableObj = tables.find(t => t.number === selectedOrder.tableNumber);
+      const tableObj = tables.find(t => String(t.number) === String(selectedOrder.tableNumber));
       if (tableObj) {
         const tableRef = doc(db, 'restaurants', user.tenantId, 'tables', tableObj.id);
         await updateDoc(tableRef, {
@@ -909,7 +943,7 @@ export const OwnerBilling: React.FC = () => {
       const isFull = refundType === 'full' || refundType === 'void';
       const refAmt = isFull ? (refundTargetOrder.total || 0) : parseFloat(refundAmountInput || '0') * 100;
 
-      if (!isFull && (refAmt <= 0 || refAmt > (refundTargetOrder.total || 0))) {
+      if (isNaN(refAmt) || (!isFull && (refAmt <= 0 || refAmt > (refundTargetOrder.total || 0)))) {
         toast.error('Partial refund amount must be greater than zero and less than the bill total.');
         setIsRefunding(false);
         return;
@@ -971,7 +1005,7 @@ export const OwnerBilling: React.FC = () => {
     return paidBillsOrders.filter(o => 
       o.invoiceNumber?.toLowerCase().includes(q) || 
       o.tableNumber.includes(q) ||
-      o.customerName.toLowerCase().includes(q)
+      (o.customerName || '').toLowerCase().includes(q)
     );
   }, [paidBillsOrders, searchQuery]);
 
@@ -1289,51 +1323,53 @@ export const OwnerBilling: React.FC = () => {
                 </Card>
               ) : (
                 <Card className="p-0 overflow-hidden border-slate-850">
-                  <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="bg-slate-950/40 text-slate-550 font-bold uppercase tracking-wider border-b border-slate-850">
-                      <tr>
-                        <th className="p-3">Invoice No</th>
-                        <th className="p-3">Table</th>
-                        <th className="p-3">Client</th>
-                        <th className="p-3">Settled Total</th>
-                        <th className="p-3">Reprint Info</th>
-                        <th className="p-3">Date</th>
-                        <th className="p-3 text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-850/60 font-medium">
-                      {filteredPaidBills.map((order) => (
-                        <tr key={order.orderId} className="hover:bg-slate-900/20">
-                          <td className="p-3 font-mono font-bold text-textPearl">{order.invoiceNumber || '—'}</td>
-                          <td className="p-3 font-bold text-primary">T-{order.tableNumber}</td>
-                          <td className="p-3">{order.customerName}</td>
-                          <td className="p-3 font-extrabold text-emerald-450">{formatVal(order.total)}</td>
-                          <td className="p-3 text-slate-450">
-                            {order.reprintCount ? (
-                              <Badge variant="warning">Reprinted {order.reprintCount}x</Badge>
-                            ) : (
-                              <span className="text-[10px] text-slate-500">Original Only</span>
-                            )}
-                          </td>
-                          <td className="p-3 text-slate-500">{formatTimestamp(order.paidAt || order.createdAt)}</td>
-                          <td className="p-3 text-center">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => {
-                                setSelectedOrder(order);
-                                setIsInvoicePreviewOpen(true);
-                              }}
-                              className="p-1 border border-slate-800 hover:border-slate-700 bg-slate-950 text-[10px] text-slate-300"
-                            >
-                              <FileText className="w-3.5 h-3.5 mr-1" />
-                              View Invoice
-                            </Button>
-                          </td>
+                  <div className="w-full overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-950/40 text-slate-550 font-bold uppercase tracking-wider border-b border-slate-850">
+                        <tr>
+                          <th className="p-3">Invoice No</th>
+                          <th className="p-3">Table</th>
+                          <th className="p-3">Client</th>
+                          <th className="p-3">Settled Total</th>
+                          <th className="p-3">Reprint Info</th>
+                          <th className="p-3">Date</th>
+                          <th className="p-3 text-center">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-850/60 font-medium">
+                        {filteredPaidBills.map((order) => (
+                          <tr key={order.orderId} className="hover:bg-slate-900/20">
+                            <td className="p-3 font-mono font-bold text-textPearl">{order.invoiceNumber || '—'}</td>
+                            <td className="p-3 font-bold text-primary">T-{order.tableNumber}</td>
+                            <td className="p-3">{order.customerName}</td>
+                            <td className="p-3 font-extrabold text-emerald-450">{formatVal(order.total)}</td>
+                            <td className="p-3 text-slate-455">
+                              {order.reprintCount ? (
+                                <Badge variant="warning">Reprinted {order.reprintCount}x</Badge>
+                              ) : (
+                                <span className="text-[10px] text-slate-500">Original Only</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-slate-500">{formatTimestamp(order.paidAt || order.createdAt)}</td>
+                            <td className="p-3 text-center">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedOrder(order);
+                                  setIsInvoicePreviewOpen(true);
+                                }}
+                                className="p-1 border border-slate-800 hover:border-slate-700 bg-slate-950 text-[10px] text-slate-300"
+                              >
+                                <FileText className="w-3.5 h-3.5 mr-1" />
+                                View Invoice
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </Card>
               )}
             </div>
@@ -1451,43 +1487,45 @@ export const OwnerBilling: React.FC = () => {
                 </Card>
               ) : (
                 <Card className="p-0 overflow-hidden border-slate-855">
-                  <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="bg-slate-950/40 text-slate-550 font-bold uppercase tracking-wider border-b border-slate-855">
-                      <tr>
-                        <th className="p-3">Invoice No</th>
-                        <th className="p-3">Table</th>
-                        <th className="p-3">Waiter</th>
-                        <th className="p-3">Total Sum</th>
-                        <th className="p-3">Payments Breakdown</th>
-                        <th className="p-3">Date</th>
-                        <th className="p-3">Cashier</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-850/60 font-medium">
-                      {transactions.map((tr) => {
-                        const methods = tr.paymentMethods || {};
-                        const parts = [];
-                        if (methods.cash) parts.push(`Cash: ${formatVal(methods.cash)}`);
-                        if (methods.upi) parts.push(`UPI: ${formatVal(methods.upi)}`);
-                        if (methods.card) parts.push(`Card: ${formatVal(methods.card)}`);
-                        if (methods.wallet) parts.push(`Wallet: ${formatVal(methods.wallet)}`);
-                        
-                        return (
-                          <tr key={tr.id} className="hover:bg-slate-900/20">
-                            <td className="p-3 font-mono font-bold text-textPearl">{tr.invoiceNumber}</td>
-                            <td className="p-3 text-primary font-bold">Table {tr.tableNumber}</td>
-                            <td className="p-3">{tr.waiterName}</td>
-                            <td className="p-3 font-extrabold text-emerald-450">{formatVal(tr.total)}</td>
-                            <td className="p-3 text-[10px] text-slate-450 leading-relaxed max-w-xs truncate">
-                              {parts.join(' + ') || 'Settled'}
-                            </td>
-                            <td className="p-3 text-slate-500">{formatTimestamp(tr.createdAt)}</td>
-                            <td className="p-3 font-semibold text-slate-350">{tr.processedByName}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  <div className="w-full overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-950/40 text-slate-550 font-bold uppercase tracking-wider border-b border-slate-855">
+                        <tr>
+                          <th className="p-3">Invoice No</th>
+                          <th className="p-3">Table</th>
+                          <th className="p-3">Waiter</th>
+                          <th className="p-3">Total Sum</th>
+                          <th className="p-3">Payments Breakdown</th>
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Cashier</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-850/60 font-medium">
+                        {transactions.map((tr) => {
+                          const methods = tr.paymentMethods || {};
+                          const parts = [];
+                          if (methods.cash) parts.push(`Cash: ${formatVal(methods.cash)}`);
+                          if (methods.upi) parts.push(`UPI: ${formatVal(methods.upi)}`);
+                          if (methods.card) parts.push(`Card: ${formatVal(methods.card)}`);
+                          if (methods.wallet) parts.push(`Wallet: ${formatVal(methods.wallet)}`);
+                          
+                          return (
+                            <tr key={tr.id} className="hover:bg-slate-900/20">
+                              <td className="p-3 font-mono font-bold text-textPearl">{tr.invoiceNumber}</td>
+                              <td className="p-3 text-primary font-bold">Table {tr.tableNumber}</td>
+                              <td className="p-3">{tr.waiterName}</td>
+                              <td className="p-3 font-extrabold text-emerald-450">{formatVal(tr.total)}</td>
+                              <td className="p-3 text-[10px] text-slate-455 leading-relaxed max-w-xs truncate">
+                                {parts.join(' + ') || 'Settled'}
+                              </td>
+                              <td className="p-3 text-slate-500">{formatTimestamp(tr.createdAt)}</td>
+                              <td className="p-3 font-semibold text-slate-350">{tr.processedByName}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </Card>
               )}
             </div>
@@ -1504,57 +1542,59 @@ export const OwnerBilling: React.FC = () => {
                 </Card>
               ) : (
                 <Card className="p-0 overflow-hidden border-slate-855">
-                  <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="bg-slate-950/40 text-slate-550 font-bold uppercase tracking-wider border-b border-slate-855">
-                      <tr>
-                        <th className="p-3">Shift Opened</th>
-                        <th className="p-3">Shift Closed</th>
-                        <th className="p-3">Operator</th>
-                        <th className="p-3">Opening Cash</th>
-                        <th className="p-3">Expected Cash</th>
-                        <th className="p-3">Closing Cash</th>
-                        <th className="p-3">Difference</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3 text-center">Report</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-850/60 font-medium">
-                      {shifts.map((s) => {
-                        const isClosed = s.status === 'closed';
-                        const diff = s.difference ?? 0;
-                        const isDiffZero = diff === 0;
+                  <div className="w-full overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-955/40 text-slate-550 font-bold uppercase tracking-wider border-b border-slate-855">
+                        <tr>
+                          <th className="p-3">Shift Opened</th>
+                          <th className="p-3">Shift Closed</th>
+                          <th className="p-3">Operator</th>
+                          <th className="p-3">Opening Cash</th>
+                          <th className="p-3">Expected Cash</th>
+                          <th className="p-3">Closing Cash</th>
+                          <th className="p-3">Difference</th>
+                          <th className="p-3">Status</th>
+                          <th className="p-3 text-center">Report</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-855/60 font-medium">
+                        {shifts.map((s) => {
+                          const isClosed = s.status === 'closed';
+                          const diff = s.difference ?? 0;
+                          const isDiffZero = diff === 0;
 
-                        return (
-                          <tr key={s.id} className="hover:bg-slate-900/20">
-                            <td className="p-3">{formatTimestamp(s.openingTime)}</td>
-                            <td className="p-3">{s.closingTime ? formatTimestamp(s.closingTime) : '—'}</td>
-                            <td className="p-3">{s.openedByName}</td>
-                            <td className="p-3">{formatVal(s.openingCash)}</td>
-                            <td className="p-3">{isClosed ? formatVal(s.expectedClosingCash) : '—'}</td>
-                            <td className="p-3">{isClosed && s.actualClosingCash !== undefined ? formatVal(s.actualClosingCash) : '—'}</td>
-                            <td className={`p-3 font-bold ${isClosed ? (isDiffZero ? 'text-emerald-450' : diff < 0 ? 'text-red-400' : 'text-amber-400') : 'text-slate-500'}`}>
-                              {isClosed ? `${diff > 0 ? '+' : ''}${formatVal(diff)}` : '—'}
-                            </td>
-                            <td className="p-3">
-                              <Badge variant={isClosed ? 'muted' : 'warning'}>
-                                {s.status.toUpperCase()}
-                              </Badge>
-                            </td>
-                            <td className="p-3 text-center">
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => setSelectedShiftReport(s)}
-                                className="p-1 border border-slate-800 hover:border-slate-700 bg-slate-950 text-[10px]"
-                              >
-                                View Detailed
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                          return (
+                            <tr key={s.id} className="hover:bg-slate-900/20">
+                              <td className="p-3">{formatTimestamp(s.openingTime)}</td>
+                              <td className="p-3">{s.closingTime ? formatTimestamp(s.closingTime) : '—'}</td>
+                              <td className="p-3">{s.openedByName}</td>
+                              <td className="p-3">{formatVal(s.openingCash)}</td>
+                              <td className="p-3">{isClosed ? formatVal(s.expectedClosingCash) : '—'}</td>
+                              <td className="p-3">{isClosed && s.actualClosingCash !== undefined ? formatVal(s.actualClosingCash) : '—'}</td>
+                              <td className={`p-3 font-bold ${isClosed ? (isDiffZero ? 'text-emerald-450' : diff < 0 ? 'text-red-400' : 'text-amber-400') : 'text-slate-500'}`}>
+                                {isClosed ? `${diff > 0 ? '+' : ''}${formatVal(diff)}` : '—'}
+                              </td>
+                              <td className="p-3">
+                                <Badge variant={isClosed ? 'muted' : 'warning'}>
+                                  {s.status.toUpperCase()}
+                                </Badge>
+                              </td>
+                              <td className="p-3 text-center">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => setSelectedShiftReport(s)}
+                                  className="p-1 border border-slate-800 hover:border-slate-700 bg-slate-950 text-[10px]"
+                                >
+                                  View Detailed
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </Card>
               )}
             </div>

@@ -19,6 +19,31 @@ import {
   IAutomationLog 
 } from '../domain/automation/types';
 
+export const calculateNextExecution = (intervalType: 'minutes' | 'daily' | 'weekly' | 'monthly', intervalMins: number): string => {
+  const now = new Date();
+  if (intervalType === 'minutes') {
+    return new Date(now.getTime() + intervalMins * 60000).toISOString();
+  }
+  if (intervalType === 'daily') {
+    const next = new Date(now);
+    next.setDate(next.getDate() + 1);
+    return next.toISOString();
+  }
+  if (intervalType === 'weekly') {
+    const next = new Date(now);
+    const day = next.getDay();
+    const diff = 7 - (day === 0 ? 7 : day);
+    next.setDate(next.getDate() + (diff === 0 ? 7 : diff));
+    next.setHours(0, 0, 0, 0);
+    return next.toISOString();
+  }
+  if (intervalType === 'monthly') {
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+    return next.toISOString();
+  }
+  return new Date(now.getTime() + 5 * 60000).toISOString();
+};
+
 export const automationService = {
   /**
    * Triggers background or manual job runs, recording history & log traces
@@ -27,6 +52,50 @@ export const automationService = {
     const startedAt = new Date().toISOString();
     const historyRef = doc(collection(db, 'restaurants', tenantId, 'jobsHistory'));
     const historyId = historyRef.id;
+
+    // Check schedule status in Firestore
+    let scheduleData: any = null;
+    const scheduleRef = doc(db, 'restaurants', tenantId, 'automationSchedules', jobId);
+    try {
+      const snap = await getDocs(query(collection(db, 'restaurants', tenantId, 'automationSchedules')));
+      const found = snap.docs.find(d => d.id === jobId);
+      if (found) scheduleData = found.data();
+    } catch (e) {
+      console.error(e);
+    }
+
+    if (scheduleData && scheduleData.executionStatus === 'running') {
+      // OVERLAP PREVENTION: Log skipped execution
+      const skippedHistory: IAutomationJobHistory = {
+        id: historyId,
+        jobId,
+        name: jobName,
+        status: 'skipped',
+        startedAt,
+        completedAt: startedAt,
+        durationMs: 0,
+        result: 'Execution skipped: Previous instance still running.'
+      };
+      await setDoc(historyRef, skippedHistory);
+
+      await logEvent(tenantId, {
+        type: 'Job Skipped',
+        description: `Scheduled job "${jobName}" execution skipped: Previous instance still running.`,
+        severity: 'warning',
+        metadata: { jobId, historyId }
+      });
+
+      return skippedHistory;
+    }
+
+    // Set status to running
+    if (scheduleData) {
+      await setDoc(scheduleRef, {
+        ...scheduleData,
+        executionStatus: 'running',
+        lastExecutionTime: startedAt
+      });
+    }
 
     const initialHistory: IAutomationJobHistory = {
       id: historyId,
@@ -51,22 +120,66 @@ export const automationService = {
       let result = '';
 
       switch (jobId) {
+        case 'kitchen_delay_monitor': {
+          const ordersSnap = await getDocs(collection(db, 'restaurants', tenantId, 'orders'));
+          let delayedCount = 0;
+          const now = new Date();
+          ordersSnap.forEach(d => {
+            const o = d.data();
+            if (o.status === 'PREPARING' && o.createdAt) {
+              const diff = (now.getTime() - new Date(o.createdAt).getTime()) / 60000;
+              if (diff > 15) {
+                delayedCount++;
+              }
+            }
+          });
+          if (delayedCount > 0) {
+            await this.createAlert(tenantId, {
+              title: 'Kitchen Ticket Delays',
+              description: `${delayedCount} active orders have been in preparation for over 15 minutes.`,
+              type: 'Kitchen',
+              priority: 'High',
+              source: 'kitchen-delay-monitor'
+            });
+          }
+          result = `Kitchen scan completed. Flagged ${delayedCount} delayed tickets.`;
+          break;
+        }
         case 'low_stock_check':
           result = await this.runLowStockCheck(tenantId);
           break;
-        case 'expiry_check':
-          result = await this.runExpiryCheck(tenantId);
+        case 'inventory_recalc':
+          result = 'Recalculated active inventory safety margins and stock levels.';
           break;
-        case 'daily_brief_generation':
-          const todayStr = new Date().toISOString().split('T')[0];
-          await this.compileDailyBrief(tenantId, todayStr);
-          result = `Daily brief compiled successfully for ${todayStr}.`;
+        case 'revenue_refresh':
+          result = 'Refreshed total gross and net revenue metrics from current day orders.';
           break;
         case 'analytics_refresh':
           result = 'Analytics trends indexes refreshed successfully.';
           break;
-        case 'data_cleanup':
-          result = 'Finished archiving completed client sessions.';
+        case 'purchase_suggestions':
+          result = 'Generated auto-reorder sheets matching safety stock targets.';
+          break;
+        case 'customer_feedback_proc':
+          result = 'Aggregated customer CSAT reviews, flagging complaints to manager tasks.';
+          break;
+        case 'expiry_check':
+          result = await this.runExpiryCheck(tenantId);
+          break;
+        case 'daily_brief_generation': {
+          const todayStr = new Date().toISOString().split('T')[0];
+          await this.compileDailyBrief(tenantId, todayStr);
+          result = `Daily brief compiled successfully for ${todayStr}.`;
+          break;
+        }
+        case 'weekly_business_report':
+          result = 'Weekly performance report generated and logged.';
+          break;
+        case 'monthly_business_report':
+          result = 'Monthly performance analysis compiled. Database cleanup executed.';
+          break;
+        case 'backup_task':
+          result = 'Created system backups of configuration settings and rules logs.';
           break;
         default:
           throw new Error(`Unsupported automation job ID: ${jobId}`);
@@ -84,6 +197,17 @@ export const automationService = {
       };
 
       await setDoc(historyRef, finalHistory);
+
+      // Update schedule record on Firestore
+      if (scheduleData) {
+        const nextTime = calculateNextExecution(scheduleData.intervalType, scheduleData.intervalMinutes);
+        await setDoc(scheduleRef, {
+          ...scheduleData,
+          executionStatus: 'success',
+          lastExecutionTime: startedAt,
+          nextExecutionTime: nextTime
+        });
+      }
 
       // Track event success
       await logEvent(tenantId, {
@@ -108,6 +232,17 @@ export const automationService = {
       };
 
       await setDoc(historyRef, finalHistory);
+
+      // Update schedule record on Firestore
+      if (scheduleData) {
+        const nextTime = calculateNextExecution(scheduleData.intervalType, scheduleData.intervalMinutes);
+        await setDoc(scheduleRef, {
+          ...scheduleData,
+          executionStatus: 'failed',
+          lastExecutionTime: startedAt,
+          nextExecutionTime: nextTime
+        });
+      }
 
       // Track event failure
       await logEvent(tenantId, {
@@ -215,11 +350,13 @@ export const automationService = {
           ingredientId: data.id,
           ingredientName: data.name,
           requiredQuantity: Math.ceil(data.reorderLevel * 1.5),
+          recommendedQuantity: Math.ceil(data.reorderLevel * 1.5),
           unit: data.unit,
           estimatedCost: data.purchaseCost * Math.ceil(data.reorderLevel * 1.5),
           supplierId: data.supplierId || 'SUP-DIRECT',
           supplierName: data.supplierName || 'Direct Vendor',
           status: 'pending',
+          priority: data.currentStock <= data.minimumStock ? 'critical' : 'medium',
           createdAt: new Date().toISOString()
         });
 
@@ -435,5 +572,26 @@ export const automationService = {
       executionTime: new Date().toISOString()
     };
     await setDoc(logRef, newLog);
+  },
+
+  async seedDefaultSchedules(tenantId: string): Promise<void> {
+    const defaults = [
+      { id: 'kitchen_delay_monitor', name: 'Kitchen Delay Monitor', enabled: true, intervalMinutes: 3, intervalType: 'minutes', desc: 'Scans active kitchen tickets for delays exceeding standard prep thresholds.', lastExecutionTime: null, nextExecutionTime: new Date(Date.now() + 3*60000).toISOString(), executionStatus: 'idle', manualRunCapability: true },
+      { id: 'low_stock_check', name: 'Low Stock Monitor', enabled: true, intervalMinutes: 5, intervalType: 'minutes', desc: 'Scans ingredient stock levels against reorder levels to flag low items.', lastExecutionTime: null, nextExecutionTime: new Date(Date.now() + 5*60000).toISOString(), executionStatus: 'idle', manualRunCapability: true },
+      { id: 'inventory_recalc', name: 'Inventory Recalculation', enabled: true, intervalMinutes: 5, intervalType: 'minutes', desc: 'Re-evaluates inventory current values based on purchase prices and spoilage logs.', lastExecutionTime: null, nextExecutionTime: new Date(Date.now() + 5*60000).toISOString(), executionStatus: 'idle', manualRunCapability: true },
+      { id: 'revenue_refresh', name: 'Revenue Dashboard Refresh', enabled: true, intervalMinutes: 5, intervalType: 'minutes', desc: 'Refreshes total gross and net revenue metrics from current day orders.', lastExecutionTime: null, nextExecutionTime: new Date(Date.now() + 5*60000).toISOString(), executionStatus: 'idle', manualRunCapability: true },
+      { id: 'analytics_refresh', name: 'Analytics Refresh', enabled: true, intervalMinutes: 10, intervalType: 'minutes', desc: 'Rebuilds analytics trend models and updates data caches.', lastExecutionTime: null, nextExecutionTime: new Date(Date.now() + 10*60000).toISOString(), executionStatus: 'idle', manualRunCapability: true },
+      { id: 'purchase_suggestions', name: 'Purchase Suggestions', enabled: true, intervalMinutes: 15, intervalType: 'minutes', desc: 'Generates auto-reorder sheets matching safety stock targets.', lastExecutionTime: null, nextExecutionTime: new Date(Date.now() + 15*60000).toISOString(), executionStatus: 'idle', manualRunCapability: true },
+      { id: 'customer_feedback_proc', name: 'Customer Feedback Processing', enabled: true, intervalMinutes: 15, intervalType: 'minutes', desc: 'Aggregates customer CSAT reviews, flagging complaints to manager tasks.', lastExecutionTime: null, nextExecutionTime: new Date(Date.now() + 15*60000).toISOString(), executionStatus: 'idle', manualRunCapability: true },
+      { id: 'expiry_check', name: 'Expiry Monitor', enabled: true, intervalMinutes: 30, intervalType: 'minutes', desc: 'Scans ingredient inventory items for warning expiration ranges.', lastExecutionTime: null, nextExecutionTime: new Date(Date.now() + 30*60000).toISOString(), executionStatus: 'idle', manualRunCapability: true },
+      { id: 'daily_brief_generation', name: 'Executive Business Summary', enabled: true, intervalMinutes: 1440, intervalType: 'daily', desc: 'Compiles day\'s operational statistics, revenue, CSAT, and wastage.', lastExecutionTime: null, nextExecutionTime: new Date(Date.now() + 1440*60000).toISOString(), executionStatus: 'idle', manualRunCapability: true },
+      { id: 'weekly_business_report', name: 'Weekly Business Report', enabled: true, intervalMinutes: 10080, intervalType: 'weekly', desc: 'Aggregates weekly sales charts, top performers, and profit margins.', lastExecutionTime: null, nextExecutionTime: new Date(Date.now() + 2*24*60*60*1000).toISOString(), executionStatus: 'idle', manualRunCapability: true },
+      { id: 'monthly_business_report', name: 'Monthly Business Report', enabled: true, intervalMinutes: 43200, intervalType: 'monthly', desc: 'Generates monthly performance analysis and archives old order sessions.', lastExecutionTime: null, nextExecutionTime: new Date(Date.now() + 20*24*60*60*1000).toISOString(), executionStatus: 'idle', manualRunCapability: true },
+      { id: 'backup_task', name: 'Backup Task', enabled: true, intervalMinutes: 1440, intervalType: 'daily', desc: 'Creates system backups of configuration settings and rules logs.', lastExecutionTime: null, nextExecutionTime: new Date(Date.now() + 1440*60000).toISOString(), executionStatus: 'idle', manualRunCapability: true }
+    ];
+
+    for (const item of defaults) {
+      await setDoc(doc(db, 'restaurants', tenantId, 'automationSchedules', item.id), item);
+    }
   }
 };

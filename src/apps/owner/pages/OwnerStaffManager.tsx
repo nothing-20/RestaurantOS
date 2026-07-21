@@ -21,6 +21,8 @@ import Modal from '../../../components/ui/Modal/Modal';
 import Dialog from '../../../components/ui/Dialog/Dialog';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner/LoadingSpinner';
 import toast from 'react-hot-toast';
+import Tabs from '../../../components/ui/Tabs/Tabs';
+import SearchBar from '../../../components/ui/SearchBar/SearchBar';
 import {
   Plus,
   Edit2,
@@ -35,6 +37,7 @@ import {
   Send,
   UserCheck,
   Clock,
+  ChefHat
 } from 'lucide-react';
 
 // Types
@@ -97,9 +100,17 @@ export const OwnerStaffManager: React.FC = () => {
   const [employees, setEmployees] = useState<IEmployee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterRole, setFilterRole] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('role') || 'all';
+  });
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Modals
-  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('action') === 'invite';
+  });
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<IEmployee | null>(null);
@@ -360,12 +371,39 @@ export const OwnerStaffManager: React.FC = () => {
     }
   };
 
-  const filteredEmployees = filterStatus === 'all'
-    ? employees
-    : employees.filter((e) => e.status === filterStatus);
+  const filteredEmployees = employees.filter((e) => {
+    const matchStatus = filterStatus === 'all' || e.status === filterStatus;
+    const matchRole = filterRole === 'all' || e.role === filterRole;
+    const matchSearch = !searchQuery.trim() ||
+      e.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (e.phone && e.phone.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchStatus && matchRole && matchSearch;
+  });
+
+  const roleCounts = employees.reduce<Record<string, number>>((acc, e) => {
+    const matchStatus = filterStatus === 'all' || e.status === filterStatus;
+    const matchSearch = !searchQuery.trim() ||
+      e.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (e.phone && e.phone.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (matchStatus && matchSearch) {
+      acc[e.role] = (acc[e.role] || 0) + 1;
+      acc['all'] = (acc['all'] || 0) + 1;
+    }
+    return acc;
+  }, {});
 
   const statusCounts = employees.reduce<Record<string, number>>((acc, e) => {
-    acc[e.status] = (acc[e.status] || 0) + 1;
+    const matchRole = filterRole === 'all' || e.role === filterRole;
+    const matchSearch = !searchQuery.trim() ||
+      e.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (e.phone && e.phone.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (matchRole && matchSearch) {
+      acc[e.status] = (acc[e.status] || 0) + 1;
+      acc['all'] = (acc['all'] || 0) + 1;
+    }
     return acc;
   }, {});
 
@@ -448,24 +486,45 @@ export const OwnerStaffManager: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-        {(['all', 'pending', 'active', 'suspended', 'archived'] as const).map((s) => {
-          const count = s === 'all' ? employees.length : (statusCounts[s] || 0);
-          return (
-            <button
-              key={s}
-              onClick={() => setFilterStatus(s)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
-                filterStatus === s
-                  ? 'bg-primary/15 text-primary border border-primary/30'
-                  : 'bg-slate-900/50 text-slate-500 border border-slate-800/50 hover:text-textPearl'
-              }`}
-            >
-              {s === 'all' ? 'All' : STATUS_CONFIG[s]?.label ?? s}
-              <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-slate-800/60 text-[9px]">{count}</span>
-            </button>
-          );
-        })}
+      <Tabs
+        activeTabId={filterRole}
+        onTabChange={setFilterRole}
+        tabs={[
+          { id: 'all', label: `All Staff (${roleCounts['all'] || 0})`, icon: User },
+          { id: 'waiter', label: `Waiters (${roleCounts['waiter'] || 0})`, icon: UserCheck },
+          { id: 'kitchen', label: `Kitchen / Chefs (${roleCounts['kitchen'] || 0})`, icon: ChefHat },
+          { id: 'manager', label: `Managers (${roleCounts['manager'] || 0})`, icon: Shield },
+          { id: 'admin', label: `Admin Access (${roleCounts['admin'] || 0})`, icon: ShieldCheck }
+        ]}
+      />
+
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+          {(['all', 'pending', 'active', 'suspended', 'archived'] as const).map((s) => {
+            const count = s === 'all' ? (statusCounts['all'] || 0) : (statusCounts[s] || 0);
+            return (
+              <button
+                key={s}
+                onClick={() => setFilterStatus(s)}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                  filterStatus === s
+                    ? 'bg-primary/15 text-primary border border-primary/30'
+                    : 'bg-slate-900/50 text-slate-500 border border-slate-800/50 hover:text-textPearl'
+                }`}
+              >
+                {s === 'all' ? 'All' : STATUS_CONFIG[s]?.label ?? s}
+                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-slate-800/60 text-[9px]">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="w-full md:w-72">
+          <SearchBar
+            placeholder="Search staff by name, email..."
+            value={searchQuery}
+            onSearchChange={setSearchQuery}
+          />
+        </div>
       </div>
 
       {isLoading ? (
@@ -476,9 +535,11 @@ export const OwnerStaffManager: React.FC = () => {
         <Card className="p-10 text-center border border-dashed border-slate-800/60 rounded-2xl bg-slate-900/10">
           <Shield className="w-10 h-10 text-slate-700 mx-auto mb-3" />
           <p className="text-sm font-semibold text-slate-500">
-            {filterStatus === 'all' ? 'No staff members yet. Click Invite to begin.' : `No ${filterStatus} employees.`}
+            {employees.length === 0
+              ? 'No staff members yet. Click Invite to begin.'
+              : 'No staff members match the selected filters.'}
           </p>
-          {filterStatus === 'all' && (
+          {employees.length === 0 && (
             <Button onClick={() => setIsInviteOpen(true)} className="mt-4" size="sm">
               <Plus className="w-3.5 h-3.5 mr-1.5" />
               Send First Invitation

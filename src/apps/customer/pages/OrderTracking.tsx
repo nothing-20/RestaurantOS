@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, onSnapshot, getDoc, setDoc, collection, query, where, getDocs, addDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../../shared/firebase/config';
+import { doc, onSnapshot, getDoc, setDoc, collection, query, where, getDocs, addDoc, updateDoc, increment } from 'firebase/firestore';
+import { db } from '../../../config/firebase';
 import { formatPrice } from '../../../shared/utils/format';
 import { customerService } from '../../../shared/services/customerService';
 
@@ -35,10 +35,12 @@ import {
   TrendingUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../../context/AuthContext';
 
 export const OrderTracking: React.FC = () => {
   const { tenantId, orderId } = useParams<{ tenantId: string; orderId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Core Data States
   const [order, setOrder] = useState<any | null>(null);
@@ -76,19 +78,20 @@ export const OrderTracking: React.FC = () => {
     { key: 'NEW', label: 'Order Received', desc: 'Your ticket is on the kitchen queue.' },
     { key: 'ACCEPTED', label: 'Accepted', desc: 'The kitchen has accepted your order.' },
     { key: 'PREPARING', label: 'Preparing', desc: 'The chef is cooking your dishes.' },
-    { key: 'READY', label: 'Ready', desc: 'Food is plated and ready for pickup.' },
-    { key: 'DELIVERED', label: 'Served', desc: 'Delivered to your table. Enjoy!' }
+    { key: 'READY', label: 'Ready', desc: 'Food is plated and ready for pickup/serving.' },
+    { key: 'DELIVERED', label: 'Delivered', desc: 'Delivered to your table. Enjoy!' },
+    { key: 'COMPLETED', label: 'Completed', desc: 'Your dining experience is complete.' }
   ];
 
   const getStepIndex = (status: string) => {
-    switch (status) {
+    switch (status?.toUpperCase()) {
       case 'NEW':
       case 'PLACED': return 0;
       case 'ACCEPTED': return 1;
       case 'PREPARING': return 2;
       case 'READY': return 3;
-      case 'DELIVERED':
-      case 'COMPLETED': return 4;
+      case 'DELIVERED': return 4;
+      case 'COMPLETED': return 5;
       default: return 0;
     }
   };
@@ -239,7 +242,7 @@ export const OrderTracking: React.FC = () => {
 
   // 6. Submit Bill Request alert and update table status in Firestore
   const handleRequestBill = async () => {
-    if (!tenantId || !order) return;
+    if (!tenantId || !orderId || !order) return;
     setIsSubmittingRequest(true);
 
     try {
@@ -285,7 +288,7 @@ export const OrderTracking: React.FC = () => {
 
   // 7. Simulated payment checkout flow (UPI / CARD / WALLET)
   const handleProcessPayment = async () => {
-    if (!tenantId || !order) return;
+    if (!tenantId || !orderId || !order) return;
     if (!selectedPaymentMethod) {
       toast.error('Please select a payment method');
       return;
@@ -311,6 +314,40 @@ export const OrderTracking: React.FC = () => {
           }
         });
 
+        // Release the physical table layout slot
+        if (order.tableId) {
+          const tableRef = doc(db, 'restaurants', tenantId, 'tables', order.tableId);
+          await updateDoc(tableRef, {
+            status: 'empty',
+            activeOrderId: '',
+            seatingTime: '',
+            guestsCount: 0,
+            assignedWaiterId: '',
+            assignedWaiterName: '',
+            updatedAt: new Date().toISOString()
+          });
+        }
+
+        // Add records to customer profile database
+        if (user?.uid) {
+          // Append dining history record
+          await addDoc(collection(db, 'users', user.uid, 'diningHistory'), {
+            restaurantId: tenantId,
+            restaurantName: restaurantName || 'Gourmet Bistro',
+            orderId,
+            total: order.total,
+            date: new Date().toISOString(),
+            diners: order.guests || 2
+          });
+
+          // Increment loyalty points
+          const userDocRef = doc(db, 'users', user.uid);
+          const pointsEarned = Math.round((order.total || 0) / 100) || 50; // default 50 if total is 0
+          await updateDoc(userDocRef, {
+            loyaltyPoints: increment(pointsEarned)
+          }).catch(err => console.warn('Failed to increment loyalty points:', err));
+        }
+
         // Trigger Event engine logs
         await customerService.logCustomerEvent(tenantId, 'Payment Completed', `Diner completed payment of ${formatPrice(order.total)} via ${selectedPaymentMethod}`, {
           orderId,
@@ -332,7 +369,7 @@ export const OrderTracking: React.FC = () => {
 
   // 8. Submit Ratings and Feedback review
   const handleSubmitFeedback = async () => {
-    if (!tenantId || !order) return;
+    if (!tenantId || !orderId || !order) return;
 
     try {
       const isPositive = ratingCategory === 'Excellent' || ratingCategory === 'Good';
@@ -582,8 +619,8 @@ export const OrderTracking: React.FC = () => {
               <span className="text-[10px] text-primary font-bold uppercase tracking-wider">Table #{order.tableNumber || '3'}</span>
             </div>
           </div>
-          <Badge variant={isCancelled ? 'danger' : activeIndex === 4 ? 'success' : 'warning'}>
-            {isCancelled ? 'Cancelled' : activeIndex === 4 ? 'Served' : 'In Prep'}
+          <Badge variant={isCancelled ? 'danger' : activeIndex >= 4 ? 'success' : 'warning'}>
+            {isCancelled ? 'Cancelled' : activeIndex === 5 ? 'Completed' : activeIndex === 4 ? 'Delivered' : 'In Prep'}
           </Badge>
         </div>
       </header>

@@ -8,6 +8,7 @@ export interface IMenuCategory {
 }
 
 export interface IMenuItem {
+  rating: number;
   id: string;
   name: string;
   description: string;
@@ -29,4 +30,13 @@ export interface IMenuItem {
   station?: string; // e.g. 'Grill', 'Pizza', 'Drinks', etc.
   createdAt: string;
   updatedAt: string;
+
+  // Batch Prepared Food Management
+  preparationMethod?: 'fresh' | 'batch';
+  defaultBatchSize?: number;
+  availableServings?: number;
+  lowStockThreshold?: number;
+  autoUnavailable?: boolean;
+  showServingsToStaff?: boolean;
+  productionMode?: 'On Demand' | 'Batch Production';
 }

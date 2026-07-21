@@ -89,35 +89,71 @@ service cloud.firestore {
       allow delete: if isAuth() && (hasRole('owner') || hasRole('super-admin'));
     }
 
-    // Tenants base metadata profiles
+    // Tenants base metadata profiles (Public read for customer discovery)
     match /tenants/{tenantId} {
-      allow read: if isAuth();
+      allow read: if true;
       allow write: if hasRole('super-admin') || (isTenant(tenantId) && hasRole('owner'));
     }
 
     // Merchant Restaurant hierarchy (scoping subcollections)
     match /restaurants/{tenantId} {
-      allow read: if isAuth();
+      allow read: if true;
       allow write: if hasRole('super-admin') || (isTenant(tenantId) && hasRole('owner'));
 
-      // Universal rule for subcollections inside matching tenant workspace
+      // Public & Customer readable subcollections (branches, tables)
+      match /branches/{branchId} {
+        allow read: if true;
+        allow write: if isAuth() && isTenant(tenantId) && (hasRole('owner') || hasRole('admin'));
+      }
+
+      match /tables/{tableId} {
+        allow read: if true;
+        allow write: if isAuth() && isTenant(tenantId) && (hasRole('owner') || hasRole('admin') || hasRole('waiter') || hasRole('reception'));
+      }
+
+      // Customer Orders - read/create by customers or tenant staff, write by authorized staff
+      match /orders/{orderId} {
+        allow read: if true;
+        allow create: if true;
+        allow update: if isAuth() && (
+          isTenant(tenantId) ||
+          (userExists() && getUserData().role == 'customer')
+        );
+        allow delete: if isAuth() && isTenant(tenantId) && (hasRole('owner') || hasRole('admin'));
+      }
+
+      // Customer Service Requests & Dining Sessions
+      match /waiterRequests/{reqId} {
+        allow read: if true;
+        allow create: if true;
+        allow update: if isAuth() && isTenant(tenantId);
+      }
+
+      match /requests/{reqId} {
+        allow read: if true;
+        allow create: if true;
+        allow update: if isAuth() && isTenant(tenantId);
+      }
+
+      match /diningSessions/{sessionId} {
+        allow read, create, update: if true;
+      }
+
+      // Specific rule to match nested menu subcollections (categories, items, variants, addons)
+      match /menu/{menuDoc}/{nestedSubcollection}/{nestedDocId} {
+        allow read: if true;
+        allow write: if isAuth() && isTenant(tenantId) && (hasRole('owner') || hasRole('admin'));
+      }
+
+      // Universal rule for other management subcollections inside tenant workspace
       match /{subcollection}/{docId} {
         allow read: if isAuth() && isTenant(tenantId);
         allow write: if isAuth() && isTenant(tenantId) && (
-          // Admin/owners have full write permissions
           hasRole('owner') || 
           hasRole('admin') ||
-          // Waiter & Kitchen staff can update orders tickets
           (subcollection == 'orders' && (hasRole('waiter') || hasRole('kitchen') || hasRole('customer'))) ||
-          // Customers and service staff can create/mark requests alerts
           (subcollection == 'requests' && (hasRole('waiter') || hasRole('customer')))
         );
-      }
-
-      // Specific rule to match nested menu subcollections (categories, items)
-      match /menu/{menuDoc}/{nestedSubcollection}/{nestedDocId} {
-        allow read: if isAuth() && isTenant(tenantId);
-        allow write: if isAuth() && isTenant(tenantId) && (hasRole('owner') || hasRole('admin'));
       }
     }
   }

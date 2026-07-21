@@ -11,12 +11,25 @@ export interface IAutomationJobHistory {
   id: string;
   jobId: string;
   name: string;
-  status: 'running' | 'completed' | 'failed';
+  status: 'running' | 'completed' | 'failed' | 'skipped';
   startedAt: string;
   completedAt?: string;
   durationMs?: number;
   result?: string;
   errorMessage?: string;
+}
+
+export interface IAutomationSchedule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  intervalMinutes: number;
+  intervalType: 'minutes' | 'daily' | 'weekly' | 'monthly';
+  desc: string;
+  lastExecutionTime: string | null;
+  nextExecutionTime: string | null;
+  executionStatus: 'idle' | 'running' | 'success' | 'failed' | 'skipped';
+  manualRunCapability: boolean;
 }
 
 export interface IAutomationRule {

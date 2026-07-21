@@ -1,3 +1,2 @@
-export * from '../../shared/ui/layouts/OwnerLayout';
-import OwnerLayout from '../../shared/ui/layouts/OwnerLayout';
-export default OwnerLayout;
+// Deprecated during clean-up. This file has been cleared and is no longer used.
+export default null;

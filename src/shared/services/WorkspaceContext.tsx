@@ -181,7 +181,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const branchId = userData.branchId;
       let branchData = null;
       if (branchId) {
-        const branchRef = doc(db, 'branches', branchId);
+        const branchRef = doc(db, 'restaurants', tenantId, 'branches', branchId);
         const branchSnap = await getDoc(branchRef);
 
         if (!branchSnap.exists()) {

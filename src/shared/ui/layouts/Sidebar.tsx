@@ -14,7 +14,10 @@ import {
   Server, 
   Settings,
   Sparkles,
-  Target 
+  Target,
+  History,
+  ListOrdered,
+  X
 } from 'lucide-react';
 
 interface ISidebarLink {
@@ -24,7 +27,11 @@ interface ISidebarLink {
   disabled?: boolean;
 }
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  onClose?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const { role } = useAuth();
 
   const getLinks = (): ISidebarLink[] => {
@@ -57,11 +64,25 @@ export const Sidebar: React.FC = () => {
         return [
           { to: '/dashboard/waiter', label: 'Tables Matrix', icon: LayoutDashboard },
           { to: '/dashboard/waiter/alerts', label: 'Customer Alerts', icon: ClipboardList },
+          { to: 'divider-waiter-1', label: '', icon: () => null },
+          { to: '/dashboard/waiter/assigned-tables', label: 'My Assigned Tables', icon: QrCode },
+          { to: '/dashboard/waiter/order-history', label: 'Order History', icon: History },
+          { to: '/dashboard/waiter/item-history', label: 'Item History', icon: ListOrdered },
+          { to: '/dashboard/waiter/performance', label: 'Waiter Performance', icon: Sparkles },
+          { to: '/dashboard/waiter/timeline', label: 'Kitchen Timeline', icon: Activity },
+          { to: '/dashboard/waiter/shift-report', label: 'Daily Shift Report', icon: ClipboardList },
         ];
       case 'kitchen':
         return [
           { to: '/dashboard/kitchen', label: 'Cooking Tickets', icon: ChefHat },
           { to: '/dashboard/kitchen/menu-control', label: 'Out of Stock', icon: Menu },
+          { to: 'divider-1', label: '', icon: () => null },
+          { to: '/dashboard/kitchen/order-history', label: 'Order History', icon: History },
+          { to: '/dashboard/kitchen/item-history', label: 'Item History', icon: ListOrdered },
+          { to: '/dashboard/kitchen/chef-performance', label: 'Chef Performance', icon: ChefHat },
+          { to: '/dashboard/kitchen/timeline', label: 'Kitchen Timeline', icon: Activity },
+          { to: 'divider-2', label: '', icon: () => null },
+          { to: '/dashboard/kitchen/settings', label: 'Kitchen Settings', icon: Settings },
         ];
       default:
         return [];
@@ -71,18 +92,30 @@ export const Sidebar: React.FC = () => {
   const links = getLinks();
 
   return (
-    <aside className="w-64 bg-slate-950/80 border-r border-slate-800/40 flex flex-col z-20">
-      <div className="h-16 flex items-center px-6 border-b border-slate-800/40">
+    <aside className="w-full h-full bg-slate-950 flex flex-col z-20">
+      <div className="h-16 flex items-center px-6 border-b border-slate-800/40 justify-between">
         <div className="flex items-center space-x-2.5">
           <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
             <span className="text-primary font-display font-extrabold text-lg">R</span>
           </div>
           <span className="font-display font-bold text-base text-textPearl">RestaurantOS</span>
         </div>
+        {onClose && (
+          <button 
+            onClick={onClose}
+            className="p-1 rounded-xl text-slate-500 hover:text-white transition-colors lg:hidden border border-slate-850 hover:bg-slate-900"
+            title="Close menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
         {links.map((link) => {
+          if (link.to.startsWith('divider-')) {
+            return <hr key={link.to} className="border-slate-800/40 my-3" />;
+          }
           const IconComponent = link.icon;
           if (link.disabled) {
             return (

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { collection, getDocs, doc, getDoc, setDoc, updateDoc, query } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc, query, onSnapshot, where } from 'firebase/firestore';
 import { db } from '../../../shared/firebase/config';
 import { getMenuItemPath, getMenuCategoryPath } from '../../../shared/firebase/collections';
 import { IMenuItem, IOrderItem } from '../../../shared/types';
@@ -8,6 +8,7 @@ import { useCart } from '../../../shared/services/CartContext';
 import { formatPrice } from '../../../shared/utils/format';
 import { customerService } from '../../../shared/services/customerService';
 import { recommendationEngine, IRecommendationGroup } from '../../../shared/services/recommendationEngine';
+import { generateUniqueOrderId } from '../../../shared/utils/orderUtils';
 
 // UI Kit components
 import Card from '../../../shared/ui/cards/Card';
@@ -17,15 +18,15 @@ import Modal from '../../../shared/ui/dialogs/Modal';
 import LoadingSpinner from '../../../shared/ui/loading/LoadingSpinner';
 
 // Icons
-import { 
-  Star, 
-  ShoppingBag, 
-  Plus, 
-  Minus, 
-  Trash2, 
-  ArrowLeft, 
-  Clock, 
-  AlertTriangle, 
+import {
+  Star,
+  ShoppingBag,
+  Plus,
+  Minus,
+  Trash2,
+  ArrowLeft,
+  Clock,
+  AlertTriangle,
   Search,
   Filter,
   Flame,
@@ -88,12 +89,14 @@ export const CustomerMenu: React.FC = () => {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [isOrderSuccess, setIsOrderSuccess] = useState(false);
   const [successOrderId, setSuccessOrderId] = useState('');
+  const [successOrderPrepTime, setSuccessOrderPrepTime] = useState('15-20 mins');
+  const [activeOrders, setActiveOrders] = useState<any[]>([]);
 
   // Details Customization Modal State
   const [selectedItem, setSelectedItem] = useState<IMenuItem | null>(null);
   const [addItemCount, setAddItemCount] = useState(1);
   const [itemNotes, setItemNotes] = useState('');
-  
+
   // Customization choices
   const [selectedVariant, setSelectedVariant] = useState('Regular');
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
@@ -131,111 +134,107 @@ export const CustomerMenu: React.FC = () => {
     return categoryEmojis[key] || '🍽️';
   };
 
-  // 1. Fetch Branding Details & Active Dining Session on Mount
+  // 1. Fetch Branding Details & Subscribe to Menu & Active Session on Mount
   useEffect(() => {
-    const initPage = async () => {
-      if (!tenantId) return;
-      setIsLoading(true);
+    if (!tenantId) return;
+    setIsLoading(true);
 
-      // Load tableParam from URL
-      const tableParam = searchParams.get('table') || searchParams.get('tableId') || searchParams.get('t');
-      if (tableParam) {
-        setTableNumber(tableParam);
-      }
+    // Load tableParam from URL
+    const tableParam = searchParams.get('table') || searchParams.get('tableId') || searchParams.get('t');
+    if (tableParam) {
+      setTableNumber(tableParam);
+    }
 
-      // Load session
-      const savedSessionStr = localStorage.getItem('restaurantos_dining_session');
-      if (savedSessionStr) {
-        try {
-          const activeSession = JSON.parse(savedSessionStr);
-          if (activeSession.restaurantId === tenantId) {
-            setSession(activeSession);
-            setTableNumber(activeSession.tableId.replace('TBL-', ''));
-          }
-        } catch (e) {
-          console.error('Failed to parse cached session', e);
-        }
-      }
-
+    // Load session
+    const savedSessionStr = localStorage.getItem('restaurantos_dining_session');
+    if (savedSessionStr) {
       try {
-        // Fetch Tenant Info
+        const activeSession = JSON.parse(savedSessionStr);
+        if (activeSession.restaurantId === tenantId) {
+          const cachedTableNum = activeSession.tableId.replace('TBL-', '');
+          if (!tableParam || cachedTableNum === tableParam) {
+            setSession(activeSession);
+            setTableNumber(cachedTableNum);
+          } else {
+            localStorage.removeItem('restaurantos_dining_session');
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse cached session', e);
+      }
+    }
+
+    // Fetch Tenant Info
+    const fetchTenantInfo = async () => {
+      try {
         const tenantRef = doc(db, 'tenants', tenantId);
         const tenantSnap = await getDoc(tenantRef);
-        if (!tenantSnap.exists()) {
-          toast.error('Restaurant not found.');
-          navigate('/customer/restaurants');
-          return;
-        }
-
-        const tenantData = tenantSnap.data();
-        setRestaurantName(tenantData.restaurantName || tenantData.name || 'Gourmet Bistro');
-        setCoverImage(tenantData.coverImage || '');
-        setLogoUrl(tenantData.logoUrl || '');
-        setBrandingColors({
-          primary: tenantData.primaryColor,
-          secondary: tenantData.secondaryColor
-        });
-
-        // Dynamic CSS Variable Overrides
-        if (tenantData.primaryColor) {
-          document.documentElement.style.setProperty('--color-primary', tenantData.primaryColor);
-        }
-        if (tenantData.secondaryColor) {
-          document.documentElement.style.setProperty('--color-secondary', tenantData.secondaryColor);
-        }
-
-        // Fetch Categories
-        const catColRef = collection(db, getMenuCategoryPath(tenantId));
-        const catSnap = await getDocs(query(catColRef));
-        const catList: { name: string; displayOrder: number; isActive: boolean }[] = [];
-        catSnap.forEach((doc) => {
-          const data = doc.data();
-          catList.push({
-            name: data.name || '',
-            displayOrder: data.displayOrder || 99,
-            isActive: data.isActive !== false
+        if (tenantSnap.exists()) {
+          const tenantData = tenantSnap.data();
+          setRestaurantName(tenantData.restaurantName || tenantData.name || 'Gourmet Bistro');
+          setCoverImage(tenantData.coverImage || '');
+          setLogoUrl(tenantData.logoUrl || '');
+          setBrandingColors({
+            primary: tenantData.primaryColor,
+            secondary: tenantData.secondaryColor
           });
-        });
-        catList.sort((a, b) => a.displayOrder - b.displayOrder);
-        const activeCatNames = catList.filter(c => c.isActive).map(c => c.name);
-
-        // Fetch Menu Items
-        const colRef = collection(db, getMenuItemPath(tenantId));
-        const querySnap = await getDocs(query(colRef));
-        const items: IMenuItem[] = [];
-        const catSet = new Set<string>();
-
-        querySnap.forEach((docSnap) => {
-          const item = { id: docSnap.id, ...docSnap.data() } as IMenuItem;
-          items.push(item);
-          if (item.category) catSet.add(item.category);
-        });
-
-        // Use categories from Firestore if available, otherwise fall back to items categories
-        const resolvedCategories = activeCatNames.length > 0 
-          ? activeCatNames 
-          : (catSet.size > 0 ? Array.from(catSet) : ['Starters', 'Main Course', 'Pizza', 'Burgers', 'Beverages', 'Desserts']);
-        
-        setMenuItems(items);
-        setCategories(resolvedCategories);
-
-        // Audit Viewed Event log
-        await customerService.logCustomerEvent(tenantId, 'Menu Viewed', `Customer opened exploring menu on table ${tableNumber}`, {
-          tenantId,
-          tableNumber,
-          deviceId: localStorage.getItem('restaurantos_device_id') || 'unknown'
-        });
-
+          if (tenantData.primaryColor) {
+            document.documentElement.style.setProperty('--color-primary', tenantData.primaryColor);
+          }
+          if (tenantData.secondaryColor) {
+            document.documentElement.style.setProperty('--color-secondary', tenantData.secondaryColor);
+          }
+        }
       } catch (e) {
-        console.error('[CustomerMenu] Load error:', e);
-        toast.error('Failed to load menu details.');
-      } finally {
-        setIsLoading(false);
+        console.error(e);
       }
     };
+    fetchTenantInfo();
 
-    initPage();
-  }, [tenantId, tableNumber]);
+    // Stream Categories in real-time
+    const catColRef = collection(db, getMenuCategoryPath(tenantId));
+    const unsubCats = onSnapshot(query(catColRef), (catSnap) => {
+      const catList: { name: string; displayOrder: number; isActive: boolean }[] = [];
+      catSnap.forEach((doc) => {
+        const data = doc.data();
+        catList.push({
+          name: data.name || '',
+          displayOrder: data.displayOrder || 99,
+          isActive: data.isActive !== false
+        });
+      });
+      catList.sort((a, b) => a.displayOrder - b.displayOrder);
+      const activeCatNames = catList.filter(c => c.isActive).map(c => c.name);
+      setCategories(activeCatNames.length > 0 ? activeCatNames : ['Starters', 'Main Course', 'Pizza', 'Burgers', 'Beverages', 'Desserts']);
+    });
+
+    // Stream Menu Items in real-time
+    const colRef = collection(db, getMenuItemPath(tenantId));
+    const unsubItems = onSnapshot(query(colRef), (querySnap) => {
+      const items: IMenuItem[] = [];
+      querySnap.forEach((docSnap) => {
+        const item = { id: docSnap.id, ...docSnap.data() } as IMenuItem;
+        items.push(item);
+      });
+      setMenuItems(items);
+      setIsLoading(false);
+    }, (e) => {
+      console.error(e);
+      setIsLoading(false);
+    });
+
+    // Audit Viewed Event log
+    customerService.logCustomerEvent(tenantId, 'Menu Viewed', `Customer opened exploring menu on table ${tableNumber}`, {
+      tenantId,
+      tableNumber,
+      deviceId: localStorage.getItem('restaurantos_device_id') || 'unknown'
+    }).catch(err => console.warn(err));
+
+    return () => {
+      unsubCats();
+      unsubItems();
+    };
+  }, [tenantId, tableNumber, searchParams]);
 
   // 2. Fetch and apply recommendations when item details is opened
   useEffect(() => {
@@ -261,10 +260,42 @@ export const CustomerMenu: React.FC = () => {
     }
   }, [selectedItem, menuItems, tenantId]);
 
+  // 2.b. Real-time listener for active orders in this session (Change 2 & Change 5)
+  useEffect(() => {
+    if (!tenantId || !session?.sessionId) {
+      setActiveOrders([]);
+      return;
+    }
+
+    const ordersColRef = collection(db, 'restaurants', tenantId, 'orders');
+    const q = query(
+      ordersColRef,
+      where('sessionId', '==', session.sessionId)
+    );
+
+    const unsubActiveOrders = onSnapshot(q, (snap) => {
+      const list: any[] = [];
+      snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        // Change 5: Remove from dashboard when order status reaches COMPLETED or CANCELLED
+        if (data.status && !['COMPLETED', 'CANCELLED'].includes(data.status?.toUpperCase())) {
+          list.push({ id: docSnap.id, ...data });
+        }
+      });
+      // Sort newest active order first
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setActiveOrders(list);
+    }, (err) => {
+      console.error('[CustomerMenu] Active orders subscription error:', err);
+    });
+
+    return () => unsubActiveOrders();
+  }, [tenantId, session?.sessionId]);
+
   // 3. Category scroll handler
   const handleCategoryClick = (cat: string) => {
     setActiveCategory(cat);
-    
+
     // Log Category view event
     if (tenantId) {
       customerService.logCustomerEvent(tenantId, 'Category Viewed', `Customer filtered category: ${cat}`, {
@@ -286,7 +317,7 @@ export const CustomerMenu: React.FC = () => {
     if (item.price > 1800) badges.push('Premium');
     if (item.isVeg || item.veg) badges.push('Healthy');
     if (item.category === 'Starters') badges.push('New');
-    
+
     // Add additional tag mappings if present
     if (item.tags) {
       item.tags.forEach(t => {
@@ -309,7 +340,7 @@ export const CustomerMenu: React.FC = () => {
     // Filter by Search Query (name, category, description, tags)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(item => 
+      result = result.filter(item =>
         item.name.toLowerCase().includes(q) ||
         (item.category || '').toLowerCase().includes(q) ||
         (item.description || '').toLowerCase().includes(q) ||
@@ -418,16 +449,18 @@ export const CustomerMenu: React.FC = () => {
         return;
       }
 
-      const orderId = `ORD-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+      const orderId = generateUniqueOrderId();
       const orderRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
-      
+
+      const finalTableId = valRes.table?.id || valRes.table?.tableId || resolvedTableId;
+
       const orderPayload = {
         id: orderId,
         orderId,
         tenantId,
         restaurantId: tenantId,
         branchId: resolvedBranchId,
-        tableId: resolvedTableId,
+        tableId: finalTableId,
         tableNumber: tableNumber,
         customerName: customerName.trim() || 'Guest Diner',
         phone: customerPhone.trim() || 'Guest Phone',
@@ -446,7 +479,7 @@ export const CustomerMenu: React.FC = () => {
         sessionId: session?.sessionId || 'ANON-SESSION'
       };
 
-      console.log('[STEP 3] Order object created', { orderId, tenantId, branchId: resolvedBranchId, tableId: resolvedTableId, itemCount: cartItems.length, total: totalCartCost });
+      console.log('[STEP 3] Order object created', { orderId, tenantId, branchId: resolvedBranchId, tableId: finalTableId, itemCount: cartItems.length, total: totalCartCost });
       console.log('[STEP 4] Writing to Firestore', `restaurants/${tenantId}/orders/${orderId}`);
 
       await setDoc(orderRef, orderPayload);
@@ -455,7 +488,7 @@ export const CustomerMenu: React.FC = () => {
 
       // Update table status — non-blocking so order success is not rolled back
       try {
-        const tableRef = doc(db, 'restaurants', tenantId, 'tables', resolvedTableId);
+        const tableRef = doc(db, 'restaurants', tenantId, 'tables', finalTableId);
         await updateDoc(tableRef, {
           status: 'Occupied',
           updatedAt: new Date().toISOString()
@@ -481,6 +514,14 @@ export const CustomerMenu: React.FC = () => {
       }
 
       console.log('[STEP 6] Showing confirmation dialog');
+      // Calculate estimated prep time before clearing cart
+      const prepTimes = cartItems.map(ci => {
+        const item = menuItems.find(m => m.id === ci.itemId);
+        return item?.preparationTime || 15;
+      });
+      const maxPrep = prepTimes.length > 0 ? Math.max(...prepTimes) : 15;
+      setSuccessOrderPrepTime(`${maxPrep} mins`);
+
       setSuccessOrderId(orderId);
       setIsOrderSuccess(true);
       setIsCartOpen(false);
@@ -533,7 +574,7 @@ export const CustomerMenu: React.FC = () => {
     ].filter(Boolean).join(' | ');
 
     addItem(updatedItem, addItemCount, customOptionsNotes);
-    
+
     // Log Cart event
     if (tenantId) {
       customerService.logCustomerEvent(tenantId, 'Item Added To Cart', `Added ${selectedItem.name} (x${addItemCount}) to basket`, {
@@ -557,7 +598,7 @@ export const CustomerMenu: React.FC = () => {
 
     // Add main item
     addItem(selectedItem, 1, `Combo Bundle (Size: Regular)`);
-    
+
     // Add additional items in bundle
     bundle.bundleItems.forEach((bi: IMenuItem) => {
       addItem(bi, 1, `Combo Item`);
@@ -574,6 +615,39 @@ export const CustomerMenu: React.FC = () => {
 
     toast.success('Combo bundle added to cart with discount!');
     setSelectedItem(null);
+  };
+
+  // Active Order Card helpers (Change 2)
+  const getProgressPercent = (status: string) => {
+    switch (status?.toUpperCase()) {
+      case 'NEW':
+      case 'PLACED': return 15;
+      case 'ACCEPTED': return 40;
+      case 'PREPARING': return 65;
+      case 'READY': return 85;
+      case 'DELIVERED': return 100;
+      default: return 0;
+    }
+  };
+
+  const getOrderPrepTime = (order: any) => {
+    if (!order?.items || order.items.length === 0) return '15 mins';
+    const prepTimes = order.items.map((oi: any) => {
+      const matchedItem = menuItems.find(m => m.id === oi.itemId || m.id === oi.id);
+      return matchedItem?.preparationTime || 15;
+    });
+    const maxPrep = prepTimes.length > 0 ? Math.max(...prepTimes) : 15;
+    return `${maxPrep} mins`;
+  };
+
+  const formatLastUpdated = (updatedAtStr: string) => {
+    if (!updatedAtStr) return 'Just now';
+    try {
+      const date = new Date(updatedAtStr);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return 'Just now';
+    }
   };
 
   // Helper values
@@ -606,13 +680,13 @@ export const CustomerMenu: React.FC = () => {
 
       {/* TOP RESTAURANT COVER HEADER */}
       <div className="w-full h-48 md:h-60 relative overflow-hidden shrink-0">
-        <img 
-          src={coverImage || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=60'} 
+        <img
+          src={coverImage || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=60'}
           alt={restaurantName}
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
-        
+
         {/* Floating active session / table tag details */}
         <div className="absolute top-4 left-6 z-20 flex items-center gap-2">
           <button
@@ -635,7 +709,7 @@ export const CustomerMenu: React.FC = () => {
                 </Badge>
               )}
             </div>
-            
+
             <div className="flex items-center space-x-3 text-xs text-slate-350">
               <span className="font-semibold flex items-center gap-1">
                 <Layers className="w-3.5 h-3.5 text-primary" />
@@ -672,15 +746,14 @@ export const CustomerMenu: React.FC = () => {
                 <button onClick={() => setSearchQuery('')} className="text-slate-500 hover:text-textPearl text-xs">Clear</button>
               )}
             </div>
-            
+
             {/* Filter Toggle Button */}
             <button
               onClick={() => setIsFiltersOpen(true)}
-              className={`p-3 rounded-2xl border flex items-center justify-center transition-all ${
-                showVegOnly || showNonVegOnly || showBestSellerOnly || showSpicyOnly || showQuickPrepOnly
+              className={`p-3 rounded-2xl border flex items-center justify-center transition-all ${showVegOnly || showNonVegOnly || showBestSellerOnly || showSpicyOnly || showQuickPrepOnly
                   ? 'bg-primary border-primary text-background'
                   : 'bg-slate-900 border-slate-850 text-slate-450 hover:text-textPearl'
-              }`}
+                }`}
             >
               <Filter className="w-4 h-4" />
             </button>
@@ -690,11 +763,10 @@ export const CustomerMenu: React.FC = () => {
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none select-none">
             <button
               onClick={() => handleCategoryClick('all')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-300 border ${
-                activeCategory === 'all'
+              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-300 border ${activeCategory === 'all'
                   ? 'bg-primary border-primary text-background font-extrabold'
                   : 'bg-slate-900 border-slate-850 text-slate-400 hover:text-textPearl'
-              }`}
+                }`}
             >
               🍽️ All Selections
             </button>
@@ -702,11 +774,10 @@ export const CustomerMenu: React.FC = () => {
               <button
                 key={cat}
                 onClick={() => handleCategoryClick(cat)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-300 border ${
-                  activeCategory === cat
+                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-300 border ${activeCategory === cat
                     ? 'bg-primary border-primary text-background font-extrabold font-bold'
                     : 'bg-slate-900 border-slate-850 text-slate-400 hover:text-textPearl'
-                }`}
+                  }`}
               >
                 {getCategoryEmoji(cat)} {cat}
               </button>
@@ -717,6 +788,90 @@ export const CustomerMenu: React.FC = () => {
 
       {/* MAIN CONTENT AREA */}
       <main className="max-w-4xl mx-auto px-6 pt-6 relative z-10 space-y-8 text-left">
+        {/* Change 2: Persistent Active Order Card */}
+        {activeOrders.length > 0 && (
+          <div className="space-y-4">
+            {activeOrders.map((activeOrder) => {
+              const progressPercent = getProgressPercent(activeOrder.status);
+              const prepTime = getOrderPrepTime(activeOrder);
+              const itemsCount = activeOrder.items?.reduce((sum: number, item: any) => sum + (item.count || 1), 0) || 0;
+              const formattedTime = formatLastUpdated(activeOrder.updatedAt || activeOrder.createdAt);
+
+              return (
+                <div
+                  key={activeOrder.id}
+                  className="bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-primary/10 border border-primary/25 rounded-3xl p-5 shadow-2xl relative overflow-hidden backdrop-blur-md"
+                >
+                  {/* Subtle background highlight */}
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
+
+                  <div className="flex justify-between items-start pb-3 border-b border-slate-800/60 mb-4">
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Active Order</span>
+                      <strong className="text-xs font-mono text-textPearl uppercase">#{activeOrder.orderId}</strong>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Last Updated</span>
+                      <span className="text-xs font-semibold text-slate-300">{formattedTime}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mb-4 text-xs">
+                    <div>
+                      <span className="text-slate-500 block font-semibold">Est. Preparation Time:</span>
+                      <span className="text-primary font-bold">{prepTime}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block font-semibold">Items Count:</span>
+                      <span className="text-textPearl font-bold">{itemsCount} {itemsCount === 1 ? 'item' : 'items'}</span>
+                    </div>
+                  </div>
+
+                  {/* Progress Indicator */}
+                  <div className="space-y-1.5 mb-4">
+                    <div className="flex justify-between text-[11px] font-bold">
+                      <span className="text-primary uppercase tracking-wider">
+                        Status: {activeOrder.status === 'NEW' ? 'Order Received' : activeOrder.status}
+                      </span>
+                      <span className="text-slate-400">{progressPercent}%</span>
+                    </div>
+                    <div className="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden p-0.5 border border-slate-700/30">
+                      <div
+                        style={{ width: `${progressPercent}%` }}
+                        className="bg-gradient-to-r from-primary to-amber-500 h-full rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                    <Button
+                      onClick={() => navigate(`/customer/restaurant/${tenantId}/order/${activeOrder.orderId}`)}
+                      className="flex-1 bg-primary hover:bg-primary-hover text-background font-bold py-2.5 rounded-xl shadow-lg shadow-primary/10 flex items-center justify-center gap-1.5 transition-all text-xs"
+                    >
+                      Track My Order
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        const firstCat = Object.keys(categorizedMenu)[0];
+                        const el = firstCat ? document.getElementById(`cat-section-${firstCat.replace(/\s+/g, '-').toLowerCase()}`) : null;
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth' });
+                        } else {
+                          window.scrollTo({ top: 500, behavior: 'smooth' });
+                        }
+                      }}
+                      className="flex-1 bg-slate-900 border border-slate-800 text-slate-300 hover:text-textPearl py-2.5 rounded-xl text-xs"
+                    >
+                      Continue Browsing
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {filteredAndSortedItems.length === 0 ? (
           <div className="py-16 text-center border border-dashed border-slate-850 rounded-2xl bg-slate-900/10">
             <AlertTriangle className="w-8 h-8 text-slate-700 mx-auto mb-2" />
@@ -724,7 +879,7 @@ export const CustomerMenu: React.FC = () => {
           </div>
         ) : (
           Object.entries(categorizedMenu).map(([categoryName, items]) => (
-            <div 
+            <div
               key={categoryName}
               id={`cat-section-${categoryName.replace(/\s+/g, '-').toLowerCase()}`}
               className="space-y-4 pt-2"
@@ -737,7 +892,7 @@ export const CustomerMenu: React.FC = () => {
                 </span>
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {items.map((item) => {
                   const isVeg = item.isVeg || item.veg;
                   const discountPrice = item.discountPrice;
@@ -746,9 +901,8 @@ export const CustomerMenu: React.FC = () => {
                   return (
                     <Card
                       key={item.id}
-                      className={`p-4 border-slate-855 bg-slate-900/20 hover:border-slate-800/80 hover:bg-slate-900/40 flex items-start justify-between space-x-4 cursor-pointer transition-all ${
-                        item.available === false ? 'opacity-40' : ''
-                      }`}
+                      className={`p-4 border-slate-855 bg-slate-900/20 hover:border-slate-800/80 hover:bg-slate-900/40 flex items-start justify-between space-x-4 cursor-pointer transition-all ${item.available === false ? 'opacity-40' : ''
+                        }`}
                       onClick={() => item.available !== false && setSelectedItem(item)}
                     >
                       <div className="flex-1 flex flex-col text-left space-y-1">
@@ -757,17 +911,16 @@ export const CustomerMenu: React.FC = () => {
                           <div className={`w-3.5 h-3.5 border flex items-center justify-center shrink-0 rounded ${isVeg ? 'border-emerald-500' : 'border-red-500'}`}>
                             <div className={`w-1.5 h-1.5 rounded-full ${isVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
                           </div>
-                          
+
                           <h3 className="font-display font-extrabold text-sm text-textPearl leading-tight">
                             {item.name}
                           </h3>
 
                           {badges.map((b) => (
-                            <span 
-                              key={b} 
-                              className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                                b === 'Best Seller' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-primary/10 text-primary border border-primary/20'
-                              }`}
+                            <span
+                              key={b}
+                              className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${b === 'Best Seller' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-primary/10 text-primary border border-primary/20'
+                                }`}
                             >
                               {b}
                             </span>
@@ -795,7 +948,7 @@ export const CustomerMenu: React.FC = () => {
                             <Star className="w-3 h-3 fill-current mr-0.5" />
                             <span>{item.rating?.toFixed(1) || '4.5'}</span>
                           </div>
-                          
+
                           <div className="flex items-center space-x-1">
                             <Clock className="w-3 h-3" />
                             <span>{item.preparationTime || 15} mins</span>
@@ -814,10 +967,10 @@ export const CustomerMenu: React.FC = () => {
                       <div className="flex flex-col items-center shrink-0 space-y-2 select-none">
                         {item.imageUrl ? (
                           <div className="w-20 h-20 rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 shadow-lg relative">
-                            <img 
-                              src={item.imageUrl} 
-                              alt={item.name} 
-                              className="w-full h-full object-cover" 
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
                               loading="lazy"
                             />
                           </div>
@@ -826,7 +979,7 @@ export const CustomerMenu: React.FC = () => {
                             <Sparkles className="w-5 h-5" />
                           </div>
                         )}
-                        
+
                         {item.available === false ? (
                           <span className="text-[9px] font-bold bg-slate-900 border border-slate-800 text-slate-500 px-2 py-1 rounded-lg uppercase">
                             Sold Out
@@ -893,11 +1046,10 @@ export const CustomerMenu: React.FC = () => {
                 <button
                   key={opt.id}
                   onClick={() => setSortBy(opt.id)}
-                  className={`p-2.5 rounded-xl border font-semibold text-center transition-all ${
-                    sortBy === opt.id
+                  className={`p-2.5 rounded-xl border font-semibold text-center transition-all ${sortBy === opt.id
                       ? 'bg-primary border-primary text-background'
                       : 'bg-slate-900 border-slate-850 text-slate-400 hover:text-textPearl'
-                  }`}
+                    }`}
                 >
                   {opt.label}
                 </button>
@@ -914,11 +1066,10 @@ export const CustomerMenu: React.FC = () => {
                   setShowVegOnly(!showVegOnly);
                   if (showNonVegOnly) setShowNonVegOnly(false);
                 }}
-                className={`px-3 py-2 rounded-xl border font-bold transition-all ${
-                  showVegOnly
+                className={`px-3 py-2 rounded-xl border font-bold transition-all ${showVegOnly
                     ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
                     : 'bg-slate-900 border-slate-850 text-slate-400'
-                }`}
+                  }`}
               >
                 🥦 Veg Only
               </button>
@@ -927,11 +1078,10 @@ export const CustomerMenu: React.FC = () => {
                   setShowNonVegOnly(!showNonVegOnly);
                   if (showVegOnly) setShowVegOnly(false);
                 }}
-                className={`px-3 py-2 rounded-xl border font-bold transition-all ${
-                  showNonVegOnly
+                className={`px-3 py-2 rounded-xl border font-bold transition-all ${showNonVegOnly
                     ? 'bg-red-500/10 border-red-500/40 text-red-400'
                     : 'bg-slate-900 border-slate-850 text-slate-400'
-                }`}
+                  }`}
               >
                 🥩 Non-Veg Only
               </button>
@@ -943,21 +1093,19 @@ export const CustomerMenu: React.FC = () => {
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setShowBestSellerOnly(!showBestSellerOnly)}
-                className={`px-3 py-2 rounded-xl border font-bold transition-all ${
-                  showBestSellerOnly
+                className={`px-3 py-2 rounded-xl border font-bold transition-all ${showBestSellerOnly
                     ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
                     : 'bg-slate-900 border-slate-850 text-slate-400'
-                }`}
+                  }`}
               >
                 ⭐ Best Sellers
               </button>
               <button
                 onClick={() => setShowChefSpecialOnly(!showChefSpecialOnly)}
-                className={`px-3 py-2 rounded-xl border font-bold transition-all ${
-                  showChefSpecialOnly
+                className={`px-3 py-2 rounded-xl border font-bold transition-all ${showChefSpecialOnly
                     ? 'bg-violet-500/10 border-violet-500/40 text-violet-400'
                     : 'bg-slate-900 border-slate-850 text-slate-400'
-                }`}
+                  }`}
               >
                 👨‍🍳 Chef Specials
               </button>
@@ -966,11 +1114,10 @@ export const CustomerMenu: React.FC = () => {
                   setShowSpicyOnly(!showSpicyOnly);
                   if (showLowSpiceOnly) setShowLowSpiceOnly(false);
                 }}
-                className={`px-3 py-2 rounded-xl border font-bold transition-all ${
-                  showSpicyOnly
+                className={`px-3 py-2 rounded-xl border font-bold transition-all ${showSpicyOnly
                     ? 'bg-red-500/10 border-red-500/40 text-red-400'
                     : 'bg-slate-900 border-slate-850 text-slate-400'
-                }`}
+                  }`}
               >
                 🌶️ Spicy Selection
               </button>
@@ -979,21 +1126,19 @@ export const CustomerMenu: React.FC = () => {
                   setShowLowSpiceOnly(!showLowSpiceOnly);
                   if (showSpicyOnly) setShowSpicyOnly(false);
                 }}
-                className={`px-3 py-2 rounded-xl border font-bold transition-all ${
-                  showLowSpiceOnly
+                className={`px-3 py-2 rounded-xl border font-bold transition-all ${showLowSpiceOnly
                     ? 'bg-teal-500/10 border-teal-500/40 text-teal-400'
                     : 'bg-slate-900 border-slate-850 text-slate-400'
-                }`}
+                  }`}
               >
                 🌱 Low Spice
               </button>
               <button
                 onClick={() => setShowQuickPrepOnly(!showQuickPrepOnly)}
-                className={`px-3 py-2 rounded-xl border font-bold transition-all ${
-                  showQuickPrepOnly
+                className={`px-3 py-2 rounded-xl border font-bold transition-all ${showQuickPrepOnly
                     ? 'bg-primary/10 border-primary/45 text-primary'
                     : 'bg-slate-900 border-slate-855 text-slate-400'
-                }`}
+                  }`}
               >
                 ⚡ Quick Prep (&lt;15m)
               </button>
@@ -1051,7 +1196,7 @@ export const CustomerMenu: React.FC = () => {
               <p className="text-slate-400 leading-relaxed font-medium">
                 {selectedItem.description || 'Expertly prepared house-crafted delicacy.'}
               </p>
-              
+
               {/* Nutritional block & Allergens */}
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="bg-slate-900 border border-slate-850 p-2.5 rounded-xl flex items-start gap-2">
@@ -1061,7 +1206,7 @@ export const CustomerMenu: React.FC = () => {
                     <span className="text-[10px] text-slate-350 font-semibold block leading-tight">Calories: 380 kcal | Protein: 12g</span>
                   </div>
                 </div>
-                
+
                 <div className="bg-slate-900 border border-slate-855 p-2.5 rounded-xl flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                   <div>
@@ -1084,11 +1229,10 @@ export const CustomerMenu: React.FC = () => {
                   <button
                     key={v.id}
                     onClick={() => setSelectedVariant(v.id)}
-                    className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-0.5 text-center transition-all ${
-                      selectedVariant === v.id
+                    className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-0.5 text-center transition-all ${selectedVariant === v.id
                         ? 'bg-primary/10 border-primary text-primary'
                         : 'bg-slate-900 border-slate-850 text-slate-400 hover:text-textPearl'
-                    }`}
+                      }`}
                   >
                     <span className="font-bold text-[11px]">{v.label}</span>
                     <span className="text-[8.5px] font-semibold text-slate-500">{v.tag}</span>
@@ -1111,15 +1255,14 @@ export const CustomerMenu: React.FC = () => {
                     <button
                       key={addon.id}
                       onClick={() => {
-                        setSelectedAddons(prev => 
+                        setSelectedAddons(prev =>
                           isChecked ? prev.filter(a => a !== addon.label) : [...prev, addon.label]
                         );
                       }}
-                      className={`w-full p-2.5 rounded-xl border flex items-center justify-between text-left transition-all ${
-                        isChecked 
+                      className={`w-full p-2.5 rounded-xl border flex items-center justify-between text-left transition-all ${isChecked
                           ? 'bg-slate-900 border-primary/45 text-textPearl'
                           : 'bg-slate-900 border-slate-855 text-slate-400'
-                      }`}
+                        }`}
                     >
                       <span className="font-bold">{addon.label}</span>
                       <span className="font-mono text-primary text-[10.5px]">+{formatPrice(addon.price)}</span>
@@ -1148,7 +1291,7 @@ export const CustomerMenu: React.FC = () => {
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Chef Up-Sells Selections</span>
                 </h4>
-                
+
                 {/* 1. Complete Your Meal Combo card */}
                 {recommendations.completeMeal && (
                   <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-slate-900/10 border border-primary/25 rounded-2xl p-4 space-y-3">
@@ -1197,7 +1340,7 @@ export const CustomerMenu: React.FC = () => {
                             <span className="font-bold text-textPearl block leading-tight">{item.name}</span>
                             <span className="text-[10px] text-slate-455 font-mono">{formatPrice(item.discountPrice || item.price)}</span>
                           </div>
-                          
+
                           <Button
                             variant="secondary"
                             className="text-[9px] font-bold py-1 px-2.5 bg-slate-950 border border-slate-800 hover:border-primary text-primary"
@@ -1377,35 +1520,43 @@ export const CustomerMenu: React.FC = () => {
           <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/5">
             <CheckCircle2 className="w-8 h-8 text-emerald-500 animate-bounce" />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-3">
             <h3 className="font-display font-extrabold text-base text-textPearl">✅ ORDER CONFIRMED</h3>
             <p className="text-xs text-mutedAsh">
               Your order has been successfully placed.
             </p>
-            <p className="text-xs text-mutedAsh font-bold text-primary">
-              Your order has been sent to the kitchen.
-            </p>
-            <p className="text-xs text-slate-400 mt-2">
-              Estimated preparation time: <span className="text-primary font-bold">15–20 minutes</span>.
-            </p>
+            <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl text-xs font-semibold text-slate-400 space-y-2 text-left max-w-xs mx-auto">
+              <div className="flex justify-between">
+                <span>Order Number:</span>
+                <span className="text-textPearl font-mono font-bold uppercase">{successOrderId}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Estimated Preparation Time:</span>
+                <span className="text-primary font-bold">{successOrderPrepTime}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Current Status:</span>
+                <span className="text-emerald-500 font-bold">NEW</span>
+              </div>
+            </div>
           </div>
-          <div className="flex gap-2 pt-2">
-            <Button 
-              onClick={() => {
-                setIsOrderSuccess(false);
-              }}
-              className="flex-1 bg-slate-900 border-slate-800 text-slate-300 hover:text-textPearl"
-            >
-              Browse More Dishes
-            </Button>
-            <Button 
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
               onClick={() => {
                 setIsOrderSuccess(false);
                 navigate(`/customer/restaurant/${tenantId}/order/${successOrderId}`);
               }}
-              className="flex-1 bg-primary hover:bg-primary-hover text-background"
+              className="w-full bg-primary hover:bg-primary-hover text-background font-bold"
             >
-              Track Order
+              Track My Order
+            </Button>
+            <Button
+              onClick={() => {
+                setIsOrderSuccess(false);
+              }}
+              className="w-full bg-slate-900 border-slate-800 text-slate-300 hover:text-textPearl"
+            >
+              Continue Browsing
             </Button>
           </div>
         </div>

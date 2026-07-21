@@ -20,11 +20,16 @@ import {
   AlertTriangle,
   X,
   ChevronRight,
-  Database
+  Database,
+  Menu
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export const Navbar: React.FC = () => {
+interface NavbarProps {
+  onMenuClick?: () => void;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   const { user, role, logout } = useAuth();
   const tenantId = user?.tenantId;
 
@@ -215,10 +220,19 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="h-16 border-b border-slate-800/40 bg-slate-955/40 backdrop-blur-md flex items-center justify-between px-6 z-20">
+    <header className="h-16 border-b border-slate-800/40 bg-slate-950/40 backdrop-blur-md flex items-center justify-between px-6 z-20">
       
       {/* Search Input trigger on left */}
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-3">
+        {onMenuClick && (
+          <button
+            onClick={onMenuClick}
+            className="p-2 -ml-2 text-slate-400 hover:text-white lg:hidden rounded-xl bg-slate-900 border border-slate-850"
+            title="Open menu"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+        )}
         <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 hidden sm:inline-block">
           Tenant: {user?.tenantId || 'SaaS Global'}
         </span>

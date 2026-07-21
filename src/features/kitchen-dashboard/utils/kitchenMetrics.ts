@@ -8,32 +8,61 @@ import { IKdsOrder, IKdsMetrics, TOrderStatus, TPriority } from '../types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const ACTIVE_STATUSES: TOrderStatus[] = ['NEW', 'PLACED', 'ACCEPTED', 'PREPARING', 'PAUSED', 'READY'];
-export const COOKING_STATUSES: TOrderStatus[] = ['ACCEPTED', 'PREPARING', 'PAUSED'];
-export const DONE_STATUSES: TOrderStatus[] = ['DELIVERED', 'COMPLETED'];
-export const PREP_STATUSES: TOrderStatus[] = ['NEW', 'PLACED', 'ACCEPTED', 'PREPARING', 'PAUSED'];
+export const ACTIVE_STATUSES: TOrderStatus[] = ['NEW', 'PLACED', 'ACCEPTED', 'CHEF_ASSIGNED', 'PREPARING', 'PAUSED', 'READY', 'PICKED_UP', 'SERVED'];
+export const COOKING_STATUSES: TOrderStatus[] = ['ACCEPTED', 'CHEF_ASSIGNED', 'PREPARING', 'PAUSED'];
+export const DONE_STATUSES: TOrderStatus[] = ['DELIVERED', 'COMPLETED', 'PAID', 'CLOSED', 'ARCHIVED'];
+export const PREP_STATUSES: TOrderStatus[] = ['NEW', 'PLACED', 'ACCEPTED', 'CHEF_ASSIGNED', 'PREPARING', 'PAUSED'];
 
 /**
- * Calculates order priority dynamically based on VIP customer name, long wait times (>15 min),
- * large order items count (>6), or returns manual priority override.
+ * Enhanced Priority Engine — Weighted multi-factor scoring.
+ * 
+ * Priority is determined by the HIGHEST scoring factor:
+ * - Manual override (always honored)
+ * - Rush order flag → critical
+ * - Delivery deadline approaching (< 15 min) → critical
+ * - VIP customer → critical
+ * - Long waiting time (> 15 min) → critical
+ * - Delivery deadline moderate (< 30 min) → high
+ * - Waiting > 10 min → high
+ * - Large order (> 6 items) → high
+ * - Default → normal
  */
 export function calculateSmartPriority(order: IKdsOrder): TPriority {
+  // 0. Manual override always takes precedence
   if (order.priorityOverride && order.priority) {
     return order.priority as TPriority;
   }
-  
-  // 1. VIP Customer
+
+  // 1. Rush order flag
+  if ((order as any).isRush) {
+    return 'critical';
+  }
+
+  // 2. Delivery deadline approaching
+  const deadline = (order as any).deliveryDeadline;
+  if (deadline) {
+    const deadlineMs = new Date(deadline).getTime();
+    const nowMs = Date.now();
+    const minutesUntilDeadline = (deadlineMs - nowMs) / 60000;
+    if (minutesUntilDeadline < 15) return 'critical';
+    if (minutesUntilDeadline < 30) return 'high';
+  }
+
+  // 3. VIP Customer
   if (order.customerName && order.customerName.toLowerCase().includes('vip')) {
     return 'critical';
   }
 
-  // 2. Long waiting time (>15 min)
+  // 4. Long waiting time
   const elapsed = getElapsedMinutes(order.createdAt);
   if (elapsed > 15) {
     return 'critical';
   }
+  if (elapsed > 10) {
+    return 'high';
+  }
 
-  // 3. Large Order (sum of item counts > 6)
+  // 5. Large Order (sum of item counts > 6)
   const totalItemsCount = (order.items || []).reduce((sum, i) => sum + i.count, 0);
   if (totalItemsCount > 6) {
     return 'high';

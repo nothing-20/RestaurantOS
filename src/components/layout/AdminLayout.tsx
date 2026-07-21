@@ -1,3 +1,2 @@
-export * from '../../shared/ui/layouts/AdminLayout';
-import AdminLayout from '../../shared/ui/layouts/AdminLayout';
-export default AdminLayout;
+// Deprecated during clean-up. This file has been cleared and is no longer used.
+export default null;

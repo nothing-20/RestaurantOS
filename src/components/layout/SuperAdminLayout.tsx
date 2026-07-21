@@ -1,3 +1,2 @@
-export * from '../../shared/ui/layouts/SuperAdminLayout';
-import SuperAdminLayout from '../../shared/ui/layouts/SuperAdminLayout';
-export default SuperAdminLayout;
+// Deprecated during clean-up. This file has been cleared and is no longer used.
+export default null;

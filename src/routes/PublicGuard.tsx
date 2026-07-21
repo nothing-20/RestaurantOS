@@ -18,7 +18,7 @@ export const PublicGuard: React.FC = () => {
   if (user && role) {
     // Explicit path map — never use a template literal that can produce wrong paths
     const ROLE_PATHS: Record<string, string> = {
-      'customer': '/customer/restaurants',
+      'customer': '/customer/home',
       'super-admin': '/super-admin',
       'owner': '/dashboard/owner',
       'admin': '/dashboard/owner',
