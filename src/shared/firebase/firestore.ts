@@ -19,6 +19,30 @@ export interface IServiceMetadata {
   createdBy?: string;
 }
 
+export function cleanObject(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(cleanObject);
+  }
+  if (typeof obj === 'object') {
+    const cName = obj.constructor?.name;
+    if (cName && ['DocumentReference', 'FieldValue', 'GeoPoint', 'CollectionReference', 'Query'].includes(cName)) {
+      return obj;
+    }
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        result[key] = cleanObject(value);
+      }
+    }
+    return result;
+  }
+  return obj;
+}
+
+export const sanitizePayload = cleanObject;
+
 export class FirestoreService<T extends Record<string, any>> {
   private collectionName: string;
 
@@ -42,6 +66,7 @@ export class FirestoreService<T extends Record<string, any>> {
 
   // CREATE
   async create(data: Omit<T, 'id'> & { id?: string }, metadata?: IServiceMetadata | string): Promise<string> {
+    console.log('[FirestoreService] create entered. data:', data, 'metadata:', metadata);
     const metaObj = typeof metadata === 'string' ? { tenantId: metadata } : (metadata || {});
     const tenantId = metaObj.tenantId || (data as any).tenantId;
     const colRef = this.getRef(tenantId);
@@ -58,12 +83,21 @@ export class FirestoreService<T extends Record<string, any>> {
       updatedAt: new Date().toISOString(),
     };
 
-    await setDoc(docRef, payload);
-    return id;
+    const sanitizedPayload = cleanObject(payload);
+    console.log('[FirestoreService] Calling Firestore setDoc at:', docRef.path, 'sanitized payload:', sanitizedPayload);
+    try {
+      await setDoc(docRef, sanitizedPayload);
+      console.log('[FirestoreService] setDoc Success. id:', id);
+      return id;
+    } catch (error) {
+      console.error('[FirestoreService] setDoc Failed error:', error);
+      throw error;
+    }
   }
 
   // UPDATE
   async update(id: string, data: Partial<T>, metadata?: IServiceMetadata | string): Promise<void> {
+    console.log('[FirestoreService] update entered. id:', id, 'data:', data, 'metadata:', metadata);
     const metaObj = typeof metadata === 'string' ? { tenantId: metadata } : (metadata || {});
     const tenantId = metaObj.tenantId || (data as any).tenantId;
     const colRef = this.getRef(tenantId);
@@ -74,14 +108,30 @@ export class FirestoreService<T extends Record<string, any>> {
       updatedAt: new Date().toISOString(),
     };
 
-    await updateDoc(docRef, payload);
+    const sanitizedPayload = cleanObject(payload);
+    console.log('[FirestoreService] Calling Firestore updateDoc at:', docRef.path, 'sanitized payload:', sanitizedPayload);
+    try {
+      await updateDoc(docRef, sanitizedPayload);
+      console.log('[FirestoreService] updateDoc Success.');
+    } catch (error) {
+      console.error('[FirestoreService] updateDoc Failed error:', error);
+      throw error;
+    }
   }
 
   // DELETE
   async delete(id: string, tenantId?: string): Promise<void> {
+    console.log('[FirestoreService] delete entered. id:', id, 'tenantId:', tenantId);
     const colRef = this.getRef(tenantId);
     const docRef = doc(colRef, id);
-    await deleteDoc(docRef);
+    console.log('[FirestoreService] Calling Firestore deleteDoc at:', docRef.path);
+    try {
+      await deleteDoc(docRef);
+      console.log('[FirestoreService] deleteDoc Success.');
+    } catch (error) {
+      console.error('[FirestoreService] deleteDoc Failed error:', error);
+      throw error;
+    }
   }
 
   // GET BY ID
