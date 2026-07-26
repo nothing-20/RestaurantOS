@@ -62,25 +62,28 @@ import {
 } from 'lucide-react';
 
 // Clean helper function to strip undefined properties
-const cleanObject = (obj: any): any => {
+const removeUndefined = (obj: any): any => {
   if (obj === null || obj === undefined) return obj;
   if (obj instanceof Date) return obj;
   if (Array.isArray(obj)) {
-    return obj.map(cleanObject);
+    return obj.map(removeUndefined);
   }
   if (typeof obj === 'object') {
-    const cName = obj.constructor?.name;
-    if (cName && ['DocumentReference', 'FieldValue', 'GeoPoint'].includes(cName)) {
+    const proto = Object.getPrototypeOf(obj);
+    const isPlain = proto === null || proto === Object.prototype;
+    if (!isPlain) {
       return obj;
     }
     return Object.fromEntries(
       Object.entries(obj)
         .filter(([_, value]) => value !== undefined)
-        .map(([key, value]) => [key, cleanObject(value)])
+        .map(([key, value]) => [key, removeUndefined(value)])
     );
   }
   return obj;
 };
+
+const cleanObject = removeUndefined;
 
 // Form validation schemas
 const categorySchema = z.object({

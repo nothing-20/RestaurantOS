@@ -19,21 +19,22 @@ export interface IServiceMetadata {
   createdBy?: string;
 }
 
-export function cleanObject(obj: any): any {
+export function removeUndefined(obj: any): any {
   if (obj === null || obj === undefined) return obj;
   if (obj instanceof Date) return obj;
   if (Array.isArray(obj)) {
-    return obj.map(cleanObject);
+    return obj.map(removeUndefined);
   }
   if (typeof obj === 'object') {
-    const cName = obj.constructor?.name;
-    if (cName && ['DocumentReference', 'FieldValue', 'GeoPoint', 'CollectionReference', 'Query'].includes(cName)) {
+    const proto = Object.getPrototypeOf(obj);
+    const isPlain = proto === null || proto === Object.prototype;
+    if (!isPlain) {
       return obj;
     }
     const result: any = {};
     for (const [key, value] of Object.entries(obj)) {
       if (value !== undefined) {
-        result[key] = cleanObject(value);
+        result[key] = removeUndefined(value);
       }
     }
     return result;
@@ -41,7 +42,8 @@ export function cleanObject(obj: any): any {
   return obj;
 }
 
-export const sanitizePayload = cleanObject;
+export const cleanObject = removeUndefined;
+export const sanitizePayload = removeUndefined;
 
 export class FirestoreService<T extends Record<string, any>> {
   private collectionName: string;
@@ -78,13 +80,13 @@ export class FirestoreService<T extends Record<string, any>> {
       id,
       tenantId: tenantId || '',
       branchId: metaObj.branchId || (data as any).branchId || 'main',
-      createdBy: metaObj.createdBy || 'system',
-      createdAt: new Date().toISOString(),
+      createdBy: metaObj.createdBy || (data as any).createdBy || 'system',
+      createdAt: (data as any).createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    const sanitizedPayload = cleanObject(payload);
-    console.log('[FirestoreService] Calling Firestore setDoc at:', docRef.path, 'sanitized payload:', sanitizedPayload);
+    const sanitizedPayload = removeUndefined(payload);
+    console.log("FINAL PAYLOAD", JSON.stringify(sanitizedPayload, null, 2));
     try {
       await setDoc(docRef, sanitizedPayload);
       console.log('[FirestoreService] setDoc Success. id:', id);
@@ -108,8 +110,8 @@ export class FirestoreService<T extends Record<string, any>> {
       updatedAt: new Date().toISOString(),
     };
 
-    const sanitizedPayload = cleanObject(payload);
-    console.log('[FirestoreService] Calling Firestore updateDoc at:', docRef.path, 'sanitized payload:', sanitizedPayload);
+    const sanitizedPayload = removeUndefined(payload);
+    console.log("FINAL PAYLOAD", JSON.stringify(sanitizedPayload, null, 2));
     try {
       await updateDoc(docRef, sanitizedPayload);
       console.log('[FirestoreService] updateDoc Success.');
