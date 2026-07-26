@@ -770,43 +770,17 @@ export const MenuManagement: React.FC = () => {
           image: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=500'
         },
         {
-          name: 'Chicken 65',
-          description: 'Deep-fried spicy chicken appetizer from South India.',
-          categoryId: appCatId,
-          price: 1499,
-          isVeg: false,
+          name: 'Veg Burger',
+          description: 'Crispy veggie patty with fresh lettuce, tomatoes, and chef sauce.',
+          categoryId: mainCatId,
+          price: 1099,
+          isVeg: true,
           isAvailable: true,
           isBestSeller: true,
           isRecommended: false,
-          spiceLevel: 'hot',
+          spiceLevel: 'none',
           preparationTime: 12,
-          image: 'https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?w=500'
-        },
-        {
-          name: 'Veg Spring Roll',
-          description: 'Crispy pastry rolls filled with shredded vegetables.',
-          categoryId: appCatId,
-          price: 899,
-          isVeg: true,
-          isAvailable: true,
-          isBestSeller: false,
-          isRecommended: false,
-          spiceLevel: 'none',
-          preparationTime: 10,
-          image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=500'
-        },
-        {
-          name: 'Margherita Pizza',
-          description: 'Classic Neapolitan pizza with mozzarella and fresh basil.',
-          categoryId: mainCatId,
-          price: 1599,
-          isVeg: true,
-          isAvailable: true,
-          isBestSeller: false,
-          isRecommended: true,
-          spiceLevel: 'none',
-          preparationTime: 20,
-          image: 'https://images.unsplash.com/photo-1604068549290-dea0e4a305ca?w=500'
+          image: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=500'
         },
         {
           name: 'Chicken Biryani',
@@ -822,30 +796,43 @@ export const MenuManagement: React.FC = () => {
           image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=500'
         },
         {
-          name: 'Cold Coffee',
-          description: 'Chilled milk blended with premium espresso and vanilla ice cream.',
-          categoryId: bevCatId,
-          price: 599,
-          isVeg: true,
-          isAvailable: true,
-          isBestSeller: false,
-          isRecommended: false,
-          spiceLevel: 'none',
-          preparationTime: 5,
-          image: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=500'
-        },
-        {
-          name: 'Chocolate Brownie',
-          description: 'Warm fudge brownie served with chocolate drizzle.',
-          categoryId: desCatId,
-          price: 799,
+          name: 'Margherita Pizza',
+          description: 'Classic Neapolitan pizza with mozzarella and fresh basil.',
+          categoryId: mainCatId,
+          price: 1599,
           isVeg: true,
           isAvailable: true,
           isBestSeller: false,
           isRecommended: true,
           spiceLevel: 'none',
+          preparationTime: 20,
+          image: 'https://images.unsplash.com/photo-1604068549290-dea0e4a305ca?w=500'
+        },
+        {
+          name: 'French Fries',
+          description: 'Crispy golden potato fries lightly salted.',
+          categoryId: appCatId,
+          price: 699,
+          isVeg: true,
+          isAvailable: true,
+          isBestSeller: false,
+          isRecommended: false,
+          spiceLevel: 'none',
           preparationTime: 8,
-          image: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=500'
+          image: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=500'
+        },
+        {
+          name: 'Cappuccino',
+          description: 'Rich espresso with steamed milk foam and cocoa dusting.',
+          categoryId: bevCatId,
+          price: 499,
+          isVeg: true,
+          isAvailable: true,
+          isBestSeller: false,
+          isRecommended: true,
+          spiceLevel: 'none',
+          preparationTime: 5,
+          image: 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=500'
         }
       ];
 
@@ -1009,7 +996,7 @@ export const MenuManagement: React.FC = () => {
       console.log('[DEBUG] Preparing payload for menuService...');
       const catName = categories.find((c) => c.id === data.categoryId)?.name || '';
 
-      const itemData: Omit<IMenuItem, 'id'> & { id: string } = {
+      const itemData: any = {
         id: itemId,
         tenantId: user.tenantId,
         categoryId: data.categoryId,
@@ -1040,29 +1027,35 @@ export const MenuManagement: React.FC = () => {
           recommended: data.isRecommended
         },
         status: data.isAvailable ? 'active' : 'inactive', // compat
-        
-        // Batch properties
         productionMode: data.productionMode,
         preparationMethod: data.productionMode === 'Batch Production' ? 'batch' : 'fresh',
-        defaultBatchSize: data.productionMode === 'Batch Production' ? (data.defaultBatchSize ?? 50) : undefined,
-        availableServings: data.productionMode === 'Batch Production' ? (data.availableServings ?? 50) : undefined,
-        lowStockThreshold: data.productionMode === 'Batch Production' ? (data.lowStockThreshold ?? 10) : undefined,
-        autoUnavailable: data.productionMode === 'Batch Production' ? (data.autoUnavailable ?? true) : undefined,
-        showServingsToStaff: data.productionMode === 'Batch Production' ? (data.showServingsToStaff ?? true) : undefined,
-        allowRefill: data.productionMode === 'Batch Production' ? (data.allowRefill ?? true) : undefined,
-        
         createdAt: editingItem ? editingItem.createdAt : new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         createdBy: editingItem ? (editingItem.createdBy || user.email || 'Owner') : (user.email || 'Owner'),
         updatedBy: user.email || 'Owner'
       };
 
-      const firestoreItem = cleanObject(itemData);
-      console.log('[DEBUG - STEP 5] Invoking menuService.createItem() with sanitized data:', firestoreItem);
+      if (data.productionMode === 'Batch Production') {
+        itemData.defaultBatchSize = data.defaultBatchSize ?? 50;
+        itemData.availableServings = data.availableServings ?? 50;
+        itemData.lowStockThreshold = data.lowStockThreshold ?? 10;
+        itemData.autoUnavailable = data.autoUnavailable ?? true;
+        itemData.allowRefill = data.allowRefill ?? true;
+        itemData.showServingsToStaff = data.showServingsToStaff ?? true;
+      }
+
+      console.log("FORM DATA:", data);
+      console.log("ITEM DATA:", itemData);
+      
+      const firestoreData = cleanObject(itemData);
+      console.log("SANITIZED DATA:", firestoreData);
+      console.log("WRITING TO FIRESTORE:", firestoreData);
+
+      console.log('[DEBUG - STEP 5] Invoking menuService.createItem() with sanitized data:', firestoreData);
       if (editingItem) {
-        await menuService.updateItem(itemId, firestoreItem, user.tenantId);
+        await menuService.updateItem(itemId, firestoreData, user.tenantId);
       } else {
-        await menuService.createItem(firestoreItem, user.tenantId);
+        await menuService.createItem(firestoreData, user.tenantId);
       }
       console.log('[DEBUG - STEP 5] menuService call settled (resolved).');
 
