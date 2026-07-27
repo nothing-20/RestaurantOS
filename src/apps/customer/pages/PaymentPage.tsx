@@ -12,11 +12,13 @@ import {
   Smile, ShieldCheck, Tag, Info, User 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../../../context/CurrencyContext';
 
 export const PaymentPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const { formatPrice } = useCurrency();
   
   const orderTotalVal = Number(searchParams.get('total')) || 10842; // in cents
   const orderId = searchParams.get('orderId') || '';
@@ -106,7 +108,7 @@ export const PaymentPage: React.FC = () => {
         <div className="p-4 bg-slate-950 border border-slate-900 rounded-2xl space-y-3.5 text-left text-xs text-slate-350">
           <div className="flex justify-between font-bold border-b border-slate-900 pb-2 text-white">
             <span>Transaction Share</span>
-            <span className="text-primary">${(individualShare / 100).toFixed(2)}</span>
+            <span className="text-primary">{formatPrice(individualShare)}</span>
           </div>
           <div className="flex justify-between">
             <span>Payment Protocol</span>
@@ -173,7 +175,7 @@ export const PaymentPage: React.FC = () => {
 
             <div className="flex justify-between text-xs font-bold text-slate-350 border-t border-slate-900 pt-3">
               <span>Individual Share</span>
-              <span className="text-primary">${((orderTotalVal / splitCount) / 100).toFixed(2)}</span>
+              <span className="text-primary">{formatPrice(orderTotalVal / splitCount)}</span>
             </div>
           </div>
 
@@ -251,7 +253,7 @@ export const PaymentPage: React.FC = () => {
           >
             <CreditCard className="w-4 h-4 text-slate-950" />
             <span>
-              {isProcessing ? 'Authorizing Check...' : `Pay Total $${((orderTotalVal / splitCount) / 100).toFixed(2)}`}
+              {isProcessing ? 'Authorizing Check...' : `Pay Total ${formatPrice(orderTotalVal / splitCount)}`}
             </span>
           </Button>
         </div>

@@ -14,6 +14,7 @@ import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { IOrder, IOrderItem, ITable, IPaymentBreakdown, TPaymentStatus, IShiftReport } from '../../../types';
 import { formatPrice, formatTimestamp, getElapsedMinutes } from '../../../utils/format';
+import { useCurrency } from '../../../context/CurrencyContext';
 import { logEvent } from '../../../services/eventEngine';
 
 // UI Kit components
@@ -56,6 +57,7 @@ import {
 
 export const OwnerBilling: React.FC = () => {
   const { user } = useAuth();
+  const { currencySymbol } = useCurrency();
   const [activeTab, setActiveTab] = useState('billing_queue');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -127,7 +129,6 @@ export const OwnerBilling: React.FC = () => {
   // Configurable values
   const taxRate = tenantSettings?.taxPercent ?? 5;
   const serviceChargeRate = tenantSettings?.serviceCharge ?? 5;
-  const currencySymbol = tenantSettings?.currency === 'INR' ? '₹' : tenantSettings?.currency === 'USD' ? '$' : '₹';
 
   const isAuthorizedOwner = user?.role === 'owner' || user?.role === 'admin';
 

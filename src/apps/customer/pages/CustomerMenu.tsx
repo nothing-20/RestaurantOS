@@ -1223,8 +1223,8 @@ export const CustomerMenu: React.FC = () => {
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { id: 'Small', label: 'Small', tag: 'Regular price' },
-                  { id: 'Medium', label: 'Medium', tag: '+$1.50' },
-                  { id: 'Large', label: 'Large', tag: '+$3.00' }
+                  { id: 'Medium', label: 'Medium', tag: `+${formatPrice(150)}` },
+                  { id: 'Large', label: 'Large', tag: `+${formatPrice(300)}` }
                 ].map(v => (
                   <button
                     key={v.id}

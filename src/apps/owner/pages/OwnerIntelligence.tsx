@@ -378,7 +378,7 @@ export const OwnerIntelligence: React.FC = () => {
               </div>
               <div className="flex justify-between items-center py-2.5 border-b border-slate-850/40">
                 <span>Average completed check totals:</span>
-                <strong className="text-textPearl font-mono font-bold">$32.00 avg</strong>
+                <strong className="text-textPearl font-mono font-bold">{formatPrice(3200)} avg</strong>
               </div>
               <div className="flex justify-between items-center py-2.5 border-b border-slate-850/40">
                 <span>Lunch Peak Volume block:</span>

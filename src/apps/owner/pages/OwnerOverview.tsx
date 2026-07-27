@@ -2249,7 +2249,7 @@ export const OwnerOverview: React.FC = () => {
                       </div>
                       <div className="flex justify-between pb-2 border-b border-slate-850/60">
                         <span>IGST (Interstate Tax 0%)</span>
-                        <span className="text-slate-600 font-mono">$0.00</span>
+                        <span className="text-slate-600 font-mono">{formatPrice(0)}</span>
                       </div>
                       <div className="flex justify-between text-textPearl font-extrabold pt-1">
                         <span>Total GST Margins</span>

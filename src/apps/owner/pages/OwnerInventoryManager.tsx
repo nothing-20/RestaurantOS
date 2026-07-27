@@ -51,9 +51,11 @@ import {
 import toast from 'react-hot-toast';
 
 import { IStockIngredient, IRecipe, IStockMovement, ISupplier, IPurchaseSuggestion, IWasteLog } from '../../../shared/domain/inventory/types';
+import { useCurrency } from '../../../context/CurrencyContext';
 
 export const OwnerInventoryManager: React.FC = () => {
   const { user } = useAuth();
+  const { currencySymbol } = useCurrency();
   const tenantId = user?.tenantId;
 
   // Navigation state
@@ -2072,7 +2074,7 @@ export const OwnerInventoryManager: React.FC = () => {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="font-bold text-slate-500 uppercase block">Purchase Cost ($)</label>
+              <label className="font-bold text-slate-500 uppercase block">Purchase Cost ({currencySymbol})</label>
               <input
                 type="number"
                 step="0.01"

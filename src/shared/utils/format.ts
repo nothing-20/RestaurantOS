@@ -1,11 +1,35 @@
+let currentCurrency = 'USD';
+let currentLocale = 'en-US';
+
+/**
+ * Updates the global currency configuration used by vanilla JS formatters.
+ */
+export function setGlobalCurrencyConfig(currency: string, locale: string) {
+  currentCurrency = currency;
+  currentLocale = locale;
+}
+
+/**
+ * Formats a currency value (in main unit, e.g. dollars) using dynamic currency and locale settings.
+ */
+export function formatCurrency(value: number): string {
+  try {
+    return new Intl.NumberFormat(currentLocale, {
+      style: 'currency',
+      currency: currentCurrency
+    }).format(value);
+  } catch (e) {
+    console.error('Failed to format currency using Intl:', e);
+    return `${currentCurrency} ${value.toFixed(2)}`;
+  }
+}
+
 /**
  * Formats a price in cents to a human-readable currency string.
  * @param priceInCents The price amount in cents (e.g. 1250 for $12.50)
- * @param currency The currency symbol or code (defaults to USD)
  */
-export function formatPrice(priceInCents: number, currency: string = '$'): string {
-  const dollars = priceInCents / 100;
-  return `${currency}${dollars.toFixed(2)}`;
+export function formatPrice(priceInCents: number, _currency?: string): string {
+  return formatCurrency(priceInCents / 100);
 }
 
 /**

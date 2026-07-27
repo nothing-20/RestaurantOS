@@ -3,6 +3,7 @@ import { collection, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { formatPrice } from '../../../shared/utils/format';
+import { useCurrency } from '../../../context/CurrencyContext';
 
 // UI Kit components
 import Button from '../../../components/ui/Button/Button';
@@ -39,6 +40,7 @@ import toast from 'react-hot-toast';
 
 export const OwnerAnalytics: React.FC = () => {
   const { user } = useAuth();
+  const { formatPrice, formatCurrency } = useCurrency();
   const tenantId = user?.tenantId;
 
   // Real-time Database states
@@ -657,7 +659,7 @@ export const OwnerAnalytics: React.FC = () => {
                 {p.label}
               </text>
               <text x={p.x} y={p.y - 10} textAnchor="middle" fill="#e2e8f0" className="text-[9.5px] font-semibold">
-                ${p.amount.toFixed(0)}
+                {formatCurrency(p.amount)}
               </text>
             </g>
           ))}
@@ -814,8 +816,8 @@ export const OwnerAnalytics: React.FC = () => {
                 <text x={x + barWidth / 2} y={height - 18} textAnchor="middle" fill="#64748b" className="text-[9px] font-bold">
                   {ing.substring(0, 8)}
                 </text>
-                <text x={x + barWidth / 2} y={y - 8} textAnchor="middle" fill="#e2e8f0" className="text-[9px] font-semibold font-mono">
-                  ${cost.toFixed(0)}
+                <text x={x + barWidth / 2} y={y - 8} textAnchor="middle" fill="#e2e8f0" className="text-[9.5px] font-semibold font-mono">
+                  {formatPrice(cost)}
                 </text>
               </g>
             );
@@ -867,7 +869,7 @@ export const OwnerAnalytics: React.FC = () => {
                   {m.name}
                 </text>
                 <text x={x + barWidth / 2} y={y - 8} textAnchor="middle" fill="#e2e8f0" className="text-[9.5px] font-semibold font-mono">
-                  ${(m.amount / 100).toFixed(0)}
+                  {formatCurrency(m.amount / 100)}
                 </text>
               </g>
             );

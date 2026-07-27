@@ -85,8 +85,33 @@ export class FirestoreService<T extends Record<string, any>> {
       updatedAt: new Date().toISOString(),
     };
 
+    console.log("STEP 4", payload);
     const sanitizedPayload = removeUndefined(payload);
-    console.log("FINAL PAYLOAD", JSON.stringify(sanitizedPayload, null, 2));
+    console.log("STEP 5", sanitizedPayload);
+    console.log("STEP 6", sanitizedPayload); // finalFirestoreObject
+    
+    // STEP 6: Log final object and undefined check
+    console.log("FINAL OBJECT", sanitizedPayload);
+    const invalidKeys = Object.entries(sanitizedPayload)
+      .filter(([_, value]) => value === undefined)
+      .map(([key]) => key);
+    console.log("Undefined Keys", invalidKeys);
+    
+    if (invalidKeys.length > 0) {
+      console.error("Firestore write aborted: Undefined keys found in payload:", invalidKeys);
+      throw new Error("Firestore write aborted due to undefined keys: " + invalidKeys.join(", "));
+    }
+
+    // STEP 9: Verify defaultBatchSize is valid number or omitted
+    const parsedPayload = JSON.parse(JSON.stringify(sanitizedPayload));
+    if ('defaultBatchSize' in parsedPayload) {
+      const val = parsedPayload.defaultBatchSize;
+      if (typeof val !== 'number') {
+        console.error("Firestore write aborted: defaultBatchSize must be a valid number but was: " + typeof val);
+        throw new Error("Firestore write aborted: defaultBatchSize must be a number");
+      }
+    }
+
     try {
       await setDoc(docRef, sanitizedPayload);
       console.log('[FirestoreService] setDoc Success. id:', id);
@@ -110,8 +135,33 @@ export class FirestoreService<T extends Record<string, any>> {
       updatedAt: new Date().toISOString(),
     };
 
+    console.log("STEP 4", payload);
     const sanitizedPayload = removeUndefined(payload);
-    console.log("FINAL PAYLOAD", JSON.stringify(sanitizedPayload, null, 2));
+    console.log("STEP 5", sanitizedPayload);
+    console.log("STEP 6", sanitizedPayload); // finalFirestoreObject
+    
+    // STEP 6: Log final object and undefined check
+    console.log("FINAL OBJECT", sanitizedPayload);
+    const invalidKeys = Object.entries(sanitizedPayload)
+      .filter(([_, value]) => value === undefined)
+      .map(([key]) => key);
+    console.log("Undefined Keys", invalidKeys);
+    
+    if (invalidKeys.length > 0) {
+      console.error("Firestore write aborted: Undefined keys found in payload:", invalidKeys);
+      throw new Error("Firestore write aborted due to undefined keys: " + invalidKeys.join(", "));
+    }
+
+    // STEP 9: Verify defaultBatchSize is valid number or omitted
+    const parsedPayload = JSON.parse(JSON.stringify(sanitizedPayload));
+    if ('defaultBatchSize' in parsedPayload) {
+      const val = parsedPayload.defaultBatchSize;
+      if (typeof val !== 'number') {
+        console.error("Firestore write aborted: defaultBatchSize must be a valid number but was: " + typeof val);
+        throw new Error("Firestore write aborted: defaultBatchSize must be a number");
+      }
+    }
+
     try {
       await updateDoc(docRef, sanitizedPayload);
       console.log('[FirestoreService] updateDoc Success.');

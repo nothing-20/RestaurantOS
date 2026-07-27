@@ -17,6 +17,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { IMenuItem, IMenuCategory } from '../../../types';
 import { zodResolver } from '../../../utils/zodResolver';
 import { formatPrice } from '../../../utils/format';
+import { useCurrency } from '../../../context/CurrencyContext';
 import { 
   getMenuCategoryPath, 
   getMenuItemPath
@@ -185,6 +186,7 @@ const FALLBACK_ITEM_IMAGE = 'https://images.unsplash.com/photo-1498837167922-ddd
 
 export const MenuManagement: React.FC = () => {
   const { user } = useAuth();
+  const { currencySymbol } = useCurrency();
   
   const [categories, setCategories] = useState<IMenuCategory[]>([]);
   const [menuItems, setMenuItems] = useState<IMenuItem[]>([]);
@@ -1047,10 +1049,13 @@ export const MenuManagement: React.FC = () => {
         itemData.showServingsToStaff = data.showServingsToStaff ?? true;
       }
 
+      console.log("STEP 1", data);
       console.log("FORM DATA:", data);
+      console.log("STEP 2", itemData);
       console.log("ITEM DATA:", itemData);
       
       const firestoreData = cleanObject(itemData);
+      console.log("STEP 3", firestoreData);
       console.log("SANITIZED DATA:", firestoreData);
       console.log("WRITING TO FIRESTORE:", firestoreData);
 
@@ -1612,8 +1617,8 @@ export const MenuManagement: React.FC = () => {
                     <thead>
                       <tr className="border-b border-slate-850 bg-slate-900/30 text-xs font-bold text-slate-400 uppercase">
                         <th className="p-4">Item Details</th>
-                        <th className="p-4 w-48">Base Price ($)</th>
-                        <th className="p-4 w-48">Discount Price ($)</th>
+                        <th className="p-4 w-48">Base Price ({currencySymbol})</th>
+                        <th className="p-4 w-48">Discount Price ({currencySymbol})</th>
                         <th className="p-4 w-40">Flags</th>
                       </tr>
                     </thead>
@@ -1628,7 +1633,7 @@ export const MenuManagement: React.FC = () => {
                           </td>
                           <td className="p-4">
                             <div className="flex items-center space-x-1.5 bg-slate-950/40 border border-slate-850 rounded-xl px-2.5 py-1">
-                              <span className="text-slate-500 font-bold">$</span>
+                              <span className="text-slate-500 font-bold">{currencySymbol}</span>
                               <input 
                                 type="number"
                                 step="0.01"
@@ -1640,7 +1645,7 @@ export const MenuManagement: React.FC = () => {
                           </td>
                           <td className="p-4">
                             <div className="flex items-center space-x-1.5 bg-slate-950/40 border border-slate-850 rounded-xl px-2.5 py-1">
-                              <span className="text-slate-500 font-bold">$</span>
+                              <span className="text-slate-500 font-bold">{currencySymbol}</span>
                               <input 
                                 type="number"
                                 step="0.01"
@@ -2024,7 +2029,7 @@ export const MenuManagement: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <Input 
-                    label="Base Price ($) *"
+                    label={`Base Price (${currencySymbol}) *`}
                     type="number"
                     step="0.01"
                     placeholder="9.99"
@@ -2033,7 +2038,7 @@ export const MenuManagement: React.FC = () => {
                     {...registerItem('price')}
                   />
                   <Input 
-                    label="Discount Price ($)"
+                    label={`Discount Price (${currencySymbol})`}
                     type="number"
                     step="0.01"
                     placeholder="7.99"

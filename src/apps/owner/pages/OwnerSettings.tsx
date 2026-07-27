@@ -728,8 +728,16 @@ export const OwnerSettings: React.FC = () => {
                 options={[
                   { value: 'USD', label: 'USD ($)' },
                   { value: 'INR', label: 'INR (₹)' },
+                  { value: 'EUR', label: 'EUR (€)' },
                   { value: 'GBP', label: 'GBP (£)' },
-                  { value: 'EUR', label: 'EUR (€)' }
+                  { value: 'AED', label: 'AED (AED)' },
+                  { value: 'SAR', label: 'SAR (SR)' },
+                  { value: 'AUD', label: 'AUD ($)' },
+                  { value: 'CAD', label: 'CAD ($)' },
+                  { value: 'JPY', label: 'JPY (¥)' },
+                  { value: 'SGD', label: 'SGD (S$)' },
+                  { value: 'MYR', label: 'MYR (RM)' },
+                  { value: 'THB', label: 'THB (฿)' }
                 ]}
                 value={currency}
                 onChange={(e) => {

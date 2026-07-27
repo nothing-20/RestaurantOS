@@ -13,6 +13,7 @@ import {
   ShieldAlert, BookOpen, LogOut, ArrowRight, Star, Plus, Trash2, Navigation
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../../../context/CurrencyContext';
 
 interface IAddress {
   id: string;
@@ -43,7 +44,7 @@ interface IReward {
 interface ITransaction {
   id: string;
   desc: string;
-  amount: string;
+  amount: number;
   type: 'debit' | 'credit';
   date: string;
 }
@@ -52,6 +53,7 @@ export const ProfilePage: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { formatCurrency } = useCurrency();
 
   // Navigation controller for sub-sections
   const [activeSection, setActiveSection] = useState<string>(() => {
@@ -107,9 +109,9 @@ export const ProfilePage: React.FC = () => {
   const [walletBalance, setWalletBalance] = useState(4250);
   const [topUpAmount, setTopUpAmount] = useState('');
   const [transactions] = useState<ITransaction[]>([
-    { id: 'TX-9102', desc: 'Dine-in checkout at Osteria', amount: '₹1,850.00', type: 'debit', date: 'Jul 06, 2026' },
-    { id: 'TX-9042', desc: 'UPI Top-up transaction', amount: '₹2,000.00', type: 'credit', date: 'Jul 04, 2026' },
-    { id: 'TX-8821', desc: 'Table reservation deposit', amount: '₹500.00', type: 'debit', date: 'Jun 28, 2026' }
+    { id: 'TX-9102', desc: 'Dine-in checkout at Osteria', amount: 1850, type: 'debit', date: 'Jul 06, 2026' },
+    { id: 'TX-9042', desc: 'UPI Top-up transaction', amount: 2000, type: 'credit', date: 'Jul 04, 2026' },
+    { id: 'TX-8821', desc: 'Table reservation deposit', amount: 500, type: 'debit', date: 'Jun 28, 2026' }
   ]);
 
   // State: Favourites
@@ -117,9 +119,9 @@ export const ProfilePage: React.FC = () => {
 
   // State: Dining History
   const [diningHistory] = useState([
-    { id: 'H-102', restaurant: "L'Ambroisie", date: 'June 18, 2026', diners: 2, spend: '₹8,400.50' },
-    { id: 'H-091', restaurant: 'Shuko Sushi', date: 'May 24, 2026', diners: 4, spend: '₹12,200.00' },
-    { id: 'H-074', restaurant: 'Osteria Francescana', date: 'April 12, 2026', diners: 2, spend: '₹4,500.00' }
+    { id: 'H-102', restaurant: "L'Ambroisie", date: 'June 18, 2026', diners: 2, spend: 8400.5 },
+    { id: 'H-091', restaurant: 'Shuko Sushi', date: 'May 24, 2026', diners: 4, spend: 12200 },
+    { id: 'H-074', restaurant: 'Osteria Francescana', date: 'April 12, 2026', diners: 2, spend: 4500 }
   ]);
 
   // State: Notifications preferences
@@ -233,7 +235,7 @@ export const ProfilePage: React.FC = () => {
     }
     setWalletBalance(b => b + val);
     setTopUpAmount('');
-    toast.success(`Top Up of ₹${val.toFixed(2)} completed successfully!`);
+    toast.success(`Top Up of ${formatCurrency(val)} completed successfully!`);
   };
 
   const triggerLogout = async () => {
@@ -305,7 +307,7 @@ export const ProfilePage: React.FC = () => {
               <Wallet className="w-5 h-5 text-primary" />
               <div>
                 <span className="text-[8.5px] text-slate-550 font-extrabold uppercase block tracking-wider">RestaurantOS Pay Balance</span>
-                <span className="text-sm font-extrabold text-white">₹{walletBalance.toFixed(2)}</span>
+                <span className="text-sm font-extrabold text-white">{formatCurrency(walletBalance)}</span>
               </div>
             </div>
             <button 
@@ -678,7 +680,7 @@ export const ProfilePage: React.FC = () => {
           <div className="p-6 bg-gradient-to-r from-slate-900 to-slate-950 border border-slate-900 rounded-3xl space-y-4 shadow-xl">
             <div>
               <span className="text-[9px] text-slate-500 font-extrabold uppercase tracking-wider block">Available Balance</span>
-              <h3 className="text-2xl font-display font-extrabold text-white">₹{walletBalance.toFixed(2)}</h3>
+              <h3 className="text-2xl font-display font-extrabold text-white">{formatCurrency(walletBalance)}</h3>
             </div>
 
             <form onSubmit={handleWalletTopUp} className="flex gap-2">
@@ -686,7 +688,7 @@ export const ProfilePage: React.FC = () => {
                 type="number" 
                 value={topUpAmount}
                 onChange={e => setTopUpAmount(e.target.value)}
-                placeholder="Enter recharge amount (e.g. ₹500)"
+                placeholder={`Enter recharge amount (e.g. ${formatCurrency(500)})`}
                 className="flex-1 bg-slate-950 border border-slate-850 focus:border-primary/40 focus:outline-none rounded-xl text-xs px-3.5 py-3 text-white placeholder-slate-550"
               />
               <button 
@@ -708,7 +710,7 @@ export const ProfilePage: React.FC = () => {
                     <span className="text-[9px] text-slate-550 font-bold">{tx.date} | {tx.id}</span>
                   </div>
                   <span className={`text-xs font-extrabold ${tx.type === 'credit' ? 'text-emerald-450 text-emerald-400' : 'text-red-400'}`}>
-                    {tx.type === 'credit' ? '+' : '-'}{tx.amount}
+                    {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount)}
                   </span>
                 </div>
               ))}
@@ -761,7 +763,7 @@ export const ProfilePage: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-right space-y-0.5">
-                  <span className="text-xs font-extrabold text-white">{h.spend}</span>
+                  <span className="text-xs font-extrabold text-white">{formatCurrency(h.spend)}</span>
                   <Badge variant="success" className="text-[7.5px] uppercase font-bold py-0.5 bg-emerald-500/10 text-emerald-400 border-0 block w-fit ml-auto">Paid</Badge>
                 </div>
               </div>

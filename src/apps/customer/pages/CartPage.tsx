@@ -14,10 +14,12 @@ import {
   Smile, ShieldCheck, Tag, Info, Heart 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../../../context/CurrencyContext';
 
 export const CartPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { currencySymbol, formatPrice, formatCurrency } = useCurrency();
   
   const { 
     cartItems, 
@@ -225,7 +227,7 @@ export const CartPage: React.FC = () => {
                         : 'bg-slate-950 border-slate-900 text-slate-450'
                     }`}
                   >
-                    {tip === 0 ? 'None' : `$${tip}`}
+                    {tip === 0 ? 'None' : formatCurrency(tip)}
                   </button>
                 ))}
               </div>
@@ -254,7 +256,7 @@ export const CartPage: React.FC = () => {
               {waiterTip > 0 && (
                 <div className="flex justify-between text-slate-350">
                   <span>Waiter Tip</span>
-                  <span>${waiterTip.toFixed(2)}</span>
+                  <span>{formatCurrency(waiterTip)}</span>
                 </div>
               )}
               <hr className="border-slate-850/60 my-1" />

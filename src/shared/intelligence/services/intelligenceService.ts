@@ -1,6 +1,7 @@
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { logEvent } from '../../services/eventEngine';
+import { formatPrice } from '../../utils/format';
 import { contextBuilder } from '../context/contextBuilder';
 import { knowledgeEngine } from '../knowledge/knowledgeEngine';
 import { memoryEngine } from '../memory/memoryEngine';
@@ -289,8 +290,4 @@ export const intelligenceService = {
 
     return list;
   }
-};
-
-const formatPrice = (amount: number) => {
-  return `$${(amount / 100).toFixed(2)}`;
 };

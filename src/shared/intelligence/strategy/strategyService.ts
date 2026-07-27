@@ -1,6 +1,7 @@
 import { collection, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { logEvent } from '../../services/eventEngine';
+import { formatPrice } from '../../utils/format';
 import { IBusinessGoal, IStrategyActionPlan } from './types';
 import { IRestaurantContext } from '../types';
 
@@ -146,8 +147,4 @@ export const strategyService = {
 
     return list;
   }
-};
-
-const formatPrice = (amount: number) => {
-  return `$${(amount / 100).toFixed(2)}`;
 };
