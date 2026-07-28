@@ -18,6 +18,7 @@ import { formatPrice } from '../../../shared/utils/format';
 import { intelligenceService } from '../../../shared/intelligence/services/intelligenceService';
 import { automationService } from '../../../shared/services/automationService';
 import { logEvent } from '../../../shared/services/eventEngine';
+import { featureFlags } from '../../../config/featureFlags';
 
 // UI Kit components
 import Card from '../../../components/ui/Card/Card';
@@ -443,7 +444,7 @@ export const OwnerOverview: React.FC = () => {
     }
 
     // 3. Customer negative feedbacks
-    if (csatMetrics.pendingFeedback > 0) {
+    if (featureFlags.strategy && csatMetrics.pendingFeedback > 0) {
       return {
         title: 'Customer Satisfaction Score Concern',
         type: 'Customer Complaint',
@@ -1060,28 +1061,32 @@ export const OwnerOverview: React.FC = () => {
             <Calendar className="w-4 h-4 text-amber-500" />
             <span>Reservation Manager</span>
           </Button>
-          <Button 
-            size="sm" 
-            variant="outline" 
-            onClick={() => navigate('/dashboard/owner/strategy')}
-            className="border-slate-800 text-xs font-semibold text-slate-300 hover:border-primary hover:text-primary flex items-center space-x-1.5"
-          >
-            <Compass className="w-4 h-4" />
-            <span>Strategy Center</span>
-          </Button>
-          <Button 
-            size="sm"
-            onClick={() => {
-              toast.loading('Forcing engine audit...', { id: 'force-compile' });
-              intelligenceService.compileIntelligence(tenantId || '')
-                .then(() => toast.success('Executive Intelligence sync complete.', { id: 'force-compile' }))
-                .catch(() => toast.error('Failed to sync intelligence.', { id: 'force-compile' }));
-            }}
-            className="text-xs font-semibold flex items-center space-x-1.5"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Audit System</span>
-          </Button>
+          {featureFlags.strategy && (
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => navigate('/dashboard/owner/strategy')}
+              className="border-slate-800 text-xs font-semibold text-slate-300 hover:border-primary hover:text-primary flex items-center space-x-1.5"
+            >
+              <Compass className="w-4 h-4" />
+              <span>Strategy Center</span>
+            </Button>
+          )}
+          {featureFlags.intelligence && (
+            <Button 
+              size="sm"
+              onClick={() => {
+                toast.loading('Forcing engine audit...', { id: 'force-compile' });
+                intelligenceService.compileIntelligence(tenantId || '')
+                  .then(() => toast.success('Executive Intelligence sync complete.', { id: 'force-compile' }))
+                  .catch(() => toast.error('Failed to sync intelligence.', { id: 'force-compile' }));
+              }}
+              className="text-xs font-semibold flex items-center space-x-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Audit System</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1200,33 +1205,35 @@ export const OwnerOverview: React.FC = () => {
         <div className="space-y-6">
           
           {/* Today's Top Recommendation */}
-          <Card className="p-5 border-slate-850 bg-slate-900/40 space-y-4">
-            <div className="flex items-center space-x-2">
-              <Target className="w-5 h-5 text-amber-500" />
-              <h3 className="font-display font-bold text-sm text-textPearl">Today's Top Recommendation</h3>
-            </div>
-            <div className="p-4 bg-slate-950/40 border border-slate-800/50 rounded-2xl space-y-3">
-              <div className="flex justify-between items-start">
-                <span className="text-xs font-bold text-textPearl">{recommendedStrategy.title}</span>
-                <span className="text-[10px] font-extrabold text-emerald-450 px-2 py-0.5 bg-emerald-500/10 rounded-full shrink-0">
-                  +{recommendedStrategy.expectedRoiPercent}% ROI
-                </span>
+          {featureFlags.strategy && (
+            <Card className="p-5 border-slate-850 bg-slate-900/40 space-y-4">
+              <div className="flex items-center space-x-2">
+                <Target className="w-5 h-5 text-amber-500" />
+                <h3 className="font-display font-bold text-sm text-textPearl">Today's Top Recommendation</h3>
               </div>
-              <p className="text-[11px] text-mutedAsh leading-relaxed font-semibold">
-                <strong className="text-slate-400">Reasoning:</strong> {recommendedStrategy.reason}
-              </p>
-              <div className="flex justify-between items-center border-t border-slate-850/50 pt-2.5 text-[10px] font-bold text-slate-500">
-                <span>Impact: {recommendedStrategy.expectedBenefit}</span>
-                <Button 
-                  size="sm" 
-                  onClick={() => handleAcceptRecommendation(recommendedStrategy)}
-                  className="bg-amber-500 text-slate-950 font-black hover:bg-amber-600 rounded-lg text-[9px] px-2.5 py-1"
-                >
-                  Accept & Activate
-                </Button>
+              <div className="p-4 bg-slate-955/45 border border-slate-800/50 rounded-2xl space-y-3">
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-bold text-textPearl">{recommendedStrategy.title}</span>
+                  <span className="text-[10px] font-extrabold text-emerald-450 px-2 py-0.5 bg-emerald-500/10 rounded-full shrink-0">
+                    +{recommendedStrategy.expectedRoiPercent}% ROI
+                  </span>
+                </div>
+                <p className="text-[11px] text-mutedAsh leading-relaxed font-semibold">
+                  <strong className="text-slate-400">Reasoning:</strong> {recommendedStrategy.reason}
+                </p>
+                <div className="flex justify-between items-center border-t border-slate-850/50 pt-2.5 text-[10px] font-bold text-slate-500">
+                  <span>Impact: {recommendedStrategy.expectedBenefit}</span>
+                  <Button 
+                    size="sm" 
+                    onClick={() => handleAcceptRecommendation(recommendedStrategy)}
+                    className="bg-amber-500 text-slate-950 font-black hover:bg-amber-600 rounded-lg text-[9px] px-2.5 py-1"
+                  >
+                    Accept & Activate
+                  </Button>
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           {/* Today's Biggest Risk */}
           <Card className="p-5 border-slate-850 bg-slate-900/40 space-y-4">
@@ -1272,148 +1279,151 @@ export const OwnerOverview: React.FC = () => {
         <div className="space-y-6">
           
           {/* Opportunity Center */}
-          <Card className="p-5 border-slate-850 bg-slate-900/40 space-y-4">
-            <div className="flex items-center space-x-2">
-              <Sparkles className="w-5 h-5 text-amber-500" />
-              <h3 className="font-display font-bold text-sm text-textPearl">Opportunity Growth Center</h3>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 bg-slate-950/20 border border-slate-850 rounded-xl flex flex-col justify-between h-24 hover:border-slate-800 transition-colors">
-                <div>
-                  <span className="text-[10px] font-bold text-textPearl">Lunch Hour Combos</span>
-                  <span className="text-[9px] text-slate-500 block mt-0.5">Basmati Rice + Paneer deals</span>
+          {featureFlags.strategy && (
+            <Card className="p-5 border-slate-850 bg-slate-900/40 space-y-4">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-5 h-5 text-amber-500" />
+                <h3 className="font-display font-bold text-sm text-textPearl">Opportunity Growth Center</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-slate-950/20 border border-slate-850 rounded-xl flex flex-col justify-between h-24 hover:border-slate-800 transition-colors">
+                  <div>
+                    <span className="text-[10px] font-bold text-textPearl">Lunch Hour Combos</span>
+                    <span className="text-[9px] text-slate-500 block mt-0.5">Basmati Rice + Paneer deals</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold mt-2">
+                    <span className="text-emerald-450">+140% ROI</span>
+                    <button 
+                      onClick={() => handleLaunchCampaign('Lunch Hour Combos', '140%')}
+                      className="text-[9px] text-amber-500 hover:text-amber-400 font-extrabold"
+                    >
+                      Launch
+                    </button>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center text-[10px] font-bold mt-2">
-                  <span className="text-emerald-450">+140% ROI</span>
-                  <button 
-                    onClick={() => handleLaunchCampaign('Lunch Hour Combos', '140%')}
-                    className="text-[9px] text-amber-500 hover:text-amber-400 font-extrabold"
-                  >
-                    Launch
-                  </button>
+                <div className="p-3 bg-slate-950/20 border border-slate-850 rounded-xl flex flex-col justify-between h-24 hover:border-slate-800 transition-colors">
+                  <div>
+                    <span className="text-[10px] font-bold text-textPearl">Biryani Weekend Campaign</span>
+                    <span className="text-[9px] text-slate-500 block mt-0.5">Weekend traffic stimulator</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold mt-2">
+                    <span className="text-emerald-450">+200% ROI</span>
+                    <button 
+                      onClick={() => handleLaunchCampaign('Biryani Weekend Campaign', '200%')}
+                      className="text-[9px] text-amber-500 hover:text-amber-400 font-extrabold"
+                    >
+                      Launch
+                    </button>
+                  </div>
+                </div>
+                <div className="p-3 bg-slate-955/20 border border-slate-850 rounded-xl flex flex-col justify-between h-24 hover:border-slate-800 transition-colors">
+                  <div>
+                    <span className="text-[10px] font-bold text-textPearl">Happy Hour Specials</span>
+                    <span className="text-[9px] text-slate-500 block mt-0.5">3-5 PM traffic driver</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold mt-2">
+                    <span className="text-emerald-450">+120% ROI</span>
+                    <button 
+                      onClick={() => handleLaunchCampaign('Happy Hour Specials', '120%')}
+                      className="text-[9px] text-amber-500 hover:text-amber-400 font-extrabold"
+                    >
+                      Launch
+                    </button>
+                  </div>
+                </div>
+                <div className="p-3 bg-slate-955/20 border border-slate-850 rounded-xl flex flex-col justify-between h-24 hover:border-slate-800 transition-colors">
+                  <div>
+                    <span className="text-[10px] font-bold text-textPearl">Feedback Recovery Promo</span>
+                    <span className="text-[9px] text-slate-500 block mt-0.5">Win back complaints</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold mt-2">
+                    <span className="text-emerald-450">+300% ROI</span>
+                    <button 
+                      onClick={() => handleLaunchCampaign('Feedback Recovery Promo', '300%')}
+                      className="text-[9px] text-amber-500 hover:text-amber-400 font-extrabold"
+                    >
+                      Launch
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="p-3 bg-slate-950/20 border border-slate-850 rounded-xl flex flex-col justify-between h-24 hover:border-slate-800 transition-colors">
-                <div>
-                  <span className="text-[10px] font-bold text-textPearl">Biryani Weekend Campaign</span>
-                  <span className="text-[9px] text-slate-500 block mt-0.5">Weekend traffic stimulator</span>
-                </div>
-                <div className="flex justify-between items-center text-[10px] font-bold mt-2">
-                  <span className="text-emerald-450">+200% ROI</span>
-                  <button 
-                    onClick={() => handleLaunchCampaign('Biryani Weekend Campaign', '200%')}
-                    className="text-[9px] text-amber-500 hover:text-amber-400 font-extrabold"
-                  >
-                    Launch
-                  </button>
-                </div>
-              </div>
-              <div className="p-3 bg-slate-950/20 border border-slate-850 rounded-xl flex flex-col justify-between h-24 hover:border-slate-800 transition-colors">
-                <div>
-                  <span className="text-[10px] font-bold text-textPearl">Happy Hour Specials</span>
-                  <span className="text-[9px] text-slate-500 block mt-0.5">3-5 PM traffic driver</span>
-                </div>
-                <div className="flex justify-between items-center text-[10px] font-bold mt-2">
-                  <span className="text-emerald-450">+120% ROI</span>
-                  <button 
-                    onClick={() => handleLaunchCampaign('Happy Hour Specials', '120%')}
-                    className="text-[9px] text-amber-500 hover:text-amber-400 font-extrabold"
-                  >
-                    Launch
-                  </button>
-                </div>
-              </div>
-              <div className="p-3 bg-slate-950/20 border border-slate-850 rounded-xl flex flex-col justify-between h-24 hover:border-slate-800 transition-colors">
-                <div>
-                  <span className="text-[10px] font-bold text-textPearl">Feedback Recovery Promo</span>
-                  <span className="text-[9px] text-slate-500 block mt-0.5">Win back complaints</span>
-                </div>
-                <div className="flex justify-between items-center text-[10px] font-bold mt-2">
-                  <span className="text-emerald-450">+300% ROI</span>
-                  <button 
-                    onClick={() => handleLaunchCampaign('Feedback Recovery Promo', '300%')}
-                    className="text-[9px] text-amber-500 hover:text-amber-400 font-extrabold"
-                  >
-                    Launch
-                  </button>
-                </div>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           {/* Automation Status */}
-          <Card className="p-5 border-slate-850 bg-slate-900/40 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Layers className="w-5 h-5 text-amber-500" />
-                <h3 className="font-display font-bold text-sm text-textPearl">Automation Status</h3>
+          {featureFlags.automation && (
+            <Card className="p-5 border-slate-850 bg-slate-900/40 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Layers className="w-5 h-5 text-amber-500" />
+                  <h3 className="font-display font-bold text-sm text-textPearl">Automation Status</h3>
+                </div>
+                <Badge variant="muted" className="border-slate-800 text-[9px] text-slate-450 font-mono">
+                  {activeAutomationRulesCount} Active Rules
+                </Badge>
               </div>
-              <Badge variant="muted" className="border-slate-800 text-[9px] text-slate-450 font-mono">
-                {activeAutomationRulesCount} Active Rules
-              </Badge>
-            </div>
-            
-            {/* Stats widgets */}
-            <div className="grid grid-cols-2 gap-4 text-xs font-semibold">
-              <div className="p-3 bg-slate-955/30 border border-slate-855/50 rounded-xl">
-                <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">Success Rate</span>
-                <span className="text-lg font-black text-emerald-455 mt-1 block">{automationSuccessPct}%</span>
+              
+              {/* Stats widgets */}
+              <div className="grid grid-cols-2 gap-4 text-xs font-semibold">
+                <div className="p-3 bg-slate-955/30 border border-slate-855/50 rounded-xl">
+                  <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">Success Rate</span>
+                  <span className="text-lg font-black text-emerald-455 mt-1 block">{automationSuccessPct}%</span>
+                </div>
+                <div className="p-3 bg-slate-955/30 border border-slate-855/50 rounded-xl">
+                  <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">Active Alerts</span>
+                  <span className={`text-lg font-black mt-1 block ${inventoryMetrics.low > 0 ? 'text-amber-500 animate-pulse' : 'text-slate-455'}`}>
+                    {inventoryMetrics.low} warnings
+                  </span>
+                </div>
               </div>
-              <div className="p-3 bg-slate-955/30 border border-slate-855/50 rounded-xl">
-                <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">Active Alerts</span>
-                <span className={`text-lg font-black mt-1 block ${inventoryMetrics.low > 0 ? 'text-amber-500 animate-pulse' : 'text-slate-455'}`}>
-                  {inventoryMetrics.low} warnings
-                </span>
-              </div>
-            </div>
 
-            {/* Background scheduler job triggers */}
-            <div className="space-y-2">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block tracking-wider">Manual Sweep Controllers</span>
-              <div className="flex gap-2">
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => handleTriggerJob('low_stock_check', 'Background Stock Safety Audit')}
-                  className="flex-1 border-slate-800 hover:bg-slate-905 text-[10px] font-bold"
-                >
-                  <Play className="w-3 h-3 mr-1 text-emerald-500" />
-                  Stock Audit
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => handleTriggerJob('expiry_check', 'Expiry Dates Calendar Monitor')}
-                  className="flex-1 border-slate-800 hover:bg-slate-905 text-[10px] font-bold"
-                >
-                  <Play className="w-3 h-3 mr-1 text-emerald-500" />
-                  Expiry Sweep
-                </Button>
+              {/* Background scheduler job triggers */}
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block tracking-wider">Manual Sweep Controllers</span>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => handleTriggerJob('low_stock_check', 'Background Stock Safety Audit')}
+                    className="flex-1 border-slate-800 hover:bg-slate-905 text-[10px] font-bold"
+                  >
+                    <Play className="w-3 h-3 mr-1 text-emerald-500" />
+                    Stock Audit
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => handleTriggerJob('expiry_check', 'Expiry Dates Calendar Monitor')}
+                    className="flex-1 border-slate-800 hover:bg-slate-905 text-[10px] font-bold"
+                  >
+                    <Play className="w-3 h-3 mr-1 text-emerald-500" />
+                    Expiry Sweep
+                  </Button>
+                </div>
               </div>
-            </div>
 
-            {/* Background Terminal Logs */}
-            <div className="space-y-2">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block tracking-wider">Live Runner Audit Logs</span>
-              <div className="p-3 bg-slate-955 border border-slate-900 rounded-xl font-mono text-[9px] text-emerald-455/90 h-24 overflow-y-auto space-y-1.5 scrollbar-thin">
-                {jobsHistory.slice(0, 4).map((log, idx) => (
-                  <div key={log.id || idx} className="flex justify-between items-start leading-tight">
-                    <span>
-                      &gt; {log.name}: <span className={log.status === 'completed' ? 'text-emerald-400' : 'text-rose-455'}>{log.status}</span>
-                    </span>
-                    <span className="text-slate-600 font-sans shrink-0 ml-1">
-                      {new Date(log.startedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </span>
-                  </div>
-                ))}
-                {jobsHistory.length === 0 && (
-                  <div className="text-slate-700 italic text-center py-6">No background scheduler jobs recorded yet.</div>
-                )}
+              {/* Background Terminal Logs */}
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block tracking-wider">Live Runner Audit Logs</span>
+                <div className="p-3 bg-slate-955 border border-slate-900 rounded-xl font-mono text-[9px] text-emerald-455/90 h-24 overflow-y-auto space-y-1.5 scrollbar-thin">
+                  {jobsHistory.slice(0, 4).map((log, idx) => (
+                    <div key={log.id || idx} className="flex justify-between items-start leading-tight">
+                      <span>
+                        &gt; {log.name}: <span className={log.status === 'completed' ? 'text-emerald-400' : 'text-rose-455'}>{log.status}</span>
+                      </span>
+                      <span className="text-slate-600 font-sans shrink-0 ml-1">
+                        {new Date(log.startedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                  {jobsHistory.length === 0 && (
+                    <div className="text-slate-700 italic text-center py-6">No background scheduler jobs recorded yet.</div>
+                  )}
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
         </div>
-      </div>
 
       {/* 4. Bottom Grid - Inventory Snapshot & Staff Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1654,15 +1664,17 @@ export const OwnerOverview: React.FC = () => {
             <Plus className="w-3.5 h-3.5 mr-0.5 text-emerald-500" />
             <span>Add Employee profile</span>
           </Button>
-          <Button 
-            size="sm" 
-            variant="outline" 
-            onClick={() => navigate('/dashboard/owner/strategy?tab=marketing')}
-            className="border-slate-800 text-[10px] font-black text-slate-300 hover:border-primary hover:text-primary flex items-center space-x-1.5 py-2 px-3.5"
-          >
-            <Plus className="w-3.5 h-3.5 mr-0.5 text-primary" />
-            <span>Create Promotion deal</span>
-          </Button>
+          {featureFlags.strategy && (
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => navigate('/dashboard/owner/strategy?tab=marketing')}
+              className="border-slate-800 text-[10px] font-black text-slate-300 hover:border-primary hover:text-primary flex items-center space-x-1.5 py-2 px-3.5"
+            >
+              <Plus className="w-3.5 h-3.5 mr-0.5 text-primary" />
+              <span>Create Promotion deal</span>
+            </Button>
+          )}
           <Button 
             size="sm" 
             variant="outline" 

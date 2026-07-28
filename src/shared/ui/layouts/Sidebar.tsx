@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
+import { featureFlags } from '../../../config/featureFlags';
 import { 
   LayoutDashboard, 
   Menu, 
@@ -42,18 +43,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
           { to: '/super-admin/tenants', label: 'Manage Tenants', icon: Server },
         ];
       case 'owner':
-        return [
+        const ownerLinks = [
           { to: '/dashboard/owner', label: 'Dashboard', icon: LayoutDashboard },
           { to: '/dashboard/owner/menu', label: 'Menu', icon: Menu },
           { to: '/dashboard/owner/tables', label: 'Tables', icon: QrCode },
           { to: '/dashboard/owner/staff', label: 'Staff', icon: Users },
           { to: '/dashboard/owner/billing', label: 'Billing', icon: DollarSign },
           { to: '/dashboard/owner/inventory', label: 'Inventory', icon: ClipboardList },
-          { to: '/dashboard/owner/analytics', label: 'Analytics', icon: TrendingUp },
-          { to: '/dashboard/owner/automation', label: 'Automation', icon: Activity },
-          { to: '/dashboard/owner/intelligence', label: 'Intelligence', icon: Sparkles },
-          { to: '/dashboard/owner/strategy', label: 'Strategy', icon: Target },
         ];
+        
+        if (featureFlags.analytics) {
+          ownerLinks.push({ to: '/dashboard/owner/analytics', label: 'Analytics', icon: TrendingUp });
+        }
+        if (featureFlags.automation) {
+          ownerLinks.push({ to: '/dashboard/owner/automation', label: 'Automation', icon: Activity });
+        }
+        if (featureFlags.intelligence) {
+          ownerLinks.push({ to: '/dashboard/owner/intelligence', label: 'Intelligence', icon: Sparkles });
+        }
+        if (featureFlags.strategy) {
+          ownerLinks.push({ to: '/dashboard/owner/strategy', label: 'Strategy', icon: Target });
+        }
+        
+        return ownerLinks;
       case 'admin':
         return [
           { to: '/dashboard/admin', label: 'Analytics', icon: LayoutDashboard },

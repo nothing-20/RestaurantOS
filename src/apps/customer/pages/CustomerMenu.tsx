@@ -896,42 +896,35 @@ export const CustomerMenu: React.FC = () => {
                 {items.map((item) => {
                   const isVeg = item.isVeg || item.veg;
                   const discountPrice = item.discountPrice;
-                  const badges = getItemBadges(item);
 
                   return (
                     <Card
                       key={item.id}
-                      className={`p-4 border-slate-855 bg-slate-900/20 hover:border-slate-800/80 hover:bg-slate-900/40 flex items-start justify-between space-x-4 cursor-pointer transition-all ${item.available === false ? 'opacity-40' : ''
+                      className={`p-4 border-slate-855 bg-slate-900/20 hover:border-slate-800/80 hover:bg-slate-900/40 flex flex-col space-y-3.5 cursor-pointer transition-all ${item.available === false ? 'opacity-40' : ''
                         }`}
                       onClick={() => item.available !== false && setSelectedItem(item)}
                     >
-                      <div className="flex-1 flex flex-col text-left space-y-1">
-                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                          {/* Veg/Non-veg Dot */}
-                          <div className={`w-3.5 h-3.5 border flex items-center justify-center shrink-0 rounded ${isVeg ? 'border-emerald-500' : 'border-red-500'}`}>
-                            <div className={`w-1.5 h-1.5 rounded-full ${isVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                          </div>
-
-                          <h3 className="font-display font-extrabold text-sm text-textPearl leading-tight">
-                            {item.name}
-                          </h3>
-
-                          {badges.map((b) => (
-                            <span
-                              key={b}
-                              className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${b === 'Best Seller' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-primary/10 text-primary border border-primary/20'
-                                }`}
-                            >
-                              {b}
-                            </span>
-                          ))}
+                      {/* 1. Food Image + Preparation Time Badge */}
+                      <div className="w-full h-40 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 relative shrink-0">
+                        <img
+                          src={item.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                        {/* Preparation Time Badge overlaid absolute */}
+                        <div className="absolute bottom-2.5 right-2.5 bg-slate-950/80 backdrop-blur-md text-[10px] text-slate-350 font-bold px-2 py-0.5 rounded-lg border border-slate-800/40 flex items-center space-x-1">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          <span>{item.preparationTime || 15} mins</span>
                         </div>
+                      </div>
 
-                        <p className="text-[11px] text-slate-450 leading-relaxed font-medium line-clamp-2">
-                          {item.description || 'Tasty house-crafted gourmet specialty.'}
-                        </p>
-
-                        <div className="flex items-center space-x-2.5 pt-1">
+                      {/* 2. Title + Price */}
+                      <div className="flex justify-between items-start gap-2">
+                        <h3 className="font-display font-extrabold text-sm text-textPearl leading-tight line-clamp-1">
+                          {item.name}
+                        </h3>
+                        <div className="flex items-center space-x-1.5 shrink-0">
                           {discountPrice ? (
                             <>
                               <span className="text-sm font-extrabold text-textPearl">{formatPrice(discountPrice)}</span>
@@ -941,44 +934,61 @@ export const CustomerMenu: React.FC = () => {
                             <span className="text-sm font-extrabold text-textPearl">{formatPrice(item.price)}</span>
                           )}
                         </div>
-
-                        {/* Card metadata line */}
-                        <div className="flex items-center space-x-3.5 pt-2 text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-                          <div className="flex items-center text-amber-500">
-                            <Star className="w-3 h-3 fill-current mr-0.5" />
-                            <span>{item.rating?.toFixed(1) || '4.5'}</span>
-                          </div>
-
-                          <div className="flex items-center space-x-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{item.preparationTime || 15} mins</span>
-                          </div>
-
-                          {item.description.toLowerCase().includes('spicy') && (
-                            <div className="flex items-center space-x-0.5 text-red-500">
-                              <Flame className="w-3.5 h-3.5" />
-                              <span>Spicy</span>
-                            </div>
-                          )}
-                        </div>
                       </div>
 
-                      {/* Card visual details block */}
-                      <div className="flex flex-col items-center shrink-0 space-y-2 select-none">
-                        {item.imageUrl ? (
-                          <div className="w-20 h-20 rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 shadow-lg relative">
-                            <img
-                              src={item.imageUrl}
-                              alt={item.name}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          </div>
+                      {/* 3. Description */}
+                      <p className="text-[11px] text-slate-450 leading-relaxed font-medium line-clamp-2">
+                        {item.description || 'Tasty house-crafted gourmet specialty.'}
+                      </p>
+
+                      {/* 4. Badges (Veg, Non-Veg, Bestseller, Recommended, Category, Spice) */}
+                      <div className="flex flex-wrap gap-2 pt-0.5">
+                        {/* Veg / Non-Veg */}
+                        {isVeg ? (
+                          <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#14532D', color: '#BBF7D0' }}>
+                            🟢 Veg
+                          </span>
                         ) : (
-                          <div className="w-20 h-20 rounded-2xl border border-slate-850 bg-slate-950 flex items-center justify-center text-slate-700">
-                            <Sparkles className="w-5 h-5" />
-                          </div>
+                          <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#7F1D1D', color: '#FECACA' }}>
+                            🔴 Non-Veg
+                          </span>
                         )}
+
+                        {/* Bestseller */}
+                        {(item.isBestSeller || (item.rating || 0) >= 4.7) && (
+                          <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#78350F', color: '#FDE68A' }}>
+                            ⭐ Bestseller
+                          </span>
+                        )}
+
+                        {/* Recommended */}
+                        {item.isRecommended && (
+                          <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#1E3A8A', color: '#BFDBFE' }}>
+                            👍 Recommended
+                          </span>
+                        )}
+
+                        {/* Category */}
+                        {item.category && (
+                          <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#374151', color: '#E5E7EB' }}>
+                            🍽 {item.category}
+                          </span>
+                        )}
+
+                        {/* Spice Level */}
+                        {item.spiceLevel && item.spiceLevel !== 'none' && (
+                          <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#7F1D1D', color: '#FECACA' }}>
+                            🌶 {item.spiceLevel}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 5. Availability + Actions */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-900/60 mt-auto">
+                        <div className="flex items-center text-amber-500 font-semibold">
+                          <Star className="w-3.5 h-3.5 fill-current mr-0.5" />
+                          <span>{item.rating?.toFixed(1) || '4.5'}</span>
+                        </div>
 
                         {item.available === false ? (
                           <span className="text-[9px] font-bold bg-slate-900 border border-slate-800 text-slate-500 px-2 py-1 rounded-lg uppercase">
@@ -987,7 +997,7 @@ export const CustomerMenu: React.FC = () => {
                         ) : (
                           <Button
                             variant="secondary"
-                            className="text-[10px] font-extrabold uppercase px-3 py-1 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-primary/45 rounded-lg text-primary"
+                            className="text-[10px] font-extrabold uppercase px-3 py-1 bg-slate-900 hover:bg-slate-855 border border-slate-800 hover:border-primary/45 rounded-lg text-primary"
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedItem(item);

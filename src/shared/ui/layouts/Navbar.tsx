@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { db } from '../../../config/firebase';
+import { featureFlags } from '../../../config/featureFlags';
 import { 
   collection, 
   onSnapshot, 
@@ -211,7 +212,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
       if (alert.title.includes('Stock')) {
         window.location.href = '/dashboard/owner/inventory';
       } else if (alert.title.includes('CSAT')) {
-        window.location.href = '/dashboard/owner/strategy';
+        window.location.href = featureFlags.strategy ? '/dashboard/owner/strategy' : '/dashboard/owner';
       }
     } catch (err) {
       console.error(err);
