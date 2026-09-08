@@ -6,12 +6,12 @@ export const billingService = {
   getOrders: async (tenantId: string) => {
     const colRef = collection(db, 'restaurants', tenantId, 'orders');
     const snap = await getDocs(colRef);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as IOrder));
+    return snap.docs.map(d => ({ id: d.id, orderId: d.id, ...(d.data() as any) } as IOrder));
   },
   getShifts: async (tenantId: string) => {
     const colRef = collection(db, 'restaurants', tenantId, 'shifts');
     const snap = await getDocs(query(colRef, orderBy('openedAt', 'desc')));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as IShiftReport));
+    return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as IShiftReport));
   },
   openShift: async (tenantId: string, shiftData: Omit<IShiftReport, 'id'>) => {
     const colRef = collection(db, 'restaurants', tenantId, 'shifts');

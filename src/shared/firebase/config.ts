@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeAuth, getAuth, browserSessionPersistence, inMemoryPersistence, setPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -23,7 +23,20 @@ if (missingKeys.length > 0 && import.meta.env.DEV) {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-export const auth = getAuth(app);
+// Strictly enforce tab-isolated session persistence (sessionStorage) at initialization.
+// This prevents cross-tab leakage where Tab A (Customer) overwrites Tab B (Owner).
+export const auth = (() => {
+  try {
+    return initializeAuth(app, {
+      persistence: [browserSessionPersistence, inMemoryPersistence]
+    });
+  } catch (_err) {
+    const existingAuth = getAuth(app);
+    setPersistence(existingAuth, browserSessionPersistence).catch(() => {});
+    return existingAuth;
+  }
+})();
+
 export const db = getFirestore(app);
 
 // Gracefully handle Storage plan unavailability

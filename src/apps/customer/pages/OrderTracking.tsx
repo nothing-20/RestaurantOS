@@ -96,9 +96,9 @@ export const OrderTracking: React.FC = () => {
     }
   };
 
-  // 1. Fetch dining session from localStorage & resolve details
+  // 1. Fetch dining session from sessionStorage & resolve details
   useEffect(() => {
-    const savedSessionStr = localStorage.getItem('restaurantos_dining_session');
+    const savedSessionStr = sessionStorage.getItem('restaurantos_dining_session') || localStorage.getItem('restaurantos_dining_session');
     if (savedSessionStr) {
       try {
         setSession(JSON.parse(savedSessionStr));
@@ -425,6 +425,7 @@ export const OrderTracking: React.FC = () => {
       });
 
       // Clear local dining session cache
+      sessionStorage.removeItem('restaurantos_dining_session');
       localStorage.removeItem('restaurantos_dining_session');
 
       // Log event

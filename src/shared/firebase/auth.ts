@@ -25,9 +25,13 @@ function slugify(text: string): string {
     .replace(/\-\-+/g, '-');
 }
 
-export const signIn = async (email: string, password: string, rememberMe: boolean): Promise<UserCredential> => {
-  const persistenceMode = rememberMe ? browserLocalPersistence : browserSessionPersistence;
-  await setPersistence(auth, persistenceMode);
+export const signIn = async (email: string, password: string, _rememberMe?: boolean): Promise<UserCredential> => {
+  // Always enforce tab-isolated browserSessionPersistence so login sessions never contaminate other tabs
+  try {
+    await setPersistence(auth, browserSessionPersistence);
+  } catch (persistErr) {
+    console.warn('[AUTH signIn] Note setting session persistence:', persistErr);
+  }
   return signInWithEmailAndPassword(auth, email, password);
 };
 

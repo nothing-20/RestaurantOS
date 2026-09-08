@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from '../../../utils/cn';
 
 export interface IBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: 'primary' | 'success' | 'warning' | 'danger' | 'muted';
+  variant?: 'primary' | 'success' | 'warning' | 'danger' | 'muted' | 'info' | 'secondary' | 'neutral';
   isLarge?: boolean;
 }
 
@@ -20,7 +20,10 @@ export const Badge: React.FC<IBadgeProps> = ({
     success: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shadow-sm shadow-emerald-500/5',
     warning: 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 shadow-sm',
     danger: 'bg-red-500/10 text-red-500 border border-red-500/20 shadow-sm',
-    muted: 'bg-slate-800 text-slate-400 border border-slate-700/50'
+    muted: 'bg-slate-800 text-slate-400 border border-slate-700/50',
+    info: 'bg-sky-500/10 text-sky-500 border border-sky-500/20 shadow-sm shadow-sky-500/5',
+    secondary: 'bg-slate-700/30 text-slate-300 border border-slate-600/30 shadow-sm',
+    neutral: 'bg-slate-800 text-slate-400 border border-slate-700/50'
   };
 
   const sizes = isLarge ? 'px-3.5 py-1 text-sm' : 'px-2.5 py-0.5 text-xs';

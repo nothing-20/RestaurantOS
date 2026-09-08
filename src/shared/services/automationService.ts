@@ -79,10 +79,13 @@ export const automationService = {
       await setDoc(historyRef, skippedHistory);
 
       await logEvent(tenantId, {
-        type: 'Job Skipped',
+        eventType: 'Job Skipped',
+        eventCategory: 'System',
+        performedBy: 'automation-engine',
+        performedByRole: 'system',
+        title: 'Scheduled Job Skipped',
         description: `Scheduled job "${jobName}" execution skipped: Previous instance still running.`,
-        severity: 'warning',
-        metadata: { jobId, historyId }
+        metadata: { jobId, historyId, severity: 'warning' }
       });
 
       return skippedHistory;
@@ -109,10 +112,13 @@ export const automationService = {
 
     // Track event start
     await logEvent(tenantId, {
-      type: 'Job Started',
+      eventType: 'Job Started',
+      eventCategory: 'System',
+      performedBy: 'automation-engine',
+      performedByRole: 'system',
+      title: 'Scheduled Job Started',
       description: `Scheduled job "${jobName}" execution started.`,
-      severity: 'info',
-      metadata: { jobId, historyId }
+      metadata: { jobId, historyId, severity: 'info' }
     });
 
     const startTime = performance.now();
@@ -211,10 +217,13 @@ export const automationService = {
 
       // Track event success
       await logEvent(tenantId, {
-        type: 'Job Completed',
+        eventType: 'Job Completed',
+        eventCategory: 'System',
+        performedBy: 'automation-engine',
+        performedByRole: 'system',
+        title: 'Scheduled Job Completed',
         description: `Scheduled job "${jobName}" completed successfully in ${durationMs}ms.`,
-        severity: 'info',
-        metadata: { jobId, historyId, durationMs }
+        metadata: { jobId, historyId, durationMs, severity: 'info' }
       });
 
       return finalHistory;
@@ -246,10 +255,13 @@ export const automationService = {
 
       // Track event failure
       await logEvent(tenantId, {
-        type: 'Job Failed',
+        eventType: 'Job Failed',
+        eventCategory: 'System',
+        performedBy: 'automation-engine',
+        performedByRole: 'system',
+        title: 'Scheduled Job Failed',
         description: `Scheduled job "${jobName}" failed: ${errMsg}`,
-        severity: 'error',
-        metadata: { jobId, historyId, error: errMsg }
+        metadata: { jobId, historyId, error: errMsg, severity: 'error' }
       });
 
       return finalHistory;
@@ -454,10 +466,13 @@ export const automationService = {
 
     // log event
     await logEvent(tenantId, {
-      type: 'Alert Created',
+      eventType: 'Alert Created',
+      eventCategory: 'System',
+      performedBy: 'automation-engine',
+      performedByRole: 'system',
+      title: 'Automation Alert Created',
       description: `New alert generated: "${newAlert.title}"`,
-      severity: newAlert.priority === 'Critical' || newAlert.priority === 'High' ? 'warning' : 'info',
-      metadata: { alertId: id, priority: newAlert.priority }
+      metadata: { alertId: id, priority: newAlert.priority, severity: newAlert.priority === 'Critical' || newAlert.priority === 'High' ? 'warning' : 'info' }
     });
 
     return newAlert;
@@ -552,10 +567,13 @@ export const automationService = {
 
     // log event
     await logEvent(tenantId, {
-      type: 'Report Generated',
+      eventType: 'Report Generated',
+      eventCategory: 'Management',
+      performedBy: 'automation-engine',
+      performedByRole: 'system',
+      title: 'Daily Brief Compiled',
       description: `Daily Executive brief compiled for ${dateStr}.`,
-      severity: 'info',
-      metadata: { date: dateStr }
+      metadata: { date: dateStr, severity: 'info' }
     });
 
     return brief;

@@ -151,8 +151,8 @@ export const customerService = {
       updatedAt: startedAt,
     });
 
-    // Save in LocalStorage
-    localStorage.setItem('restaurantos_dining_session', JSON.stringify(session));
+    // Save in sessionStorage (tab-isolated)
+    sessionStorage.setItem('restaurantos_dining_session', JSON.stringify(session));
 
     // Log operational events to central stream
     await logEvent(session.restaurantId, {

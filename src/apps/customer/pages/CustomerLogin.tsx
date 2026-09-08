@@ -6,14 +6,14 @@ import { authService } from '../../../services/authService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { zodResolver } from '../../../utils/zodResolver';
+import { getDashboardRoute } from '../../../utils/navigation';
 
 // UI Kit components
 import Card from '../../../components/ui/Card/Card';
 import Input from '../../../components/ui/Input/Input';
 import Button from '../../../components/ui/Button/Button';
 
-// Hot Toast notifications
-import toast from 'react-hot-toast';
+import { useToastStore } from '../../../components/ui/Toast/Toast';
 import { ShoppingBag, ShieldAlert } from 'lucide-react';
 
 const loginSchema = z.object({
@@ -25,6 +25,7 @@ type TLoginForm = z.infer<typeof loginSchema>;
 
 export const CustomerLogin: React.FC = () => {
   const navigate = useNavigate();
+  const { addToast } = useToastStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorState, setErrorState] = useState<{ message: string; showRegister: boolean } | null>(null);
 
@@ -37,28 +38,54 @@ export const CustomerLogin: React.FC = () => {
   });
 
   const onSubmit = async (data: TLoginForm) => {
+    const cleanEmail = data.email.trim().toLowerCase();
+    console.log('[AUTH Customer Login] Login attempt started for:', cleanEmail);
     setIsSubmitting(true);
     setErrorState(null);
+
     try {
-      const credentials = await authService.signInWithEmail(data.email, data.password, true);
+      console.log('[AUTH Customer Login] Calling Firebase authentication...');
+      const credentials = await authService.signInWithEmail(cleanEmail, data.password, true);
       const fUser = credentials.user;
 
-      const userDocRef = doc(db, 'users', fUser.uid);
-      const userDoc = await getDoc(userDocRef);
+      console.log('[AUTH Customer Login] Firebase auth succeeded. UID:', fUser.uid);
 
-      if (!userDoc.exists() || userDoc.data().role !== 'customer') {
-        setErrorState({
-          message: 'Account not found',
-          showRegister: true
-        });
+      // Import authoritative role resolver
+      const { resolveAuthenticatedUser } = await import('../../../shared/services/roleResolver');
+      const profile = await resolveAuthenticatedUser(fUser);
+
+      console.log('[AUTH Customer Login] Resolved profile:', profile);
+
+      if (!profile || profile.role !== 'customer') {
+        console.warn('[AUTH Customer Login] Rejecting non-customer account:', profile?.role);
         await authService.signOutUser();
+        const mismatchMsg = 'This account does not have access to the Customer Portal. Please sign in via the Staff or Owner portal.';
+        setErrorState({
+          message: mismatchMsg,
+          showRegister: false
+        });
+        addToast(mismatchMsg, 'error');
+        setIsSubmitting(false);
         return;
       }
 
-      toast.success('Signed in successfully!');
-      navigate('/customer/restaurants');
+      if (profile.status && profile.status !== 'active') {
+        console.warn('[AUTH Customer Login] Customer account suspended:', profile.status);
+        await authService.signOutUser();
+        setErrorState({
+          message: 'Your diner account has been suspended. Please contact support.',
+          showRegister: false
+        });
+        addToast('Your diner account is suspended.', 'error');
+        setIsSubmitting(false);
+        return;
+      }
+
+      console.log('[AUTH Customer Login] Customer login successful. Navigating to /customer/home');
+      addToast('Signed in successfully!', 'success');
+      navigate('/customer/home', { replace: true });
     } catch (e: any) {
-      console.error(e);
+      console.error('[AUTH Customer Login] Authentication failed:', e);
       let errMsg = e.message || 'Login failed. Please verify credentials.';
       let isNotFound = false;
 
@@ -76,9 +103,9 @@ export const CustomerLogin: React.FC = () => {
 
       setErrorState({
         message: errMsg,
-        showRegister: isNotFound || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential'
+        showRegister: isNotFound
       });
-      toast.error(errMsg);
+      addToast(errMsg, 'error');
     } finally {
       setIsSubmitting(false);
     }

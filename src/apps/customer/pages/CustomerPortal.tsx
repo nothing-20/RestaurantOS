@@ -71,6 +71,7 @@ export const CustomerPortal: React.FC = () => {
   const [coverImage, setCoverImage] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [brandingColors, setBrandingColors] = useState<{ primary?: string; secondary?: string }>({});
+  const [isInvalidSession, setIsInvalidSession] = useState(false);
   
   // Filtering & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -162,9 +163,12 @@ export const CustomerPortal: React.FC = () => {
           if (tenantData.secondaryColor) {
             document.documentElement.style.setProperty('--color-secondary', tenantData.secondaryColor);
           }
+        } else {
+          setIsInvalidSession(true);
         }
       } catch (err) {
         console.error(err);
+        setIsInvalidSession(true);
       }
     };
     fetchTenantInfo();
@@ -409,6 +413,32 @@ export const CustomerPortal: React.FC = () => {
   const gstCharge = Math.round(cartSubtotal * 0.05);
   const serviceCharge = Math.round(cartSubtotal * 0.05);
   const cartTotalVal = cartSubtotal + gstCharge + serviceCharge;
+
+  if (!tenantId || isInvalidSession) {
+    return (
+      <div className="min-h-screen bg-slate-955 flex items-center justify-center p-6 text-center select-none">
+        <div className="max-w-md w-full glass-panel p-8 rounded-3xl border-amber-500/20 bg-slate-900/80 space-y-6">
+          <div className="w-14 h-14 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto text-amber-500">
+            <AlertTriangle className="w-7 h-7" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-lg font-display font-extrabold text-white">Table Session Unavailable</h2>
+            <p className="text-xs text-slate-400 leading-relaxed font-semibold">
+              We couldn't verify your restaurant or table session. Please scan your table QR code again or browse available restaurants.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <button
+              onClick={() => navigate('/customer/home')}
+              className="w-full py-3 bg-primary hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-xl transition-all shadow"
+            >
+              Explore Restaurants & Menus
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

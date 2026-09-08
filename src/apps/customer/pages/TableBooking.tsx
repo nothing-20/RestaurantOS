@@ -113,18 +113,13 @@ export const TableBooking: React.FC = () => {
         });
 
         if (list.length === 0) {
-          // Fallback mockup
-          const fallback = [
-            { id: 'l-ambroisie', name: "L'Ambroisie", cuisine: "French Haute Cuisine", address: "9 Place des Vosges, Paris", landmark: "Place des Vosges", area: "Marais", city: "Paris", latitude: 48.8550, longitude: 2.3660, image: REST_MOCK_IMAGES[0], ...REST_MOCK_CONFIGS['l-ambroisie'] },
-            { id: 'shuko', name: "Shuko Sushi", cuisine: "Premium Japanese Omakase", address: "47 E 12th St, New York", landmark: "Union Square", area: "Manhattan", city: "New York", latitude: 40.7330, longitude: -73.9920, image: REST_MOCK_IMAGES[3], ...REST_MOCK_CONFIGS['shuko'] },
-            { id: 'osteria', name: "Osteria Francescana", cuisine: "Italian Fine Dining", address: "Via Stella 22, Modena", landmark: "Duomo", area: "Centro", city: "Modena", latitude: 44.6460, longitude: 10.9250, image: REST_MOCK_IMAGES[1], ...REST_MOCK_CONFIGS['osteria'] }
-          ];
-          setAllRestaurants(fallback);
+          setAllRestaurants([]);
         } else {
           setAllRestaurants(list);
         }
       } catch (e) {
         console.error(e);
+        setAllRestaurants([]);
         toast.error('Failed to load restaurants.');
       } finally {
         setIsLoading(false);

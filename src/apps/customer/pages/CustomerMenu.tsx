@@ -59,7 +59,7 @@ export const CustomerMenu: React.FC = () => {
 
   // Session State
   const [session, setSession] = useState<any>(null);
-  const [tableNumber, setTableNumber] = useState('3'); // Default fallback table
+  const [tableNumber, setTableNumber] = useState('');
 
   // Database / Settings States
   const [menuItems, setMenuItems] = useState<IMenuItem[]>([]);
@@ -146,7 +146,7 @@ export const CustomerMenu: React.FC = () => {
     }
 
     // Load session
-    const savedSessionStr = localStorage.getItem('restaurantos_dining_session');
+    const savedSessionStr = sessionStorage.getItem('restaurantos_dining_session') || localStorage.getItem('restaurantos_dining_session');
     if (savedSessionStr) {
       try {
         const activeSession = JSON.parse(savedSessionStr);
@@ -156,6 +156,7 @@ export const CustomerMenu: React.FC = () => {
             setSession(activeSession);
             setTableNumber(cachedTableNum);
           } else {
+            sessionStorage.removeItem('restaurantos_dining_session');
             localStorage.removeItem('restaurantos_dining_session');
           }
         }
@@ -787,241 +788,356 @@ export const CustomerMenu: React.FC = () => {
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <main className="max-w-4xl mx-auto px-6 pt-6 relative z-10 space-y-8 text-left">
-        {/* Change 2: Persistent Active Order Card */}
-        {activeOrders.length > 0 && (
-          <div className="space-y-4">
-            {activeOrders.map((activeOrder) => {
-              const progressPercent = getProgressPercent(activeOrder.status);
-              const prepTime = getOrderPrepTime(activeOrder);
-              const itemsCount = activeOrder.items?.reduce((sum: number, item: any) => sum + (item.count || 1), 0) || 0;
-              const formattedTime = formatLastUpdated(activeOrder.updatedAt || activeOrder.createdAt);
-
-              return (
-                <div
-                  key={activeOrder.id}
-                  className="bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-primary/10 border border-primary/25 rounded-3xl p-5 shadow-2xl relative overflow-hidden backdrop-blur-md"
-                >
-                  {/* Subtle background highlight */}
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
-
-                  <div className="flex justify-between items-start pb-3 border-b border-slate-800/60 mb-4">
-                    <div>
-                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Active Order</span>
-                      <strong className="text-xs font-mono text-textPearl uppercase">#{activeOrder.orderId}</strong>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Last Updated</span>
-                      <span className="text-xs font-semibold text-slate-300">{formattedTime}</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 mb-4 text-xs">
-                    <div>
-                      <span className="text-slate-500 block font-semibold">Est. Preparation Time:</span>
-                      <span className="text-primary font-bold">{prepTime}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block font-semibold">Items Count:</span>
-                      <span className="text-textPearl font-bold">{itemsCount} {itemsCount === 1 ? 'item' : 'items'}</span>
-                    </div>
-                  </div>
-
-                  {/* Progress Indicator */}
-                  <div className="space-y-1.5 mb-4">
-                    <div className="flex justify-between text-[11px] font-bold">
-                      <span className="text-primary uppercase tracking-wider">
-                        Status: {activeOrder.status === 'NEW' ? 'Order Received' : activeOrder.status}
-                      </span>
-                      <span className="text-slate-400">{progressPercent}%</span>
-                    </div>
-                    <div className="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden p-0.5 border border-slate-700/30">
-                      <div
-                        style={{ width: `${progressPercent}%` }}
-                        className="bg-gradient-to-r from-primary to-amber-500 h-full rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                    <Button
-                      onClick={() => navigate(`/customer/restaurant/${tenantId}/order/${activeOrder.orderId}`)}
-                      className="flex-1 bg-primary hover:bg-primary-hover text-background font-bold py-2.5 rounded-xl shadow-lg shadow-primary/10 flex items-center justify-center gap-1.5 transition-all text-xs"
-                    >
-                      Track My Order
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        const firstCat = Object.keys(categorizedMenu)[0];
-                        const el = firstCat ? document.getElementById(`cat-section-${firstCat.replace(/\s+/g, '-').toLowerCase()}`) : null;
-                        if (el) {
-                          el.scrollIntoView({ behavior: 'smooth' });
-                        } else {
-                          window.scrollTo({ top: 500, behavior: 'smooth' });
-                        }
-                      }}
-                      className="flex-1 bg-slate-900 border border-slate-800 text-slate-300 hover:text-textPearl py-2.5 rounded-xl text-xs"
-                    >
-                      Continue Browsing
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {filteredAndSortedItems.length === 0 ? (
-          <div className="py-16 text-center border border-dashed border-slate-850 rounded-2xl bg-slate-900/10">
-            <AlertTriangle className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-            <p className="text-sm text-slate-400 font-semibold">No menu dishes match your selections.</p>
-          </div>
-        ) : (
-          Object.entries(categorizedMenu).map(([categoryName, items]) => (
-            <div
-              key={categoryName}
-              id={`cat-section-${categoryName.replace(/\s+/g, '-').toLowerCase()}`}
-              className="space-y-4 pt-2"
-            >
-              <h2 className="text-base font-display font-extrabold text-textPearl tracking-wide flex items-center space-x-2">
-                <span className="text-primary">{getCategoryEmoji(categoryName)}</span>
-                <span>{categoryName}</span>
-                <span className="text-[10px] text-slate-500 font-bold bg-slate-900 px-2 py-0.5 border border-slate-850 rounded-lg">
-                  {items.length} dishes
-                </span>
-              </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {items.map((item) => {
-                  const isVeg = item.isVeg || item.veg;
-                  const discountPrice = item.discountPrice;
+      <main className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 pt-6 relative z-10 text-left">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          {/* LEFT / CENTER MENU ITEMS COLUMN */}
+          <div className="lg:col-span-8 space-y-8">
+            {/* Change 2: Persistent Active Order Card */}
+            {activeOrders.length > 0 && (
+              <div className="space-y-4">
+                {activeOrders.map((activeOrder) => {
+                  const progressPercent = getProgressPercent(activeOrder.status);
+                  const prepTime = getOrderPrepTime(activeOrder);
+                  const itemsCount = activeOrder.items?.reduce((sum: number, item: any) => sum + (item.count || 1), 0) || 0;
+                  const formattedTime = formatLastUpdated(activeOrder.updatedAt || activeOrder.createdAt);
 
                   return (
-                    <Card
-                      key={item.id}
-                      className={`p-4 border-slate-855 bg-slate-900/20 hover:border-slate-800/80 hover:bg-slate-900/40 flex flex-col space-y-3.5 cursor-pointer transition-all ${item.available === false ? 'opacity-40' : ''
-                        }`}
-                      onClick={() => item.available !== false && setSelectedItem(item)}
+                    <div
+                      key={activeOrder.id}
+                      className="bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-primary/10 border border-primary/25 rounded-3xl p-5 shadow-2xl relative overflow-hidden backdrop-blur-md"
                     >
-                      {/* 1. Food Image + Preparation Time Badge */}
-                      <div className="w-full h-40 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 relative shrink-0">
-                        <img
-                          src={item.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'}
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                        {/* Preparation Time Badge overlaid absolute */}
-                        <div className="absolute bottom-2.5 right-2.5 bg-slate-950/80 backdrop-blur-md text-[10px] text-slate-350 font-bold px-2 py-0.5 rounded-lg border border-slate-800/40 flex items-center space-x-1">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          <span>{item.preparationTime || 15} mins</span>
+                      {/* Subtle background highlight */}
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
+
+                      <div className="flex justify-between items-start pb-3 border-b border-slate-800/60 mb-4">
+                        <div>
+                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Active Order</span>
+                          <strong className="text-xs font-mono text-textPearl uppercase">#{activeOrder.orderId}</strong>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Last Updated</span>
+                          <span className="text-xs font-semibold text-slate-300">{formattedTime}</span>
                         </div>
                       </div>
 
-                      {/* 2. Title + Price */}
-                      <div className="flex justify-between items-start gap-2">
-                        <h3 className="font-display font-extrabold text-sm text-textPearl leading-tight line-clamp-1">
-                          {item.name}
-                        </h3>
-                        <div className="flex items-center space-x-1.5 shrink-0">
-                          {discountPrice ? (
-                            <>
-                              <span className="text-sm font-extrabold text-textPearl">{formatPrice(discountPrice)}</span>
-                              <span className="text-[10px] text-slate-500 line-through">{formatPrice(item.price)}</span>
-                            </>
-                          ) : (
-                            <span className="text-sm font-extrabold text-textPearl">{formatPrice(item.price)}</span>
-                          )}
+                      <div className="grid grid-cols-2 gap-4 mb-4 text-xs">
+                        <div>
+                          <span className="text-slate-500 block font-semibold">Est. Preparation Time:</span>
+                          <span className="text-primary font-bold">{prepTime}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block font-semibold">Items Count:</span>
+                          <span className="text-textPearl font-bold">{itemsCount} {itemsCount === 1 ? 'item' : 'items'}</span>
                         </div>
                       </div>
 
-                      {/* 3. Description */}
-                      <p className="text-[11px] text-slate-450 leading-relaxed font-medium line-clamp-2">
-                        {item.description || 'Tasty house-crafted gourmet specialty.'}
-                      </p>
-
-                      {/* 4. Badges (Veg, Non-Veg, Bestseller, Recommended, Category, Spice) */}
-                      <div className="flex flex-wrap gap-2 pt-0.5">
-                        {/* Veg / Non-Veg */}
-                        {isVeg ? (
-                          <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#14532D', color: '#BBF7D0' }}>
-                            🟢 Veg
+                      {/* Progress Indicator */}
+                      <div className="space-y-1.5 mb-4">
+                        <div className="flex justify-between text-[11px] font-bold">
+                          <span className="text-primary uppercase tracking-wider">
+                            Status: {activeOrder.status === 'NEW' ? 'Order Received' : activeOrder.status}
                           </span>
-                        ) : (
-                          <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#7F1D1D', color: '#FECACA' }}>
-                            🔴 Non-Veg
-                          </span>
-                        )}
-
-                        {/* Bestseller */}
-                        {(item.isBestSeller || (item.rating || 0) >= 4.7) && (
-                          <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#78350F', color: '#FDE68A' }}>
-                            ⭐ Bestseller
-                          </span>
-                        )}
-
-                        {/* Recommended */}
-                        {item.isRecommended && (
-                          <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#1E3A8A', color: '#BFDBFE' }}>
-                            👍 Recommended
-                          </span>
-                        )}
-
-                        {/* Category */}
-                        {item.category && (
-                          <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#374151', color: '#E5E7EB' }}>
-                            🍽 {item.category}
-                          </span>
-                        )}
-
-                        {/* Spice Level */}
-                        {item.spiceLevel && item.spiceLevel !== 'none' && (
-                          <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#7F1D1D', color: '#FECACA' }}>
-                            🌶 {item.spiceLevel}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* 5. Availability + Actions */}
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-900/60 mt-auto">
-                        <div className="flex items-center text-amber-500 font-semibold">
-                          <Star className="w-3.5 h-3.5 fill-current mr-0.5" />
-                          <span>{item.rating?.toFixed(1) || '4.5'}</span>
+                          <span className="text-slate-400">{progressPercent}%</span>
                         </div>
-
-                        {item.available === false ? (
-                          <span className="text-[9px] font-bold bg-slate-900 border border-slate-800 text-slate-500 px-2 py-1 rounded-lg uppercase">
-                            Sold Out
-                          </span>
-                        ) : (
-                          <Button
-                            variant="secondary"
-                            className="text-[10px] font-extrabold uppercase px-3 py-1 bg-slate-900 hover:bg-slate-855 border border-slate-800 hover:border-primary/45 rounded-lg text-primary"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedItem(item);
-                            }}
-                          >
-                            + Add
-                          </Button>
-                        )}
+                        <div className="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden p-0.5 border border-slate-700/30">
+                          <div
+                            style={{ width: `${progressPercent}%` }}
+                            className="bg-gradient-to-r from-primary to-amber-500 h-full rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                          />
+                        </div>
                       </div>
-                    </Card>
+
+                      <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                        <Button
+                          onClick={() => navigate(`/customer/restaurant/${tenantId}/order/${activeOrder.orderId}`)}
+                          className="flex-1 bg-primary hover:bg-primary-hover text-background font-bold py-2.5 rounded-xl shadow-lg shadow-primary/10 flex items-center justify-center gap-1.5 transition-all text-xs"
+                        >
+                          Track My Order
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            const firstCat = Object.keys(categorizedMenu)[0];
+                            const el = firstCat ? document.getElementById(`cat-section-${firstCat.replace(/\s+/g, '-').toLowerCase()}`) : null;
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth' });
+                            } else {
+                              window.scrollTo({ top: 500, behavior: 'smooth' });
+                            }
+                          }}
+                          className="flex-1 bg-slate-900 border border-slate-800 text-slate-300 hover:text-textPearl py-2.5 rounded-xl text-xs"
+                        >
+                          Continue Browsing
+                        </Button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
+            )}
+
+            {filteredAndSortedItems.length === 0 ? (
+              <div className="py-16 text-center border border-dashed border-slate-850 rounded-2xl bg-slate-900/10">
+                <AlertTriangle className="w-8 h-8 text-slate-700 mx-auto mb-2" />
+                <p className="text-sm text-slate-400 font-semibold">No menu dishes match your selections.</p>
+              </div>
+            ) : (
+              Object.entries(categorizedMenu).map(([categoryName, items]) => (
+                <div
+                  key={categoryName}
+                  id={`cat-section-${categoryName.replace(/\s+/g, '-').toLowerCase()}`}
+                  className="space-y-4 pt-2"
+                >
+                  <h2 className="text-base font-display font-extrabold text-textPearl tracking-wide flex items-center space-x-2">
+                    <span className="text-primary">{getCategoryEmoji(categoryName)}</span>
+                    <span>{categoryName}</span>
+                    <span className="text-[10px] text-slate-500 font-bold bg-slate-900 px-2 py-0.5 border border-slate-850 rounded-lg">
+                      {items.length} dishes
+                    </span>
+                  </h2>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+                    {items.map((item) => {
+                      const isVeg = item.isVeg || item.veg;
+                      const discountPrice = item.discountPrice;
+
+                      return (
+                        <Card
+                          key={item.id}
+                          className={`p-4 border-slate-855 bg-slate-900/20 hover:border-slate-800/80 hover:bg-slate-900/40 flex flex-col space-y-3.5 cursor-pointer transition-all ${item.available === false ? 'opacity-40' : ''
+                            }`}
+                          onClick={() => item.available !== false && setSelectedItem(item)}
+                        >
+                          {/* 1. Food Image + Preparation Time Badge */}
+                          <div className="w-full h-40 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 relative shrink-0">
+                            <img
+                              src={item.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                            {/* Preparation Time Badge overlaid absolute */}
+                            <div className="absolute bottom-2.5 right-2.5 bg-slate-950/80 backdrop-blur-md text-[10px] text-slate-350 font-bold px-2 py-0.5 rounded-lg border border-slate-800/40 flex items-center space-x-1">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              <span>{item.preparationTime || 15} mins</span>
+                            </div>
+                          </div>
+
+                          {/* 2. Title + Price */}
+                          <div className="flex justify-between items-start gap-2">
+                            <h3 className="font-display font-extrabold text-sm text-textPearl leading-tight line-clamp-1">
+                              {item.name}
+                            </h3>
+                            <div className="flex items-center space-x-1.5 shrink-0">
+                              {discountPrice ? (
+                                <>
+                                  <span className="text-sm font-extrabold text-textPearl">{formatPrice(discountPrice)}</span>
+                                  <span className="text-[10px] text-slate-500 line-through">{formatPrice(item.price)}</span>
+                                </>
+                              ) : (
+                                <span className="text-sm font-extrabold text-textPearl">{formatPrice(item.price)}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 3. Description */}
+                          <p className="text-[11px] text-slate-450 leading-relaxed font-medium line-clamp-2">
+                            {item.description || 'Tasty house-crafted gourmet specialty.'}
+                          </p>
+
+                          {/* 4. Badges (Veg, Non-Veg, Bestseller, Recommended, Category, Spice) */}
+                          <div className="flex flex-wrap gap-2 pt-0.5">
+                            {/* Veg / Non-Veg */}
+                            {isVeg ? (
+                              <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#14532D', color: '#BBF7D0' }}>
+                                🟢 Veg
+                              </span>
+                            ) : (
+                              <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#7F1D1D', color: '#FECACA' }}>
+                                🔴 Non-Veg
+                              </span>
+                            )}
+
+                            {/* Bestseller */}
+                            {(item.isBestSeller || (item.rating || 0) >= 4.7) && (
+                              <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#78350F', color: '#FDE68A' }}>
+                                ⭐ Bestseller
+                              </span>
+                            )}
+
+                            {/* Recommended */}
+                            {item.isRecommended && (
+                              <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#1E3A8A', color: '#BFDBFE' }}>
+                                👍 Recommended
+                              </span>
+                            )}
+
+                            {/* Category */}
+                            {item.category && (
+                              <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#374151', color: '#E5E7EB' }}>
+                                🍽 {item.category}
+                              </span>
+                            )}
+
+                            {/* Spice Level */}
+                            {item.spiceLevel && item.spiceLevel !== 'none' && (
+                              <span className="h-7 px-3 rounded-full inline-flex items-center justify-center text-[12px] font-semibold tracking-wide shrink-0 transition-all select-none animate-in fade-in duration-200" style={{ backgroundColor: '#7F1D1D', color: '#FECACA' }}>
+                                🌶 {item.spiceLevel}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* 5. Availability + Actions */}
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-900/60 mt-auto">
+                            <div className="flex items-center text-amber-500 font-semibold">
+                              <Star className="w-3.5 h-3.5 fill-current mr-0.5" />
+                              <span>{item.rating?.toFixed(1) || '4.5'}</span>
+                            </div>
+
+                            {item.available === false ? (
+                              <span className="text-[9px] font-bold bg-slate-900 border border-slate-800 text-slate-500 px-2.5 py-1 rounded-lg uppercase">
+                                Sold Out
+                              </span>
+                            ) : (
+                              <Button
+                                variant="secondary"
+                                className="text-[10px] font-extrabold uppercase px-3 py-1 bg-slate-900 hover:bg-slate-855 border border-slate-800 hover:border-primary/45 rounded-lg text-primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedItem(item);
+                                }}
+                              >
+                                + Add
+                              </Button>
+                            )}
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* RIGHT / DESKTOP PERSISTENT STICKY CART PANEL */}
+          <div className="hidden lg:block lg:col-span-4 sticky top-24 self-start">
+            <div className="bg-white border border-[#EEE7E1] rounded-3xl p-5 shadow-lg space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#EEE7E1]">
+                <div className="flex items-center space-x-2">
+                  <ShoppingBag className="w-4 h-4 text-[#E85D3F]" />
+                  <h3 className="text-sm font-extrabold text-[#242424]">Your Basket</h3>
+                </div>
+                <span className="text-[10px] bg-[#FFF8F2] border border-[#EEE7E1] text-[#E85D3F] px-2.5 py-0.5 rounded-full font-extrabold">
+                  {totalCartItemsCount} {totalCartItemsCount === 1 ? 'item' : 'items'}
+                </span>
+              </div>
+
+              {cartItems.length === 0 ? (
+                <div className="py-8 text-center space-y-2">
+                  <ShoppingBag className="w-8 h-8 text-[#6B6B6B] mx-auto opacity-50" />
+                  <p className="text-xs text-[#6B6B6B] font-semibold">Your basket is empty.</p>
+                  <p className="text-[10px] text-[#999999]">Select dishes from the menu to build your order.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-3 max-h-60 overflow-y-auto pr-1 divide-y divide-[#EEE7E1]">
+                    {cartItems.map((item) => (
+                      <div key={item.itemId} className="flex items-start justify-between pt-2.5 first:pt-0">
+                        <div className="space-y-0.5 flex-1 pr-2">
+                          <h4 className="text-xs font-extrabold text-[#242424] leading-tight">{item.name}</h4>
+                          {item.notes && (
+                            <p className="text-[9.5px] text-[#E85D3F] italic">Note: {item.notes}</p>
+                          )}
+                          <span className="text-[10px] text-[#6B6B6B] font-semibold">{formatPrice(item.pricePerUnit * item.count)}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 bg-[#FFF8F2] p-1 rounded-xl border border-[#EEE7E1] shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.itemId, item.count - 1)}
+                            className="w-5 h-5 bg-white hover:bg-[#EEE7E1] text-[#242424] font-bold rounded flex items-center justify-center text-xs shadow-xs cursor-pointer"
+                          >
+                            -
+                          </button>
+                          <span className="text-xs font-extrabold text-[#242424] w-4 text-center">{item.count}</span>
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.itemId, item.count + 1)}
+                            className="w-5 h-5 bg-white hover:bg-[#EEE7E1] text-[#242424] font-bold rounded flex items-center justify-center text-xs shadow-xs cursor-pointer"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Breakdown */}
+                  <div className="bg-[#FFF8F2] border border-[#EEE7E1] p-3.5 rounded-2xl text-xs space-y-1.5 font-semibold text-[#6B6B6B]">
+                    <div className="flex justify-between">
+                      <span>Subtotal</span>
+                      <span className="text-[#242424] font-bold">{formatPrice(cartSubtotal)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>GST (5%)</span>
+                      <span className="text-[#242424] font-bold">{formatPrice(gstCharge)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Service Charge (5%)</span>
+                      <span className="text-[#242424] font-bold">{formatPrice(serviceCharge)}</span>
+                    </div>
+                    <div className="flex justify-between text-[#242424] font-extrabold text-sm pt-2 border-t border-[#EEE7E1]">
+                      <span>Total Amount</span>
+                      <span className="text-[#E85D3F] font-extrabold">{formatPrice(totalCartCost)}</span>
+                    </div>
+                  </div>
+
+                  {/* Customer Details Input */}
+                  <div className="space-y-2 pt-1">
+                    <input
+                      type="text"
+                      placeholder="Your Name *"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="w-full bg-white border border-[#EEE7E1] focus:border-[#E85D3F]/50 rounded-xl px-3 py-2 text-xs text-[#242424] placeholder-[#6B6B6B] outline-none shadow-xs"
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Phone Number *"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      className="w-full bg-white border border-[#EEE7E1] focus:border-[#E85D3F]/50 rounded-xl px-3 py-2 text-xs text-[#242424] placeholder-[#6B6B6B] outline-none shadow-xs"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Cooking instructions (e.g. Less spicy)"
+                      value={specialInstructions}
+                      onChange={(e) => setSpecialInstructions(e.target.value)}
+                      className="w-full bg-white border border-[#EEE7E1] focus:border-[#E85D3F]/50 rounded-xl px-3 py-2 text-xs text-[#242424] placeholder-[#6B6B6B] outline-none shadow-xs"
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handlePlaceOrder}
+                    disabled={isPlacingOrder || cartItems.length === 0}
+                    className="w-full bg-[#E85D3F] hover:bg-[#D04B2F] text-white font-extrabold text-xs py-3 rounded-xl shadow-md shadow-[#E85D3F]/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {isPlacingOrder ? 'Sending to Kitchen...' : `Place Order • ${formatPrice(totalCartCost)}`}
+                  </Button>
+                </>
+              )}
             </div>
-          ))
-        )}
+          </div>
+        </div>
       </main>
 
-      {/* FLOATING BASKET PREVIEW BAR (Survives Refresh, Caches Items) */}
+      {/* FLOATING BASKET PREVIEW BAR FOR MOBILE (< 1024px) */}
       {totalCartItemsCount > 0 && (
-        <div className="fixed bottom-6 right-6 z-40 max-w-sm w-[90%] sm:w-auto">
+        <div className="lg:hidden fixed bottom-6 right-6 z-40 max-w-sm w-[90%] sm:w-auto">
           <button
             onClick={() => setIsCartOpen(true)}
-            className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-background font-display font-extrabold px-6 py-4 rounded-2xl flex items-center justify-between gap-6 shadow-2xl shadow-primary/20 transition-transform active:scale-[0.98] animate-bounce"
+            className="w-full sm:w-auto bg-[#E85D3F] hover:bg-[#D04B2F] text-white font-display font-extrabold px-6 py-4 rounded-full flex items-center justify-between gap-6 shadow-xl shadow-[#E85D3F]/30 transition-transform active:scale-[0.98] cursor-pointer"
           >
             <div className="flex items-center space-x-3.5">
               <ShoppingBag className="w-5 h-5" />

@@ -8,7 +8,17 @@ import {
   UtensilsCrossed,
   Package,
   XCircle,
-  Archive
+  Archive,
+  UserCheck,
+  Navigation,
+  Coffee,
+  DollarSign,
+  CheckCircle,
+  PauseCircle,
+  PlayCircle,
+  RotateCcw,
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 
 // ─── Icon Map ─────────────────────────────────────────────────────────────────
@@ -16,23 +26,43 @@ import {
 const TIMELINE_ICONS: Record<ITimelineEvent['type'], React.ReactNode> = {
   ORDER_CREATED: <CircleDot className="w-3.5 h-3.5 text-blue-400" />,
   ACCEPTED:      <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />,
+  CHEF_ASSIGNED: <UserCheck className="w-3.5 h-3.5 text-indigo-400" />,
   PREPARING:     <Flame className="w-3.5 h-3.5 text-orange-400" />,
   READY:         <ChefHat className="w-3.5 h-3.5 text-emerald-400" />,
+  PICKED_UP:     <Navigation className="w-3.5 h-3.5 text-sky-400" />,
   DELIVERED:     <UtensilsCrossed className="w-3.5 h-3.5 text-teal-400" />,
+  SERVED:        <Coffee className="w-3.5 h-3.5 text-pink-400" />,
   COMPLETED:     <Package className="w-3.5 h-3.5 text-slate-400" />,
+  PAID:          <DollarSign className="w-3.5 h-3.5 text-yellow-400" />,
+  CLOSED:        <CheckCircle className="w-3.5 h-3.5 text-slate-500" />,
   ARCHIVED:      <Archive className="w-3.5 h-3.5 text-slate-500" />,
   CANCELLED:     <XCircle className="w-3.5 h-3.5 text-red-400" />,
+  PAUSED:        <PauseCircle className="w-3.5 h-3.5 text-amber-500" />,
+  RESUMED:       <PlayCircle className="w-3.5 h-3.5 text-emerald-500" />,
+  RECALLED:      <RotateCcw className="w-3.5 h-3.5 text-rose-500" />,
+  BATCH_REFILL:  <RefreshCw className="w-3.5 h-3.5 text-blue-500" />,
+  WASTE:         <Trash2 className="w-3.5 h-3.5 text-red-500" />,
 };
 
 const TIMELINE_DOT_COLORS: Record<ITimelineEvent['type'], string> = {
   ORDER_CREATED: 'bg-blue-500',
   ACCEPTED:      'bg-purple-500',
+  CHEF_ASSIGNED: 'bg-indigo-500',
   PREPARING:     'bg-orange-500',
   READY:         'bg-emerald-500',
+  PICKED_UP:     'bg-sky-500',
   DELIVERED:     'bg-teal-500',
+  SERVED:        'bg-pink-500',
   COMPLETED:     'bg-slate-400',
+  PAID:          'bg-yellow-500',
+  CLOSED:        'bg-slate-500',
   ARCHIVED:      'bg-slate-600',
   CANCELLED:     'bg-red-500',
+  PAUSED:        'bg-amber-500',
+  RESUMED:       'bg-emerald-500',
+  RECALLED:      'bg-rose-500',
+  BATCH_REFILL:  'bg-blue-500',
+  WASTE:         'bg-red-500',
 };
 
 // ─── Formatter ────────────────────────────────────────────────────────────────

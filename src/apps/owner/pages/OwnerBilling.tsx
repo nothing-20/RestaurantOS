@@ -147,14 +147,14 @@ export const OwnerBilling: React.FC = () => {
     const tablesRef = collection(db, 'restaurants', user.tenantId, 'tables');
     const unsubTables = onSnapshot(tablesRef, (snap) => {
       const list: ITable[] = [];
-      snap.forEach((d) => list.push({ id: d.id, ...d.data() } as ITable));
+      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) } as ITable));
       setTables(list);
     });
 
     const ordersRef = collection(db, 'restaurants', user.tenantId, 'orders');
     const unsubOrders = onSnapshot(ordersRef, (snap) => {
       const list: IOrder[] = [];
-      snap.forEach((d) => list.push({ orderId: d.id, id: d.id, ...d.data() } as IOrder));
+      snap.forEach((d) => list.push({ orderId: d.id, id: d.id, ...(d.data() as any) } as IOrder));
       setOrders(list);
       setIsLoading(false);
     });
@@ -162,7 +162,7 @@ export const OwnerBilling: React.FC = () => {
     const transRef = collection(db, 'restaurants', user.tenantId, 'transactions');
     const unsubTrans = onSnapshot(transRef, (snap) => {
       const list: any[] = [];
-      snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
       setTransactions(list.sort((a, b) => {
         const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -173,7 +173,7 @@ export const OwnerBilling: React.FC = () => {
     const refundsRef = collection(db, 'restaurants', user.tenantId, 'refunds');
     const unsubRefunds = onSnapshot(refundsRef, (snap) => {
       const list: any[] = [];
-      snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
       setRefunds(list.sort((a, b) => {
         const rA = a.refundedAt ? new Date(a.refundedAt).getTime() : 0;
         const rB = b.refundedAt ? new Date(b.refundedAt).getTime() : 0;
@@ -606,7 +606,7 @@ export const OwnerBilling: React.FC = () => {
       });
 
       const updatedOrder = { 
-        ...selectedOrder, 
+        ...(selectedOrder as IOrder), 
         items: updatedItems, 
         subtotal: newSubtotal, 
         tax: newTax, 
@@ -660,7 +660,7 @@ export const OwnerBilling: React.FC = () => {
       });
 
       const updatedOrder = {
-        ...selectedOrder,
+        ...(selectedOrder as IOrder),
         reprintCount: nextCount,
         reprintsLog: updatedLogs
       };
@@ -846,7 +846,7 @@ export const OwnerBilling: React.FC = () => {
         wallet: walletVal
       };
     } else {
-      paymentBreakdown[paymentMode] = roundedTotal;
+      paymentBreakdown[paymentMode as 'cash' | 'upi' | 'card' | 'wallet'] = roundedTotal;
     }
 
     try {
@@ -923,7 +923,7 @@ export const OwnerBilling: React.FC = () => {
       toast.success('Invoice settled and table closed!', { icon: '💰' });
       setIsCheckoutOpen(false);
       
-      const refreshedOrder = { ...selectedOrder, ...updatedOrderData };
+      const refreshedOrder = { ...(selectedOrder as IOrder), ...updatedOrderData } as IOrder;
       setSelectedOrder(refreshedOrder);
       setIsInvoicePreviewOpen(true);
     } catch (e) {
@@ -2292,7 +2292,7 @@ export const OwnerBilling: React.FC = () => {
               <div className="text-[10px] space-y-1">
                 <p className="font-bold text-slate-455">Settlement Info:</p>
                 {(() => {
-                  const m = selectedOrder.paymentMethods || {};
+                  const m: Partial<IPaymentBreakdown> = selectedOrder.paymentMethods || {};
                   const parts = [];
                   if (m.cash) parts.push(`Cash: ${formatVal(m.cash)}`);
                   if (m.upi) parts.push(`UPI: ${formatVal(m.upi)}`);

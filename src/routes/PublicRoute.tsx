@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getDashboardRoute } from '../utils/navigation';
 
 export const PublicRoute: React.FC = () => {
   const { user, role, isLoading } = useAuth();
@@ -16,10 +17,8 @@ export const PublicRoute: React.FC = () => {
 
   // If already authenticated, redirect to appropriate role dashboard
   if (user && role) {
-    if (role === 'super-admin') {
-      return <Navigate to="/super-admin" replace />;
-    }
-    return <Navigate to={`/dashboard/${role}`} replace />;
+    const destination = getDashboardRoute(role);
+    return <Navigate to={destination} replace />;
   }
 
   return <Outlet />;

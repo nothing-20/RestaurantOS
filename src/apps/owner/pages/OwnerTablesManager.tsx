@@ -187,7 +187,7 @@ export const OwnerTablesManager: React.FC = () => {
       querySnap.forEach((doc) => {
         const item = doc.data() as ITableItem;
         if (!item.isArchived) {
-          list.push({ id: doc.id, ...item });
+          list.push({ id: doc.id, ...(item as any) } as ITableItem);
         }
       });
       list.sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, undefined, { numeric: true }));

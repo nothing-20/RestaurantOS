@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { getDashboardRoute } from '../../utils/navigation';
 import { motion } from 'framer-motion';
 
 // UI Kit components
@@ -31,7 +32,7 @@ export const LandingPage: React.FC = () => {
     navigate(path);
   };
 
-  // Continue as customer handles redirection based on auth status
+  // Continue as customer handles redirection strictly for customer role
   const handleCustomerContinue = () => {
     if (user && user.role === 'customer') {
       navigate('/customer/home');
@@ -76,7 +77,13 @@ export const LandingPage: React.FC = () => {
           
           {user ? (
             <div className="flex items-center space-x-2">
-              <span className="text-[10px] text-slate-400 font-bold hidden sm:inline">{user.displayName}</span>
+              <span className="text-[10px] text-slate-400 font-bold hidden sm:inline">{user.displayName} ({user.role})</span>
+              <button
+                onClick={() => navigate(getDashboardRoute(user.role))}
+                className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary rounded-xl text-[10px] font-bold uppercase transition-all"
+              >
+                Go to Dashboard
+              </button>
               <button 
                 onClick={logout}
                 className="px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-xl text-[10px] font-bold uppercase transition-all"
@@ -167,12 +174,20 @@ export const LandingPage: React.FC = () => {
                 
                 <div className="space-y-2.5 text-center pt-2 border-t border-dashed border-slate-800/30">
                   <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wide">Already part of a restaurant?</p>
-                  <Button
-                    onClick={() => navigate('/staff/login')}
-                    className="w-full border border-slate-850 hover:border-slate-800 bg-slate-950/45 hover:bg-slate-900/60 text-slate-350 hover:text-textPearl"
-                  >
-                    <span>Staff Sign In</span>
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      onClick={() => navigate('/owner/login')}
+                      className="w-full border border-emerald-500/40 hover:border-emerald-500/70 bg-emerald-950/30 hover:bg-emerald-900/50 text-emerald-400 font-bold"
+                    >
+                      <span>Owner Sign In</span>
+                    </Button>
+                    <Button
+                      onClick={() => navigate('/staff/login')}
+                      className="w-full border border-slate-850 hover:border-slate-800 bg-slate-950/45 hover:bg-slate-900/60 text-slate-350 hover:text-textPearl"
+                    >
+                      <span>Staff Sign In</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
             </Card>

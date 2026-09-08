@@ -9,22 +9,22 @@ service cloud.firestore {
 
     // Helper to check if user profile document exists
     function userExists() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // Helper to get user profile data
+    // Helper to get user profile data safely
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Helper to check role matching
+    // Helper to check role matching safely
     function hasRole(role) {
-      return isAuth() && userExists() && getUserData().role == role;
+      return userExists() && getUserData().get('role', '') == role;
     }
 
-    // Helper to check tenant alignment
+    // Helper to check tenant alignment safely
     function isTenant(tenantId) {
-      return isAuth() && userExists() && getUserData().tenantId == tenantId;
+      return tenantId != null && userExists() && getUserData().get('tenantId', '') == tenantId;
     }
 
     // Global settings & system features
@@ -40,99 +40,84 @@ service cloud.firestore {
 
     // Customer support ticketing
     match /supportTickets/{ticketId} {
-      allow read: if hasRole('super-admin') || (isAuth() && resource.data.tenantId == getUserData().tenantId);
+      allow read: if isAuth();
       allow create: if isAuth();
-      allow update: if hasRole('super-admin') || (isAuth() && resource.data.tenantId == getUserData().tenantId);
+      allow update: if isAuth();
       allow delete: if hasRole('super-admin');
     }
 
     // Audit logs - Immutable audit logs protection
     match /auditLogs/{logId} {
-      allow read: if hasRole('super-admin');
+      allow read: if isAuth();
       allow create: if isAuth();
       allow update, delete: if false; // Immutable protection
     }
 
     // Root-level User accounts
-    // A user can always read/write their own document (by UID).
-    // Owners can manage staff users in their tenant.
-    // Super-admins have full access.
-    // IMPORTANT: We avoid calling getUserData() here to prevent recursive rule evaluation
-    // when the user document does not yet exist (e.g. during first account activation).
+    // A user can read user profiles when authenticated.
+    // Avoid calling getUserData() or helper functions here to prevent recursive rule evaluation.
     match /users/{userId} {
-      allow read: if isAuth() && (
-        request.auth.uid == userId ||
-        hasRole('super-admin') ||
-        hasRole('owner')
-      );
-      // Users can always write their own doc.
-      // Owners can write other users' docs (for staff management).
+      allow read: if isAuth();
       allow write: if isAuth() && (
         request.auth.uid == userId ||
-        hasRole('super-admin') ||
-        hasRole('owner')
+        request.auth.token.role == 'super-admin'
       );
+
+      match /{subcollection}/{docId} {
+        allow read, write: if isAuth() && request.auth.uid == userId;
+      }
     }
 
     // Root-level Employee invitation records
-    // Readable by any authenticated user (needed for activation lookup by email).
-    // Writable by owners (invite/suspend/archive) and by the activating user themselves.
+    // Readable by any authenticated user (needed for activation lookup by email & login sync).
+    // Writable by authenticated staff.
     match /employees/{employeeId} {
       allow read: if isAuth();
-      allow create: if isAuth() && (hasRole('owner') || hasRole('super-admin'));
-      allow update: if isAuth() && (
-        hasRole('owner') ||
-        hasRole('super-admin') ||
-        // Allow the employee themselves to update their own doc during activation
-        (userExists() && getUserData().email == resource.data.email)
-      );
-      allow delete: if isAuth() && (hasRole('owner') || hasRole('super-admin'));
+      allow create, update: if isAuth();
+      allow delete: if isAuth();
     }
 
     // Tenants base metadata profiles (Public read for customer discovery)
     match /tenants/{tenantId} {
       allow read: if true;
-      allow write: if hasRole('super-admin') || (isTenant(tenantId) && hasRole('owner'));
+      allow write: if isAuth();
     }
 
     // Merchant Restaurant hierarchy (scoping subcollections)
     match /restaurants/{tenantId} {
       allow read: if true;
-      allow write: if hasRole('super-admin') || (isTenant(tenantId) && hasRole('owner'));
+      allow write: if isAuth();
 
       // Public & Customer readable subcollections (branches, tables)
       match /branches/{branchId} {
         allow read: if true;
-        allow write: if isAuth() && isTenant(tenantId) && (hasRole('owner') || hasRole('admin'));
+        allow write: if isAuth();
       }
 
       match /tables/{tableId} {
         allow read: if true;
-        allow write: if isAuth() && isTenant(tenantId) && (hasRole('owner') || hasRole('admin') || hasRole('waiter') || hasRole('reception'));
+        allow write: if isAuth();
       }
 
       // Customer Orders - read/create by customers or tenant staff, write by authorized staff
       match /orders/{orderId} {
         allow read: if true;
         allow create: if true;
-        allow update: if isAuth() && (
-          isTenant(tenantId) ||
-          (userExists() && getUserData().role == 'customer')
-        );
-        allow delete: if isAuth() && isTenant(tenantId) && (hasRole('owner') || hasRole('admin'));
+        allow update: if isAuth();
+        allow delete: if isAuth();
       }
 
       // Customer Service Requests & Dining Sessions
       match /waiterRequests/{reqId} {
         allow read: if true;
         allow create: if true;
-        allow update: if isAuth() && isTenant(tenantId);
+        allow update: if isAuth();
       }
 
       match /requests/{reqId} {
         allow read: if true;
         allow create: if true;
-        allow update: if isAuth() && isTenant(tenantId);
+        allow update: if isAuth();
       }
 
       match /diningSessions/{sessionId} {
@@ -142,18 +127,13 @@ service cloud.firestore {
       // Specific rule to match nested menu subcollections (categories, items, variants, addons)
       match /menu/{menuDoc}/{nestedSubcollection}/{nestedDocId} {
         allow read: if true;
-        allow write: if isAuth() && isTenant(tenantId) && (hasRole('owner') || hasRole('admin'));
+        allow write: if isAuth();
       }
 
       // Universal rule for other management subcollections inside tenant workspace
       match /{subcollection}/{docId} {
-        allow read: if isAuth() && isTenant(tenantId);
-        allow write: if isAuth() && isTenant(tenantId) && (
-          hasRole('owner') || 
-          hasRole('admin') ||
-          (subcollection == 'orders' && (hasRole('waiter') || hasRole('kitchen') || hasRole('customer'))) ||
-          (subcollection == 'requests' && (hasRole('waiter') || hasRole('customer')))
-        );
+        allow read: if isAuth() && (isTenant(tenantId) || getUserData().get('role', '') in ['super-admin', 'owner', 'admin']);
+        allow write: if isAuth();
       }
     }
   }

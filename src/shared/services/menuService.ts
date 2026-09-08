@@ -21,7 +21,7 @@ export const menuService = {
    * @param tenantId - Optional tenant identifier.
    * @returns A promise resolving to the created item.
    */
-  createItem: (data: Omit<IMenuItem, 'id'>, tenantId?: string) => menuItemsService.create(data, tenantId),
+  createItem: (data: Omit<IMenuItem, 'id'> & { id?: string }, tenantId?: string) => menuItemsService.create(data, tenantId),
 
   /**
    * Updates an existing menu item.
@@ -57,7 +57,7 @@ export const menuService = {
    * @param tenantId - Optional tenant identifier.
    * @returns A promise resolving to the created category.
    */
-  createCategory: (data: Omit<IMenuCategory, 'id'>, tenantId?: string) => menuCategoriesService.create(data, tenantId),
+  createCategory: (data: Omit<IMenuCategory, 'id'> & { id?: string }, tenantId?: string) => menuCategoriesService.create(data, tenantId),
 
   /**
    * Updates an existing menu category.

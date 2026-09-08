@@ -1,9 +1,11 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getDashboardRoute } from '../utils/navigation';
 
 export const PublicGuard: React.FC = () => {
   const { user, role, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -14,21 +16,28 @@ export const PublicGuard: React.FC = () => {
     );
   }
 
-  // If already authenticated, redirect to appropriate role dashboard
+  // If already authenticated
   if (user && role) {
-    // Explicit path map — never use a template literal that can produce wrong paths
-    const ROLE_PATHS: Record<string, string> = {
-      'customer': '/customer/home',
-      'super-admin': '/super-admin',
-      'owner': '/dashboard/owner',
-      'admin': '/dashboard/owner',
-      'manager': '/dashboard/manager',
-      'waiter': '/dashboard/waiter',
-      'kitchen': '/dashboard/kitchen',
-      'cashier': '/dashboard/cashier',
-      'reception': '/dashboard/reception',
-    };
-    const destination = ROLE_PATHS[role] || '/';
+    const isOwnerOrAdmin = ['owner', 'admin', 'super-admin'].includes(role);
+    const path = location.pathname;
+
+    // If authenticated owner/admin visits owner login, go directly to owner dashboard
+    if (isOwnerOrAdmin && (path === '/owner/login' || path === '/login')) {
+      return <Navigate to="/owner/dashboard" replace />;
+    }
+
+    // If authenticated customer visits customer login, go to customer home
+    if (role === 'customer' && path === '/customer/login') {
+      return <Navigate to="/customer/home" replace />;
+    }
+
+    // Critical: If customer navigates to owner or staff login portal, do NOT trap them
+    // and bounce them back to /customer/home. Let them enter owner credentials!
+    if (role === 'customer' && (path === '/owner/login' || path === '/staff/login' || path === '/login')) {
+      return <Outlet />;
+    }
+
+    const destination = getDashboardRoute(role);
     return <Navigate to={destination} replace />;
   }
 

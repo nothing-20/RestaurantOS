@@ -4,6 +4,7 @@ import {
   collection, 
   onSnapshot, 
   query, 
+  limit,
   doc, 
   updateDoc, 
   where,
@@ -12,6 +13,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
+import { emailService } from '../../../services/email/emailService';
 import { useAuth } from '../../../context/AuthContext';
 import { IOrder } from '../../../types';
 import { formatPrice } from '../../../shared/utils/format';
@@ -119,8 +121,9 @@ export const OwnerOverview: React.FC = () => {
 
     setIsLoading(true);
 
-    // 1. Orders
-    const unsubOrders = onSnapshot(collection(db, 'restaurants', tenantId, 'orders'), (snap) => {
+    // 1. Orders (bounded to 30 recent orders)
+    const qOrders = query(collection(db, 'restaurants', tenantId, 'orders'), limit(30));
+    const unsubOrders = onSnapshot(qOrders, (snap) => {
       const list: IOrder[] = [];
       snap.forEach(d => list.push({ ...d.data() } as IOrder));
       setOrders(list);
@@ -130,58 +133,65 @@ export const OwnerOverview: React.FC = () => {
       toast.error('Failed to stream sales records.');
     });
 
-    // 2. Inventory
-    const unsubInventory = onSnapshot(collection(db, 'restaurants', tenantId, 'inventory'), (snap) => {
+    // 2. Inventory (bounded to 30 items)
+    const qInventory = query(collection(db, 'restaurants', tenantId, 'inventory'), limit(30));
+    const unsubInventory = onSnapshot(qInventory, (snap) => {
       const list: any[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() }));
       setInventory(list);
     });
 
-    // 3. Tables
-    const unsubTables = onSnapshot(collection(db, 'restaurants', tenantId, 'tables'), (snap) => {
+    // 3. Tables (bounded to 20 tables)
+    const qTables = query(collection(db, 'restaurants', tenantId, 'tables'), limit(20));
+    const unsubTables = onSnapshot(qTables, (snap) => {
       const list: any[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() }));
       setTables(list);
     });
 
-    // 4. Satisfaction Ratings
-    const unsubRatings = onSnapshot(collection(db, 'restaurants', tenantId, 'satisfactionRatings'), (snap) => {
+    // 4. Satisfaction Ratings (bounded to 15 ratings)
+    const qRatings = query(collection(db, 'restaurants', tenantId, 'satisfactionRatings'), limit(15));
+    const unsubRatings = onSnapshot(qRatings, (snap) => {
       const list: any[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() }));
       setSatisfactionRatings(list);
     });
 
-    // 5. Strategy Plans
-    const unsubStrategies = onSnapshot(collection(db, 'restaurants', tenantId, 'strategyPlans'), (snap) => {
+    // 5. Strategy Plans (bounded to 10 plans)
+    const qStrategies = query(collection(db, 'restaurants', tenantId, 'strategyPlans'), limit(10));
+    const unsubStrategies = onSnapshot(qStrategies, (snap) => {
       const list: any[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() }));
       setStrategyPlans(list);
     });
 
-    // 6. Automation Status / History
-    const unsubHistory = onSnapshot(collection(db, 'restaurants', tenantId, 'jobsHistory'), (snap) => {
+    // 6. Automation Status / History (bounded to 15 jobs)
+    const qHistory = query(collection(db, 'restaurants', tenantId, 'jobsHistory'), limit(15));
+    const unsubHistory = onSnapshot(qHistory, (snap) => {
       const list: any[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() }));
       setJobsHistory(list.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()));
     });
 
-    // 7. Automation Rules
-    const unsubRules = onSnapshot(collection(db, 'restaurants', tenantId, 'automationRules'), (snap) => {
+    // 7. Automation Rules (bounded to 15 rules)
+    const qRules = query(collection(db, 'restaurants', tenantId, 'automationRules'), limit(15));
+    const unsubRules = onSnapshot(qRules, (snap) => {
       const list: any[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() }));
       setAutomationRules(list);
     });
 
-    // 8. Manager Reviews
-    const unsubReviews = onSnapshot(collection(db, 'restaurants', tenantId, 'managerReviews'), (snap) => {
+    // 8. Manager Reviews (bounded to 15 reviews)
+    const qReviews = query(collection(db, 'restaurants', tenantId, 'managerReviews'), limit(15));
+    const unsubReviews = onSnapshot(qReviews, (snap) => {
       const list: any[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() }));
       setManagerReviews(list);
     });
 
-    // 9. Staff roster
+    // 9. Staff roster (bounded to 20 staff)
     const unsubEmployees = onSnapshot(
-      query(collection(db, 'employees'), where('tenantId', '==', tenantId)), 
+      query(collection(db, 'employees'), where('tenantId', '==', tenantId), limit(20)), 
       (snap) => {
         const list: any[] = [];
         snap.forEach(d => list.push({ id: d.id, ...d.data() }));
@@ -189,9 +199,9 @@ export const OwnerOverview: React.FC = () => {
       }
     );
 
-    // 10. Menu Items subscription
+    // 10. Menu Items subscription (bounded to 30 items)
     const unsubMenuItems = onSnapshot(
-      collection(db, 'restaurants', tenantId, 'menuItems'),
+      query(collection(db, 'restaurants', tenantId, 'menuItems'), limit(30)),
       (snap) => {
         const list: any[] = [];
         snap.forEach(d => list.push({ id: d.id, ...d.data() }));
@@ -614,34 +624,16 @@ export const OwnerOverview: React.FC = () => {
     if (!validateInvite() || !tenantId || !user?.uid) return;
     setIsSubmittingInvite(true);
     try {
-      // Check if employee already exists
-      const qCheck = query(
-        collection(db, 'employees'),
-        where('tenantId', '==', tenantId),
-        where('email', '==', inviteForm.email.trim().toLowerCase())
-      );
-      const checkSnap = await getDocs(qCheck);
-      if (!checkSnap.empty) {
-        toast.error(`An invitation/employee with email ${inviteForm.email} already exists.`);
-        setIsSubmittingInvite(false);
-        return;
-      }
+      const trimmedEmail = inviteForm.email.trim().toLowerCase();
 
-      const now = new Date().toISOString();
-      await addDoc(collection(db, 'employees'), {
+      await emailService.sendStaffInvitation({
         fullName: inviteForm.fullName.trim(),
-        email: inviteForm.email.trim().toLowerCase(),
+        email: trimmedEmail,
         phone: inviteForm.phone.trim(),
         role: inviteRole,
         department: inviteForm.department.trim() || (inviteRole === 'kitchen' ? 'Kitchen' : 'Service'),
         tenantId: tenantId,
-        branchId: '',
-        status: 'pending',
-        activationStatus: 'invited',
-        firebaseUid: null,
-        invitedAt: now,
         createdBy: user.uid,
-        updatedAt: now,
       });
 
       // Log action log event
@@ -1424,6 +1416,7 @@ export const OwnerOverview: React.FC = () => {
             </Card>
           )}
         </div>
+      </div>
 
       {/* 4. Bottom Grid - Inventory Snapshot & Staff Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -14,7 +14,7 @@ export interface IOrderItem {
 }
 
 export interface ITimelineEvent {
-  type: 'ORDER_CREATED' | 'ACCEPTED' | 'CHEF_ASSIGNED' | 'PREPARING' | 'READY' | 'PICKED_UP' | 'SERVED' | 'COMPLETED' | 'PAID' | 'CLOSED' | 'ARCHIVED' | 'CANCELLED' | 'PAUSED' | 'RESUMED' | 'RECALLED' | 'BATCH_REFILL' | 'WASTE';
+  type: 'ORDER_CREATED' | 'ACCEPTED' | 'CHEF_ASSIGNED' | 'PREPARING' | 'READY' | 'PICKED_UP' | 'DELIVERED' | 'SERVED' | 'COMPLETED' | 'PAID' | 'CLOSED' | 'ARCHIVED' | 'CANCELLED' | 'PAUSED' | 'RESUMED' | 'RECALLED' | 'BATCH_REFILL' | 'WASTE';
   title: string;
   description?: string;
   performedBy?: string;
@@ -28,6 +28,8 @@ export interface IPaymentBreakdown {
   upi: number;    // in cents
   card: number;   // in cents
   wallet: number; // in cents
+  credit?: number; // for backward compatibility
+  qr?: number; // for backward compatibility
 }
 
 export interface IOrder {
@@ -35,6 +37,7 @@ export interface IOrder {
   tableNumber: string;
   customerName: string;
   phone: string;
+  customerPhone?: string;
   items: IOrderItem[];
   subtotal: number; // in cents
   tax: number; // in cents
@@ -58,7 +61,6 @@ export interface IOrder {
   // Pause / Resume
   pauseReason?: string;
   pausedAt?: string;
-  resumedAt?: string;
   pausedBy?: string;
 
   // Recall Ready

@@ -48,10 +48,13 @@ export const strategyService = {
 
     if (achieved && goal.status === 'active') {
       await logEvent(tenantId, {
-        type: 'Goal Achieved',
+        eventType: 'Goal Achieved',
+        eventCategory: 'Operational',
+        performedBy: 'strategy-engine',
+        performedByRole: 'system',
+        title: 'Operational Goal Achieved',
         description: `Operational goal achieved: Target of ${goal.targetValue} reached with ${currentValue.toFixed(1)} ${goal.unit}.`,
-        severity: 'info',
-        metadata: { goalId: goal.id, type: goal.type }
+        metadata: { goalId: goal.id, type: goal.type, severity: 'info' }
       });
     }
 

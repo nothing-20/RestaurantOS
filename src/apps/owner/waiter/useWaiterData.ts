@@ -51,7 +51,7 @@ export function useWaiterData() {
       (snapshot) => {
         const list: IOrder[] = [];
         snapshot.forEach((docSnap) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as IOrder);
+          list.push({ id: docSnap.id, orderId: docSnap.id, ...(docSnap.data() as any) } as IOrder);
         });
         list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setOrders(list);

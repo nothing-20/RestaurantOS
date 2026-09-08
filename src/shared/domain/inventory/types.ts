@@ -82,6 +82,7 @@ export interface IPurchaseSuggestion {
   priority: 'low' | 'medium' | 'high' | 'critical';
   createdAt: string;
   status: 'pending' | 'ordered' | 'completed';
+  requiredQuantity?: number; // for backward compatibility
 }
 
 export interface IWasteLog {

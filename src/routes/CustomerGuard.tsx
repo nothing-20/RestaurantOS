@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getDashboardRoute } from '../utils/navigation';
 
 export const CustomerGuard: React.FC = () => {
   const { user, role, isLoading } = useAuth();
@@ -19,7 +20,8 @@ export const CustomerGuard: React.FC = () => {
   }
 
   if (role !== 'customer') {
-    return <Navigate to="/unauthorized" replace />;
+    const destination = getDashboardRoute(role);
+    return <Navigate to={destination} replace />;
   }
 
   return <Outlet />;

@@ -1,38 +1,31 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../../../config/firebase';
 import Button from '../../../components/ui/Button/Button';
 import Input from '../../../components/ui/Input/Input';
 import Card from '../../../components/ui/Card/Card';
-import toast from 'react-hot-toast';
-
-// Explicit role-to-path map — no template literals, no surprises
-const ROLE_PATHS: Record<string, string> = {
-  'super-admin': '/super-admin',
-  owner:         '/dashboard/owner',
-  admin:         '/dashboard/owner',
-  manager:       '/dashboard/manager',
-  waiter:        '/dashboard/waiter',
-  kitchen:       '/dashboard/kitchen',
-  cashier:       '/dashboard/cashier',
-  reception:     '/dashboard/reception',
-};
+import { useToastStore } from '../../../components/ui/Toast/Toast';
+import { getDashboardRoute } from '../../../utils/navigation';
+import { UserCheck, ShieldAlert, ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 
 export const StaffLogin: React.FC = () => {
   const navigate = useNavigate();
+  const { addToast } = useToastStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   const validate = () => {
     const next: typeof errors = {};
-    if (!email.trim()) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
       next.email = 'Email address is required.';
-    } else if (!/\S+@\S+\.\S+/.test(email.trim())) {
+    } else if (!/\S+@\S+\.\S+/.test(cleanEmail)) {
       next.email = 'Please enter a valid email address.';
     }
     if (!password) {
@@ -46,64 +39,96 @@ export const StaffLogin: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanEmail = email.trim().toLowerCase();
+    console.log('[AUTH Staff Login] Login started for:', cleanEmail);
     if (!validate()) return;
 
     setIsLoading(true);
     try {
       // 1. Firebase Authentication
-      const credentials = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      console.log('[AUTH Staff Login] Calling Firebase authentication...');
+      const credentials = await signInWithEmailAndPassword(auth, cleanEmail, password);
       const fUser = credentials.user;
 
-      // 2. Fetch users/{uid} — the authoritative auth record
-      const userDocRef = doc(db, 'users', fUser.uid);
-      const userSnap = await getDoc(userDocRef);
+      console.log('[AUTH Staff Login] Firebase Auth success:', {
+        uid: fUser.uid,
+        email: fUser.email
+      });
 
-      if (!userSnap.exists()) {
-        // No users/{uid} doc means the account was never activated via /staff/activate
+      // 2. Authoritative profile resolution
+      const { resolveAuthenticatedUser } = await import('../../../shared/services/roleResolver');
+      const profile = await resolveAuthenticatedUser(fUser);
+
+      if (!profile) {
+        console.warn('[AUTH Staff Login] Profile missing for UID:', fUser.uid);
         await auth.signOut();
-        toast.error(
-          'Your staff account is not linked. Please activate it at "Activate Staff Account".',
-          { id: 'profile-missing-toast', duration: 7000 }
-        );
+        addToast('Your account is authenticated, but no staff profile is associated with this account. Please contact your restaurant administrator.', 'error');
         setIsLoading(false);
         return;
       }
 
-      const profile = userSnap.data();
+      console.log('[AUTH Staff Login] Resolved profile:', {
+        role: profile.role,
+        tenantId: profile.tenantId,
+        status: profile.status
+      });
 
-      // 3. Status check — suspended accounts are blocked
+      // 3. Account Status Check
       if (profile.status && profile.status !== 'active') {
+        console.warn('[AUTH Staff Login] Staff account inactive/suspended:', profile.status);
         await auth.signOut();
-        toast.error(
-          'Your account has been suspended. Contact your restaurant administrator.',
-          { id: 'status-disabled-toast' }
-        );
+        addToast('Your staff account is currently inactive or suspended. Contact your administrator.', 'error');
         setIsLoading(false);
         return;
       }
 
-      // 4. Role check — must have a known role
-      if (!profile.role || !ROLE_PATHS[profile.role]) {
+      // 4. Role Validation & Portal Isolation
+      if (profile.role === 'customer') {
+        console.warn('[AUTH Staff Login] Customer account attempted staff login. Rejecting.');
         await auth.signOut();
-        toast.error(
-          'Unable to determine your role. Contact your restaurant administrator.',
-          { id: 'no-role-toast' }
-        );
+        addToast('This account is registered as a diner account. Please sign in via Customer Login.', 'error');
         setIsLoading(false);
         return;
       }
 
-      toast.success(`Welcome back, ${profile.fullName || 'Staff'}!`);
-      navigate(ROLE_PATHS[profile.role], { replace: true });
+      if (!profile.tenantId && profile.role !== 'super-admin') {
+        console.error('[AUTH Staff Login] Staff profile missing tenantId');
+        await auth.signOut();
+        addToast('Your staff account is not assigned to a restaurant tenant. Contact your administrator.', 'error');
+        setIsLoading(false);
+        return;
+      }
+
+      // 5. Successful Role-Based Routing
+      const destination = getDashboardRoute(profile.role);
+      console.log('[AUTH Staff Login] Successful auth. Routing details:', {
+        uid: fUser.uid,
+        email: cleanEmail,
+        portal: 'STAFF',
+        resolvedRole: profile.role,
+        tenantId: profile.tenantId,
+        destination
+      });
+
+      addToast(`Welcome back, ${profile.displayName || 'Staff'}!`, 'success');
+      navigate(destination, { replace: true });
     } catch (err: any) {
-      console.error(err);
-      const msg =
-        err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found'
-          ? 'Incorrect email or password. If you have not activated yet, use the link below.'
-          : err.code === 'auth/too-many-requests'
-          ? 'Too many attempts. Please wait a moment and try again.'
-          : err.message || 'Authentication failed. Please check your credentials.';
-      toast.error(msg, { id: 'auth-error-toast' });
+      console.error('[AUTH Staff Login Error]', err);
+      let msg = 'Authentication failed. Please check your credentials.';
+
+      if (err.message === 'PERMISSION_DENIED_USER_PROFILE') {
+        msg = 'Your account is authenticated, but your staff profile cannot be accessed because of a database authorization configuration issue. Contact your administrator.';
+      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        msg = 'Incorrect email or password. If you have an invitation, activate your account first.';
+      } else if (err.code === 'permission-denied' || err.message?.includes('insufficient permissions')) {
+        msg = 'Your account is authenticated, but your staff profile cannot be accessed because of an authorization configuration problem. Contact your administrator.';
+      } else if (err.code === 'auth/too-many-requests') {
+        msg = 'Too many attempts. Please wait a moment and try again.';
+      } else if (err.message) {
+        msg = err.message;
+      }
+
+      addToast(msg, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -120,26 +145,23 @@ export const StaffLogin: React.FC = () => {
         {/* Brand header */}
         <div className="flex flex-col items-center text-center space-y-3">
           <div className="w-12 h-12 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/5">
-            <span className="text-primary font-display font-extrabold text-2xl">R</span>
+            <UserCheck className="w-6 h-6 text-primary" />
           </div>
           <div className="space-y-0.5">
-            <h1 className="text-sm font-display font-extrabold text-slate-500 tracking-wider uppercase">RestaurantOS</h1>
-            <span className="text-xl font-display font-extrabold text-textPearl">Staff Portal</span>
+            <p className="text-[11px] font-display font-extrabold text-slate-500 tracking-wider uppercase">RestaurantOS</p>
+            <h1 className="text-xl font-display font-extrabold text-textPearl">Staff Portal Sign In</h1>
           </div>
         </div>
 
-        {/* Login card */}
+        {/* Login Card */}
         <Card className="p-8 border-slate-800/60 bg-slate-900/40 backdrop-blur-md rounded-3xl shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-1 text-center pb-2">
-              <h2 className="text-base font-bold text-textPearl">Welcome Back</h2>
-              <p className="text-[11px] text-slate-500 font-semibold">Enter your credentials to open your dashboard.</p>
-            </div>
 
+            {/* Email field */}
             <Input
-              label="Staff Email Address"
+              label="Staff Email Address *"
               type="email"
-              placeholder="chef@restaurant.com"
+              placeholder="you@restaurant.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               error={errors.email}
@@ -147,55 +169,61 @@ export const StaffLogin: React.FC = () => {
               required
             />
 
-            <div>
+            {/* Password field */}
+            <div className="relative">
               <Input
-                label="Password"
-                type="password"
-                placeholder="••••••••"
+                label="Password *"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 error={errors.password}
                 disabled={isLoading}
                 required
               />
-              <div className="flex justify-end mt-1.5">
-                <Link
-                  to="/forgot-password"
-                  className="text-[10px] font-bold text-primary hover:underline"
-                >
-                  Forgot Password?
-                </Link>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-8 text-slate-500 hover:text-slate-300 transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
 
-            <Button type="submit" className="w-full" isLoading={isLoading}>
-              Sign In
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              className="w-full flex items-center justify-center space-x-2"
+              isLoading={isLoading}
+            >
+              <span>Sign In to Staff Portal</span>
+              <ArrowRight className="w-4 h-4" />
             </Button>
           </form>
 
-          {/* Divider */}
-          <div className="mt-6 pt-5 border-t border-slate-800/50">
-            <div className="text-center space-y-1">
-              <p className="text-[10px] text-slate-600 font-semibold">First time joining your restaurant?</p>
-              <Link
-                to="/staff/activate"
-                className="block w-full text-center py-2.5 rounded-xl border border-emerald-500/25 bg-emerald-500/5 text-emerald-400 text-xs font-bold hover:bg-emerald-500/10 hover:border-emerald-500/40 transition-all"
-              >
-                ✦ Activate Staff Account
-              </Link>
-            </div>
+          {/* Account activation promo banner */}
+          <div className="mt-6 pt-5 border-t border-slate-800/60 text-center space-y-2">
+            <p className="text-[11px] text-slate-400 font-semibold">Received a staff invitation email?</p>
+            <Link
+              to="/staff/activate"
+              className="inline-flex items-center space-x-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-bold hover:underline transition-colors"
+            >
+              <span>Activate Your Staff Account Here →</span>
+            </Link>
           </div>
         </Card>
 
-        {/* Back link */}
-        <div className="text-center">
-          <Link
-            to="/"
-            className="text-[11px] text-slate-500 hover:text-textPearl transition-colors font-bold uppercase tracking-wider"
-          >
+        {/* Footer Navigation Links */}
+        <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold px-2">
+          <Link to="/" className="hover:text-textPearl transition-colors font-bold">
             ← Back to Home
           </Link>
+          <Link to="/customer/login" className="hover:text-textPearl transition-colors font-bold">
+            Customer Login →
+          </Link>
         </div>
+
       </div>
     </div>
   );

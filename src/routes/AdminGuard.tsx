@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getDashboardRoute } from '../utils/navigation';
 
 export const AdminGuard: React.FC = () => {
   const { user, role, isLoading } = useAuth();
@@ -15,11 +16,12 @@ export const AdminGuard: React.FC = () => {
   }
 
   if (!user || !role) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/staff/login" replace />;
   }
 
   if (role !== 'super-admin') {
-    return <Navigate to="/unauthorized" replace />;
+    const destination = getDashboardRoute(role);
+    return <Navigate to={destination} replace />;
   }
 
   return <Outlet />;

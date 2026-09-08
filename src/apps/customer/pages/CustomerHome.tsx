@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import Card from '../../../components/ui/Card/Card';
@@ -167,9 +167,12 @@ export const CustomerHome: React.FC = () => {
 
   // Stream onboarded restaurants branches from Firestore in real-time
   useEffect(() => {
+    console.log('[CustomerHome] Registry initialization started');
+    console.log('[CustomerHome] Registry query started');
     setIsLoading(true);
-    const colRef = collection(db, 'tenants');
-    const unsubscribe = onSnapshot(colRef, (snap) => {
+
+    const qTenants = query(collection(db, 'tenants'), limit(12));
+    const unsubscribe = onSnapshot(qTenants, (snap) => {
       const list: any[] = [];
       let index = 0;
       snap.forEach(d => {
@@ -213,24 +216,14 @@ export const CustomerHome: React.FC = () => {
       });
 
       if (list.length === 0) {
-        // Fallback mockup
-        const fallback = [
-          { id: 'l-ambroisie', name: "L'Ambroisie", cuisine: "French Haute Cuisine & Fine Dining", rating: 4.9, reviewsCount: 384, priceRange: '$$$', vegOptions: true, nonVegOptions: true, openNow: true, isFeatured: true, isTrending: true, isNew: false, hasOffer: true, offerText: '20% OFF', image: REST_MOCK_IMAGES[0], city: 'Bengaluru', area: 'Indiranagar', latitude: 12.9716, longitude: 77.5946, supportsSeatPreference: true, availableTables: 3, waitingTime: 'Instant Seating', facilities: { outdoorSeating: true, liveMusic: false, rooftop: false, buffet: false } },
-          { id: 'shuko', name: "Shuko Sushi", cuisine: "Premium Japanese Omakase & Sushi", rating: 4.8, reviewsCount: 220, priceRange: '$$$', vegOptions: false, nonVegOptions: true, openNow: true, isFeatured: false, isTrending: true, isNew: true, hasOffer: false, offerText: '', image: REST_MOCK_IMAGES[3], city: 'Hyderabad', area: 'Hitech City', latitude: 17.3850, longitude: 78.4867, supportsSeatPreference: true, availableTables: 2, waitingTime: '15-20 mins wait', facilities: { outdoorSeating: false, liveMusic: true, rooftop: true, buffet: false } },
-          { id: 'osteria', name: "Osteria Francescana", cuisine: "Italian Fine Dining & Pasta", rating: 4.9, reviewsCount: 512, priceRange: '$$', vegOptions: true, nonVegOptions: true, openNow: true, isFeatured: true, isTrending: false, isNew: false, hasOffer: true, offerText: 'Free Dessert', image: REST_MOCK_IMAGES[1], city: 'Bengaluru', area: 'Koramangala', latitude: 12.9352, longitude: 77.6245, supportsSeatPreference: false, availableTables: 5, waitingTime: 'Instant Seating', facilities: { outdoorSeating: true, liveMusic: true, rooftop: false, buffet: true } }
-        ];
-        setRestaurantsList(fallback);
+        setRestaurantsList([]);
       } else {
         setRestaurantsList(list);
       }
+      setIsLoading(false);
     }, (error) => {
-      console.error('Failed to stream restaurants:', error);
-      const fallback = [
-        { id: 'l-ambroisie', name: "L'Ambroisie", cuisine: "French Haute Cuisine & Fine Dining", rating: 4.9, reviewsCount: 384, priceRange: '$$$', vegOptions: true, nonVegOptions: true, openNow: true, isFeatured: true, isTrending: true, isNew: false, hasOffer: true, offerText: '20% OFF', image: REST_MOCK_IMAGES[0], city: 'Bengaluru', area: 'Indiranagar', latitude: 12.9716, longitude: 77.5946, supportsSeatPreference: true, availableTables: 3, waitingTime: 'Instant Seating', facilities: { outdoorSeating: true, liveMusic: false, rooftop: false, buffet: false } },
-        { id: 'shuko', name: "Shuko Sushi", cuisine: "Premium Japanese Omakase & Sushi", rating: 4.8, reviewsCount: 220, priceRange: '$$$', vegOptions: false, nonVegOptions: true, openNow: true, isFeatured: false, isTrending: true, isNew: true, hasOffer: false, offerText: '', image: REST_MOCK_IMAGES[3], city: 'Hyderabad', area: 'Hitech City', latitude: 17.3850, longitude: 78.4867, supportsSeatPreference: true, availableTables: 2, waitingTime: '15-20 mins wait', facilities: { outdoorSeating: false, liveMusic: true, rooftop: true, buffet: false } },
-        { id: 'osteria', name: "Osteria Francescana", cuisine: "Italian Fine Dining & Pasta", rating: 4.9, reviewsCount: 512, priceRange: '$$', vegOptions: true, nonVegOptions: true, openNow: true, isFeatured: true, isTrending: false, isNew: false, hasOffer: true, offerText: 'Free Dessert', image: REST_MOCK_IMAGES[1], city: 'Bengaluru', area: 'Koramangala', latitude: 12.9352, longitude: 77.6245, supportsSeatPreference: false, availableTables: 5, waitingTime: 'Instant Seating', facilities: { outdoorSeating: true, liveMusic: true, rooftop: false, buffet: true } }
-      ];
-      setRestaurantsList(fallback);
+      console.error('[CustomerHome] Failed to stream restaurants:', error);
+      setRestaurantsList([]);
       setIsLoading(false);
     });
 
@@ -535,56 +528,64 @@ export const CustomerHome: React.FC = () => {
   const MiniHorizontalCard = ({ r }: { r: any }) => (
     <Card 
       key={r.id} 
-      className="group bg-slate-900/20 border-slate-900 hover:border-slate-850 rounded-2xl overflow-hidden flex flex-col justify-between shadow relative shrink-0 w-60 scroll-snap-align-start select-none"
+      className="group bg-white border border-[#EEE7E1] hover:border-[#E85D3F]/40 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md transition-all relative shrink-0 w-60 scroll-snap-align-start select-none"
     >
       <div className="h-28 w-full overflow-hidden relative">
-        <img src={r.image} alt={r.name} loading="lazy" className="h-full w-full object-cover group-hover:scale-102 transition-transform duration-300" />
+        <img src={r.image} alt={r.name} loading="lazy" className="h-full w-full object-cover group-hover:scale-103 transition-transform duration-300" />
         
         {/* Favorite Icon */}
         <button 
           onClick={(e) => toggleFavourite(r.id, e)}
-          className="absolute top-2 left-2 p-1 bg-slate-950/70 hover:bg-slate-950 border border-slate-900 rounded-lg text-slate-450 hover:text-white transition-colors"
+          className="absolute top-2 left-2 p-1.5 bg-white/90 hover:bg-white border border-[#EEE7E1] rounded-full text-[#6B6B6B] hover:text-[#E85D3F] transition-colors shadow-xs"
         >
-          <Heart className={`w-3 h-3 ${favourites.includes(r.id) ? 'fill-rose-500 text-rose-500' : ''}`} />
+          <Heart className={`w-3.5 h-3.5 ${favourites.includes(r.id) ? 'fill-[#E85D3F] text-[#E85D3F]' : ''}`} />
         </button>
 
         {/* Rating Badge */}
-        <span className="absolute top-2 right-2 bg-slate-950/80 border border-slate-800 backdrop-blur-md px-1.5 py-0.5 rounded text-[8.5px] font-bold text-slate-350 flex items-center gap-0.5 shadow-md">
-          <Star className="w-2.5 h-2.5 text-primary fill-current" /> {r.rating}
+        <span className="absolute top-2 right-2 bg-white/90 border border-[#EEE7E1] backdrop-blur-md px-2 py-0.5 rounded-full text-[9px] font-extrabold text-[#242424] flex items-center gap-0.5 shadow-xs">
+          <Star className="w-2.5 h-2.5 text-[#F4B942] fill-current" /> {r.rating}
         </span>
       </div>
 
-      <div className="p-3 space-y-1.5 text-left">
+      <div className="p-3.5 space-y-2 text-left">
         <div>
           <h4 
             onClick={() => navigate(`/customer/restaurant/${r.id}`)}
-            className="text-[11.5px] font-extrabold text-white group-hover:text-primary transition-colors cursor-pointer truncate"
+            className="text-xs font-extrabold text-[#242424] group-hover:text-[#E85D3F] transition-colors cursor-pointer truncate"
           >
             {r.name}
           </h4>
           
-          <div className="flex items-center space-x-1.5 text-[8.5px] text-slate-500 font-bold">
-            <span className="text-slate-400">{r.cuisine}</span>
+          <div className="flex items-center space-x-1.5 text-[9px] text-[#6B6B6B] font-semibold mt-0.5">
+            <span className="text-[#6B6B6B]">{r.cuisine}</span>
             <span>•</span>
-            <span className="text-slate-400">{r.priceRange}</span>
+            <span className="text-[#6B6B6B]">{r.priceRange}</span>
           </div>
         </div>
 
         {/* Dynamic Distance */}
-        <div className="flex justify-between items-center text-[8.5px] text-slate-550 pt-1 border-t border-slate-900/60">
-          <span className="flex items-center gap-0.5">
-            <MapPin className="w-2.5 h-2.5" /> 
+        <div className="flex justify-between items-center text-[9px] text-[#6B6B6B] pt-1.5 border-t border-[#EEE7E1]">
+          <span className="flex items-center gap-0.5 font-medium">
+            <MapPin className="w-2.5 h-2.5 text-[#E85D3F]" /> 
             {r.distance ? `${r.distance.toFixed(1)} mi` : '0.8 mi'}
           </span>
-          <span className="text-primary font-bold">{r.availableTables} tables left</span>
+          <span className="text-[#22A06B] font-bold">{r.availableTables} tables left</span>
         </div>
 
-        <button 
-          onClick={() => navigate(`/customer/booking?tenantId=${r.id}`)}
-          className="w-full py-1.5 bg-primary hover:bg-amber-500 text-[9px] font-extrabold text-slate-950 rounded-lg transition-all text-center mt-1"
-        >
-          Book Table
-        </button>
+        <div className="grid grid-cols-2 gap-1.5 mt-1">
+          <button 
+            onClick={() => navigate(`/customer/restaurant/${r.id}/menu`)}
+            className="py-1.5 bg-[#FFF8F2] border border-[#EEE7E1] hover:border-[#E85D3F]/40 text-[9.5px] font-extrabold text-[#242424] rounded-xl transition-all text-center cursor-pointer"
+          >
+            Menu
+          </button>
+          <button 
+            onClick={() => navigate(`/customer/booking?tenantId=${r.id}`)}
+            className="py-1.5 bg-[#E85D3F] hover:bg-[#D04B2F] text-[9.5px] font-extrabold text-white rounded-xl transition-all text-center shadow-xs cursor-pointer"
+          >
+            Book Table
+          </button>
+        </div>
       </div>
     </Card>
   );
@@ -592,55 +593,78 @@ export const CustomerHome: React.FC = () => {
   if (isLoading) {
     return (
       <div className="py-20 text-center">
-        <LoadingSpinner label="Opening RestaurantOS registry ledger..." />
+        <LoadingSpinner label="Discovering top dining venues near you..." />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 text-left pb-16 w-full select-none">
+    <div className="space-y-8 text-left pb-16 w-full select-none">
       
       {/* 1. HERO COVER BANNER */}
-      <div className="relative h-32 md:h-44 rounded-2xl overflow-hidden border border-slate-900 bg-slate-900/30 flex items-center p-6 md:p-8">
-        <div className="absolute inset-0 bg-cover bg-center opacity-10 pointer-events-none" style={{ backgroundImage: `url('https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=800&auto=format&fit=crop')` }} />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/60 to-transparent pointer-events-none" />
-        <div className="relative space-y-1">
-          <Badge variant="primary" className="text-[8px] py-0.5 font-extrabold tracking-widest uppercase">Premium Dining</Badge>
-          <h2 className="text-sm md:text-lg font-display font-extrabold text-white leading-tight">Curate Your Culinary Experiences</h2>
-          <p className="text-[10px] md:text-xs text-slate-500 font-semibold">Reserve exclusive dining table slots instantly.</p>
+      <div className="relative min-h-[220px] md:min-h-[260px] rounded-3xl overflow-hidden border border-[#EEE7E1] bg-gradient-to-br from-[#FFF8F2] via-[#FFFCF9] to-[#FFF3EB] flex items-center p-6 md:p-10 shadow-sm">
+        <div className="absolute right-0 top-0 bottom-0 w-1/2 bg-cover bg-center opacity-40 pointer-events-none rounded-r-3xl" style={{ backgroundImage: `url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1200&auto=format&fit=crop')` }} />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#FFFCF9] via-[#FFFCF9]/90 to-transparent pointer-events-none" />
+        <div className="relative space-y-3 max-w-xl z-10">
+          <Badge variant="primary" className="text-[9px] py-1 px-3 bg-[#E85D3F] text-white font-extrabold tracking-widest uppercase rounded-full shadow-xs border-0">
+            🍴 Premium Culinary Platform
+          </Badge>
+          <h2 className="text-2xl md:text-4xl font-display font-extrabold text-[#242424] leading-tight tracking-tight">
+            Good food. <br />
+            <span className="text-[#E85D3F]">Good mood. 🍴</span>
+          </h2>
+          <p className="text-xs md:text-sm text-[#6B6B6B] font-medium leading-relaxed">
+            Discover great restaurants around you, explore gourmet menus, and reserve tables seamlessly.
+          </p>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <button
+              onClick={() => navigate('/customer/explore')}
+              className="px-5 py-2.5 bg-[#E85D3F] hover:bg-[#D04B2F] text-white font-extrabold text-xs rounded-xl shadow-md shadow-[#E85D3F]/20 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Explore Restaurants</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => navigate('/customer/booking')}
+              className="px-5 py-2.5 bg-white border border-[#EEE7E1] hover:border-[#E85D3F]/40 text-[#242424] font-extrabold text-xs rounded-xl transition-all shadow-xs cursor-pointer"
+            >
+              Book a Table
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 2. CURRENT LOCATION SYSTEM */}
-      <div className="bg-slate-900/40 border border-slate-900 p-3.5 rounded-2xl backdrop-blur-md flex items-center justify-between gap-3">
-        <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-center text-primary shrink-0">
+      {/* 2. LOCATION PICKER BAR */}
+      <div className="p-3 bg-[#FFF8F2] border border-[#EEE7E1] rounded-2xl flex items-center justify-between shadow-xs">
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 bg-[#E85D3F]/10 border border-[#E85D3F]/20 rounded-xl flex items-center justify-center text-[#E85D3F] shrink-0">
             <MapPin className="w-4 h-4" />
           </div>
           <div className="space-y-0.5">
-            <span className="text-[8px] text-slate-500 font-extrabold uppercase tracking-wider block">Dining Location</span>
+            <span className="text-[8.5px] text-[#6B6B6B] font-extrabold uppercase tracking-wider block">Dining Location</span>
             <button 
               onClick={() => setIsLocationModalOpen(true)}
-              className="text-[11px] font-bold text-white hover:text-primary flex items-center gap-0.5"
+              className="text-xs font-bold text-[#242424] hover:text-[#E85D3F] flex items-center gap-0.5 cursor-pointer"
             >
               <span>{currentLocation ? currentLocation.label : 'Select City'}</span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+              <ChevronRight className="w-3.5 h-3.5 text-[#6B6B6B]" />
             </button>
           </div>
         </div>
         <button
           onClick={() => handleDetectLocation(false)}
-          className="p-2 bg-slate-950 border border-slate-850 hover:border-slate-800 text-xs font-bold text-slate-300 rounded-xl transition-all shadow-sm shrink-0"
+          className="px-3 py-1.5 bg-white border border-[#EEE7E1] hover:border-[#E85D3F]/40 text-xs font-bold text-[#242424] rounded-xl transition-all shadow-xs shrink-0 flex items-center gap-1 cursor-pointer"
         >
-          <Locate className="w-3.5 h-3.5 text-primary" />
+          <Locate className="w-3.5 h-3.5 text-[#E85D3F]" />
+          <span className="hidden sm:inline">Detect</span>
         </button>
       </div>
 
       {/* 3. UNIVERSAL SEARCH + FILTER ROW */}
       <div className="flex gap-2 items-center" ref={suggestionsRef}>
         {/* Search Field */}
-        <div className="flex-1 relative shadow rounded-xl bg-slate-900/50 border border-slate-850 backdrop-blur-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+        <div className="flex-1 relative shadow-xs rounded-2xl bg-white border border-[#EEE7E1]">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B]" />
           <input 
             type="text" 
             value={localSearchVal}
@@ -649,8 +673,8 @@ export const CustomerHome: React.FC = () => {
               setShowSuggestions(true);
             }}
             onFocus={() => setShowSuggestions(true)}
-            placeholder="Search Name, Cuisine, Dish..." 
-            className="w-full pl-8 pr-7 py-2.5 bg-transparent text-[11px] text-white placeholder-slate-550 focus:outline-none"
+            placeholder="Search for restaurants, cuisines or dishes..." 
+            className="w-full pl-10 pr-8 py-3 bg-transparent text-xs text-[#242424] placeholder-[#6B6B6B] focus:outline-none"
           />
           {localSearchVal && (
             <button 
@@ -660,15 +684,15 @@ export const CustomerHome: React.FC = () => {
                 setSearchQuery('');
                 setShowSuggestions(false);
               }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 hover:bg-slate-800 rounded text-slate-400"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-[#FFF8F2] rounded-full text-[#6B6B6B]"
             >
-              <X className="w-3 h-3" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
 
           {/* Autocomplete suggestions panel */}
           {showSuggestions && searchSuggestions.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1 z-40 backdrop-blur-xl divide-y divide-slate-850/30">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#EEE7E1] rounded-2xl shadow-xl p-1.5 z-40 divide-y divide-[#EEE7E1]">
               {searchSuggestions.map((sug, idx) => (
                 <button
                   key={idx}
@@ -678,13 +702,13 @@ export const CustomerHome: React.FC = () => {
                     setSearchQuery(sug);
                     setShowSuggestions(false);
                   }}
-                  className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-350 hover:text-white hover:bg-slate-950/60 rounded-lg flex items-center justify-between animate-fadeIn"
+                  className="w-full text-left px-3 py-2.5 text-xs font-bold text-[#242424] hover:bg-[#FFF8F2] rounded-xl flex items-center justify-between transition-colors"
                 >
                   <div className="flex items-center space-x-2">
-                    <Search className="w-3 h-3 text-slate-500" />
+                    <Search className="w-3.5 h-3.5 text-[#E85D3F]" />
                     <span>{sug}</span>
                   </div>
-                  <span className="text-[7.5px] bg-slate-950 border border-slate-850 px-1 py-0.5 rounded text-slate-500 font-extrabold uppercase">Match</span>
+                  <span className="text-[8px] bg-[#FFF8F2] border border-[#EEE7E1] px-1.5 py-0.5 rounded text-[#E85D3F] font-extrabold uppercase">Match</span>
                 </button>
               ))}
             </div>
@@ -695,19 +719,20 @@ export const CustomerHome: React.FC = () => {
         <button
           type="button"
           onClick={() => setIsFilterModalOpen(true)}
-          className={`p-2.5 border rounded-xl transition-all shadow-sm ${
+          className={`p-3 border rounded-2xl transition-all shadow-xs cursor-pointer ${
             filterCuisine !== 'All' || filterPrice !== 'All' || filterOutdoor || filterRooftop || filterLiveMusic || showOpenNow || showTopRated || showNearbyOnly || showVegOnly || showNonVegOnly || showOffersOnly
-              ? 'bg-primary border-primary text-slate-950 font-bold'
-              : 'bg-slate-900/50 border-slate-850 hover:border-slate-800 text-slate-450 hover:text-white'
+              ? 'bg-[#E85D3F] border-[#E85D3F] text-white font-bold'
+              : 'bg-white border-[#EEE7E1] hover:border-[#E85D3F]/40 text-[#242424]'
           }`}
         >
-          <Filter className="w-4 h-4" />
+          <Filter className="w-4.5 h-4.5" />
         </button>
       </div>
 
-      {/* 4. DINING EXPERIENCE CHIPS */}
+      {/* 4. DINING CATEGORY CHIPS */}
       <div className="space-y-2 select-none">
-        <div className="flex space-x-2 overflow-x-auto pb-1 scrollbar-none">
+        <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#6B6B6B]">Explore Categories</h3>
+        <div className="flex space-x-2.5 overflow-x-auto pb-1.5 scrollbar-none">
           {DINING_EXPERIENCES.map((exp) => {
             const Icon = exp.icon;
             const isSelected = activeExperience === exp.filter;
@@ -717,13 +742,13 @@ export const CustomerHome: React.FC = () => {
                 onClick={() => {
                   setActiveExperience(prev => prev === exp.filter ? 'All' : exp.filter);
                 }}
-                className={`py-1.5 px-2.5 border rounded-xl text-[10px] font-bold flex items-center space-x-1 transition-all shrink-0 ${
+                className={`py-2 px-3.5 border rounded-full text-xs font-extrabold flex items-center space-x-1.5 transition-all shrink-0 cursor-pointer shadow-xs ${
                   isSelected 
-                    ? 'bg-primary border-primary text-slate-950' 
-                    : 'bg-slate-900/30 border-slate-900 text-slate-400'
+                    ? 'bg-[#E85D3F] border-[#E85D3F] text-white' 
+                    : 'bg-[#FFF8F2] border-[#EEE7E1] text-[#242424] hover:border-[#E85D3F]/40'
                 }`}
               >
-                <Icon className="w-3 h-3" />
+                <Icon className="w-3.5 h-3.5 text-[#E85D3F]" />
                 <span>{exp.name}</span>
               </button>
             );
@@ -733,12 +758,12 @@ export const CustomerHome: React.FC = () => {
 
       {/* 5. TOP RATED RESTAURANTS NEAR YOU */}
       {topRatedNearYou.length > 0 && (
-        <div className="space-y-2 select-none text-left">
+        <div className="space-y-3 select-none text-left">
           <div className="flex justify-between items-center pr-1">
-            <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Top Rated Restaurants Near You</h3>
-            <span className="text-[8px] text-slate-600 font-extrabold">View All</span>
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#242424]">Top Rated Near You ⭐</h3>
+            <span onClick={() => navigate('/customer/explore')} className="text-xs text-[#E85D3F] font-extrabold hover:underline cursor-pointer">View All</span>
           </div>
-          <div className="flex space-x-3.5 overflow-x-auto pb-1 scrollbar-none snap-x snap-mandatory">
+          <div className="flex space-x-4 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
             {topRatedNearYou.slice(0, 4).map(r => (
               <MiniHorizontalCard key={r.id} r={r} />
             ))}
@@ -748,12 +773,12 @@ export const CustomerHome: React.FC = () => {
 
       {/* 6. RECOMMENDED RESTAURANTS */}
       {recommendedRestaurants.length > 0 && (
-        <div className="space-y-2 select-none text-left">
+        <div className="space-y-3 select-none text-left">
           <div className="flex justify-between items-center pr-1">
-            <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Recommended Restaurants</h3>
-            <span className="text-[8px] text-slate-600 font-extrabold">View All</span>
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#242424]">Recommended For You ✨</h3>
+            <span onClick={() => navigate('/customer/explore')} className="text-xs text-[#E85D3F] font-extrabold hover:underline cursor-pointer">View All</span>
           </div>
-          <div className="flex space-x-3.5 overflow-x-auto pb-1 scrollbar-none snap-x snap-mandatory">
+          <div className="flex space-x-4 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
             {recommendedRestaurants.slice(0, 4).map(r => (
               <MiniHorizontalCard key={r.id} r={r} />
             ))}
@@ -763,12 +788,12 @@ export const CustomerHome: React.FC = () => {
 
       {/* 7. POPULAR NEARBY */}
       {popularNearYouList.length > 0 && (
-        <div className="space-y-2 select-none text-left">
+        <div className="space-y-3 select-none text-left">
           <div className="flex justify-between items-center pr-1">
-            <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-550">Popular Nearby</h3>
-            <span className="text-[8px] text-slate-600 font-extrabold">View All</span>
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#242424]">Popular Nearby 🏷️</h3>
+            <span onClick={() => navigate('/customer/explore')} className="text-xs text-[#E85D3F] font-extrabold hover:underline cursor-pointer">View All</span>
           </div>
-          <div className="flex space-x-3.5 overflow-x-auto pb-1 scrollbar-none snap-x snap-mandatory">
+          <div className="flex space-x-4 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
             {popularNearYouList.slice(0, 4).map(r => (
               <MiniHorizontalCard key={r.id} r={r} />
             ))}
@@ -777,16 +802,16 @@ export const CustomerHome: React.FC = () => {
       )}
 
       {/* 8. ALL RESTAURANTS */}
-      <div className="space-y-3.5 text-left select-none pt-1" id="all-dining-venues-header">
+      <div className="space-y-4 text-left select-none pt-2" id="all-dining-venues-header">
         <div className="flex justify-between items-center pr-1">
           <div>
-            <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-555">All Restaurants</h3>
-            <p className="text-[9px] text-slate-600 font-semibold mt-0.5">Found {filteredRestaurants.length} premium collaborations</p>
+            <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#242424]">Restaurants Near You</h3>
+            <p className="text-xs text-[#6B6B6B] font-semibold mt-0.5">Explore {filteredRestaurants.length} onboarded dining venues</p>
           </div>
           {(filterCuisine !== 'All' || filterPrice !== 'All' || filterOutdoor || filterRooftop || filterLiveMusic || showOpenNow || showTopRated || showNearbyOnly || showVegOnly || showNonVegOnly || showOffersOnly) && (
             <button 
               onClick={handleResetFilters}
-              className="text-[9.5px] text-primary hover:underline font-extrabold"
+              className="text-xs text-[#E85D3F] hover:underline font-extrabold cursor-pointer"
             >
               Clear Filters
             </button>
@@ -794,90 +819,89 @@ export const CustomerHome: React.FC = () => {
         </div>
 
         {filteredRestaurants.length === 0 ? (
-          <div className="py-12 text-center border border-slate-900 border-dashed rounded-xl bg-slate-900/5 text-slate-500 text-xs">
-            No restaurants found matching filters.
+          <div className="py-16 text-center border-2 border-dashed border-[#EEE7E1] rounded-3xl bg-white p-8 space-y-3 shadow-xs">
+            <div className="w-12 h-12 bg-[#FFF8F2] border border-[#EEE7E1] rounded-2xl flex items-center justify-center text-[#E85D3F] mx-auto">
+              <Utensils className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-sm font-extrabold text-[#242424]">Nothing delicious nearby yet.</h4>
+              <p className="text-xs text-[#6B6B6B] max-w-sm mx-auto">Check back soon or clear search filters to discover restaurants in other areas!</p>
+            </div>
+            <button 
+              onClick={handleResetFilters}
+              className="px-4 py-2 bg-[#FFF8F2] border border-[#EEE7E1] hover:border-[#E85D3F]/40 text-xs font-bold text-[#E85D3F] rounded-xl transition-all cursor-pointer"
+            >
+              Clear Filters
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredRestaurants.map(r => (
               <Card 
                 key={r.id}
-                className="group bg-slate-900/20 border-slate-900 hover:border-slate-855 rounded-2xl overflow-hidden flex flex-col justify-between shadow relative select-none"
+                className="group bg-white border border-[#EEE7E1] hover:border-[#E85D3F]/40 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md transition-all relative select-none"
               >
                 <div className="h-36 w-full overflow-hidden relative">
-                  <img src={r.image} alt={r.name} loading="lazy" className="h-full w-full object-cover group-hover:scale-102 transition-transform duration-300" />
+                  <img src={r.image} alt={r.name} loading="lazy" className="h-full w-full object-cover group-hover:scale-103 transition-transform duration-300" />
                   
                   {/* Favourites Button */}
                   <button 
                     onClick={(e) => toggleFavourite(r.id, e)}
-                    className="absolute top-2.5 left-2.5 p-1 bg-slate-950/70 hover:bg-slate-950 border border-slate-900 rounded-lg text-slate-400 hover:text-white transition-colors"
+                    className="absolute top-2.5 left-2.5 p-1.5 bg-white/90 hover:bg-white border border-[#EEE7E1] rounded-full text-[#6B6B6B] hover:text-[#E85D3F] transition-colors shadow-xs"
                   >
-                    <Heart className={`w-3.5 h-3.5 ${favourites.includes(r.id) ? 'fill-rose-500 text-rose-500' : ''}`} />
+                    <Heart className={`w-3.5 h-3.5 ${favourites.includes(r.id) ? 'fill-[#E85D3F] text-[#E85D3F]' : ''}`} />
                   </button>
 
                   {/* Rating Badge */}
-                  <span className="absolute top-2.5 right-2.5 bg-slate-950/80 border border-slate-800 backdrop-blur-md px-1.5 py-0.5 rounded text-[8.5px] font-bold text-slate-300 flex items-center gap-0.5 shadow-md">
-                    <Star className="w-2.5 h-2.5 text-primary fill-current" /> {r.rating} ({r.reviewsCount})
+                  <span className="absolute top-2.5 right-2.5 bg-white/90 border border-[#EEE7E1] backdrop-blur-md px-2 py-0.5 rounded-full text-[9px] font-extrabold text-[#242424] flex items-center gap-0.5 shadow-xs">
+                    <Star className="w-2.5 h-2.5 text-[#F4B942] fill-current" /> {r.rating} ({r.reviewsCount})
                   </span>
 
                   {/* Operational Status */}
                   <span className="absolute bottom-2.5 left-2.5">
                     {r.openNow ? (
-                      <Badge variant="success" className="text-[7.5px] uppercase tracking-wider py-0.5 px-1.5 border-0 font-extrabold bg-emerald-500/90 text-slate-950">Open Now</Badge>
+                      <Badge variant="success" className="text-[8px] uppercase tracking-wider py-0.5 px-2 border-0 font-extrabold bg-[#22A06B] text-white shadow-xs">Open Now</Badge>
                     ) : (
-                      <Badge variant="muted" className="text-[7.5px] uppercase tracking-wider py-0.5 px-1.5 border-0 font-extrabold bg-slate-950 text-slate-450">Closed</Badge>
+                      <Badge variant="muted" className="text-[8px] uppercase tracking-wider py-0.5 px-2 border-0 font-extrabold bg-[#6B6B6B] text-white">Closed</Badge>
                     )}
                   </span>
 
                   {/* Table Availability */}
-                  <span className="absolute bottom-2.5 right-2.5 bg-slate-950/85 backdrop-blur-sm px-2 py-0.5 rounded-lg text-[9px] font-bold text-primary border border-primary/20">
+                  <span className="absolute bottom-2.5 right-2.5 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[9px] font-extrabold text-[#E85D3F] border border-[#EEE7E1] shadow-xs">
                     {r.availableTables} Tables Left
                   </span>
                 </div>
 
-                <div className="p-3.5 space-y-2.5">
-                  <div className="space-y-0.5 text-left">
+                <div className="p-4 space-y-3">
+                  <div className="space-y-1 text-left">
                     <div className="flex justify-between items-start gap-2">
                       <h4 
                         onClick={() => navigate(`/customer/restaurant/${r.id}`)}
-                        className="text-xs font-extrabold text-white group-hover:text-primary transition-colors cursor-pointer truncate flex-1"
+                        className="text-sm font-extrabold text-[#242424] group-hover:text-[#E85D3F] transition-colors cursor-pointer truncate"
                       >
                         {r.name}
                       </h4>
-                      <span className="text-[8px] bg-slate-900 border border-slate-850 text-slate-500 px-1.5 py-0.5 rounded font-extrabold uppercase shrink-0">{r.priceRange}</span>
                     </div>
-                    <p className="text-[10px] text-slate-550 font-semibold truncate">{r.cuisine} • {r.waitingTime}</p>
-                    <p className="text-[9.5px] text-slate-555 font-bold truncate flex items-center gap-1">
-                      <MapPin className="w-3 h-3" /> {r.area}, {r.city}
-                    </p>
+                    
+                    <div className="flex items-center space-x-1.5 text-xs text-[#6B6B6B] font-semibold">
+                      <span>{r.cuisine}</span>
+                      <span>•</span>
+                      <span>{r.priceRange}</span>
+                      <span>•</span>
+                      <span>{r.area}</span>
+                    </div>
                   </div>
 
-                  {r.hasOffer && (
-                    <div className="p-2 bg-primary/5 border border-primary/10 rounded-xl flex items-center space-x-2 text-[8.5px] text-primary font-bold">
-                      <Percent className="w-3 h-3" />
-                      <span>{r.offerText} available on booking</span>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center text-[9px] text-slate-550 pt-2 border-t border-slate-900/60">
-                    <span className="flex items-center gap-0.5 font-semibold">
-                      <Compass className="w-3 h-3" /> {r.distance ? `${r.distance.toFixed(1)} miles away` : '0.8 miles away'}
-                    </span>
-                    <span className="flex items-center gap-0.5 font-semibold">
-                      <Clock className="w-3 h-3" /> {r.travelTime || '10 mins drive'}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-900/40">
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#EEE7E1]">
                     <button 
-                      onClick={() => navigate(`/customer/restaurant/${r.id}`)}
-                      className="w-full py-2 bg-slate-950 border border-slate-850 hover:border-slate-800 text-[9.5px] font-bold text-slate-300 hover:text-white rounded-lg transition-all"
+                      onClick={() => navigate(`/customer/restaurant/${r.id}/menu`)}
+                      className="py-2 bg-[#FFF8F2] border border-[#EEE7E1] hover:border-[#E85D3F]/40 text-xs font-extrabold text-[#242424] rounded-xl transition-all text-center cursor-pointer"
                     >
-                      View Details
+                      View Menu
                     </button>
                     <button 
                       onClick={() => navigate(`/customer/booking?tenantId=${r.id}`)}
-                      className="w-full py-2 bg-primary hover:bg-amber-500 text-[9.5px] font-extrabold text-slate-950 rounded-lg transition-all shadow shadow-primary/5"
+                      className="py-2 bg-[#E85D3F] hover:bg-[#D04B2F] text-xs font-extrabold text-white rounded-xl transition-all text-center shadow-xs cursor-pointer"
                     >
                       Book Table
                     </button>

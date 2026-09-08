@@ -18,5 +18,6 @@ export interface ITable {
   section?: string;
   tableNotes?: string;
   seatingTime?: string;
+  billRequestedAt?: string;
 }
 

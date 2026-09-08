@@ -72,22 +72,27 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       // Step 1: Validate User Document Exists
+      let userData: any = null;
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
 
-      if (!userSnap.exists()) {
-        setValidationError('user-not-found');
-        setIsLoading(false);
-        try {
-          await signOut(auth);
-          toast.error('Your account could not be found.', { id: 'user-not-found-toast' });
-        } catch (signOutErr) {
-          console.error('Sign out failed during user-not-found check:', signOutErr);
+      if (userSnap.exists()) {
+        userData = userSnap.data();
+      } else {
+        const ownerRef = doc(db, 'owners', user.uid);
+        const ownerSnap = await getDoc(ownerRef);
+        if (ownerSnap.exists()) {
+          userData = ownerSnap.data();
+        } else if (user.role) {
+          userData = { ...user };
         }
-        return;
       }
 
-      const userData = userSnap.data();
+      if (!userData) {
+        setValidationError('user-not-found');
+        setIsLoading(false);
+        return;
+      }
 
       // Step 2: Validate Account Status == "active"
       if (userData.status && userData.status !== 'active') {
@@ -121,7 +126,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       // Step 4: Validate Tenant (Restaurant)
-      const tenantId = userData.tenantId;
+      const tenantId = userData.tenantId || user.tenantId || (user as any).restaurantId;
       if (!tenantId) {
         // tenantId missing means the employee account was not properly onboarded.
         // Show 'user-not-found' so the user sees "Contact your administrator" guidance.
@@ -130,16 +135,25 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return;
       }
 
+      let tenantData: any = null;
       const tenantRef = doc(db, 'tenants', tenantId);
       const tenantSnap = await getDoc(tenantRef);
 
-      if (!tenantSnap.exists()) {
+      if (tenantSnap.exists()) {
+        tenantData = tenantSnap.data();
+      } else {
+        const restRef = doc(db, 'restaurants', tenantId);
+        const restSnap = await getDoc(restRef);
+        if (restSnap.exists()) {
+          tenantData = restSnap.data();
+        }
+      }
+
+      if (!tenantData) {
         setValidationError('tenant-suspended');
         setIsLoading(false);
         return;
       }
-
-      const tenantData = tenantSnap.data();
 
       // Validate Tenant Status
       if (tenantData.status && tenantData.status !== 'active') {
@@ -231,7 +245,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     fetchAndValidateWorkspace();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]);
+  }, [user?.uid, user?.role, user?.tenantId]);
 
   return (
     <WorkspaceContext.Provider 

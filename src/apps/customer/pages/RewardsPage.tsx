@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../../context/AuthContext';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../../config/firebase';
 import Card from '../../../components/ui/Card/Card';
 import Badge from '../../../components/ui/Badge/Badge';
 import Button from '../../../components/ui/Button/Button';
@@ -6,7 +9,20 @@ import { Award, Sparkles, Check, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const RewardsPage: React.FC = () => {
-  const [points, setPoints] = useState(720);
+  const { user } = useAuth();
+  const [points, setPoints] = useState(0);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const userDocRef = doc(db, 'users', user.uid);
+    const unsub = onSnapshot(userDocRef, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setPoints(d.loyaltyPoints || 0);
+      }
+    }, () => setPoints(0));
+    return () => unsub();
+  }, [user?.uid]);
 
   const rewards = [
     { title: "Complimentary Gelato Dish", desc: "Redeemable with 250 points on next checkout.", cost: 250 },
@@ -37,7 +53,9 @@ export const RewardsPage: React.FC = () => {
         <div className="flex justify-between items-start">
           <div>
             <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest font-semibold">RestaurantOS VIP Club</span>
-            <h4 className="text-sm font-extrabold text-white mt-0.5">Silver Diner Member</h4>
+            <h4 className="text-sm font-extrabold text-white mt-0.5">
+              {points > 500 ? 'Gold VIP Member' : points > 0 ? 'Member' : 'Verified Diner'}
+            </h4>
           </div>
           <Award className="w-8 h-8 text-primary" />
         </div>
@@ -47,9 +65,9 @@ export const RewardsPage: React.FC = () => {
           <h3 className="text-2xl font-display font-extrabold text-white">{points} Pts</h3>
         </div>
 
-        <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold border-t border-slate-850/40 pt-2.5">
-          <span>Sarah Jenkins</span>
-          <span>Rank #421</span>
+        <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold border-t border-slate-855/40 pt-2.5">
+          <span>{user?.displayName || user?.email?.split('@')[0] || 'Customer'}</span>
+          <span>{points > 0 ? 'Active Points' : '0 Points'}</span>
         </div>
       </div>
 

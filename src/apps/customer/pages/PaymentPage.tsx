@@ -213,7 +213,7 @@ export const PaymentPage: React.FC = () => {
               <div className="space-y-3">
                 <Input 
                   label="Cardholder Full Name" 
-                  placeholder="Sarah Jenkins"
+                  placeholder="Full Name"
                   value={cardName}
                   onChange={(e) => setCardName(e.target.value)}
                   required

@@ -192,7 +192,7 @@ export class FirestoreService<T extends Record<string, any>> {
     const docRef = doc(colRef, id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) return null;
-    return { id: snap.id, ...snap.data() } as T;
+    return { id: snap.id, ...(snap.data() as any) } as T;
   }
 
   // GET ALL
@@ -208,7 +208,7 @@ export class FirestoreService<T extends Record<string, any>> {
     const snap = await getDocs(q);
     const list: T[] = [];
     snap.forEach((d) => {
-      list.push({ id: d.id, ...d.data() } as T);
+      list.push({ id: d.id, ...(d.data() as any) } as T);
     });
     return list;
   }
@@ -220,7 +220,7 @@ export class FirestoreService<T extends Record<string, any>> {
     const snap = await getDocs(q);
     const list: T[] = [];
     snap.forEach((d) => {
-      list.push({ id: d.id, ...d.data() } as T);
+      list.push({ id: d.id, ...(d.data() as any) } as T);
     });
     return list;
   }
@@ -237,7 +237,7 @@ export class FirestoreService<T extends Record<string, any>> {
     return onSnapshot(q, (snap) => {
       const list: T[] = [];
       snap.forEach((d) => {
-        list.push({ id: d.id, ...d.data() } as T);
+        list.push({ id: d.id, ...(d.data() as any) } as T);
       });
       callback(list);
     });

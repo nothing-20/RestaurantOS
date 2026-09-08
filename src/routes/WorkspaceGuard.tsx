@@ -45,10 +45,10 @@ export const WorkspaceGuard: React.FC = () => {
     const isOwner = workspace?.role === 'owner';
     if (validationError === 'subscription-expired' && isOwner) {
       const currentPath = window.location.pathname;
-      if (currentPath === '/dashboard/owner/billing') {
+      if (currentPath === '/owner/billing' || currentPath === '/dashboard/owner/billing') {
         return <Outlet />;
       } else {
-        return <Navigate to="/dashboard/owner/billing" replace />;
+        return <Navigate to="/owner/billing" replace />;
       }
     }
     return <Navigate to={`/workspace-error?type=${validationError}`} replace />;
@@ -56,7 +56,8 @@ export const WorkspaceGuard: React.FC = () => {
 
   // Fallback check: if no workspace has been generated
   if (!workspace || !workspace.isValid) {
-    return <Navigate to="/staff/login" replace />;
+    const isOwner = workspace?.role === 'owner';
+    return <Navigate to={isOwner ? "/owner/login" : "/staff/login"} replace />;
   }
 
   return <Outlet />;

@@ -7,6 +7,7 @@ import { knowledgeEngine } from '../knowledge/knowledgeEngine';
 import { memoryEngine } from '../memory/memoryEngine';
 import { 
   IRestaurantContext, 
+  IRestaurantMemory,
   IIntelligenceInsight, 
   IIntelligenceRecommendation, 
   IIntelligencePrediction, 
@@ -42,12 +43,14 @@ export const intelligenceService = {
     const health = this.calculateHealthScore(context);
     const timeline = this.generateTimeline(context);
 
-    // Log intelligence compiles in Event Engine
     await logEvent(tenantId, {
-      type: 'Prediction Updated',
+      eventType: 'Prediction Updated',
+      eventCategory: 'Operational',
+      performedBy: 'intelligence-engine',
+      performedByRole: 'system',
+      title: 'Intelligence Score Calculated',
       description: `Restaurant Intelligence score computed: ${health.score} (${health.label})`,
-      severity: health.score >= 80 ? 'info' : 'warning',
-      metadata: { score: health.score }
+      metadata: { score: health.score, severity: health.score >= 80 ? 'info' : 'warning' }
     });
 
     return { context, insights, recommendations, predictions, health, timeline };

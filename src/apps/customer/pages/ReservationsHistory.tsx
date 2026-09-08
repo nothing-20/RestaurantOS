@@ -26,22 +26,14 @@ export const ReservationsHistory: React.FC = () => {
         });
         list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         
-        // Mock fallback if user has no bookings yet
         if (list.length === 0) {
-          setReservations([
-            { id: 'RES-082', restaurantName: "L'Ambroisie", date: '2026-07-09', time: '8:30 PM', guests: 2, status: 'Confirmed' },
-            { id: 'RES-011', restaurantName: "Shuko Sushi", date: '2026-06-28', time: '7:00 PM', guests: 4, status: 'Completed' }
-          ]);
+          setReservations([]);
         } else {
           setReservations(list);
         }
       } catch (e) {
         console.error(e);
-        // Fallback mockup
-        setReservations([
-          { id: 'RES-082', restaurantName: "L'Ambroisie", date: '2026-07-09', time: '8:30 PM', guests: 2, status: 'Confirmed' },
-          { id: 'RES-011', restaurantName: "Shuko Sushi", date: '2026-06-28', time: '7:00 PM', guests: 4, status: 'Completed' }
-        ]);
+        setReservations([]);
       } finally {
         setIsLoading(false);
       }

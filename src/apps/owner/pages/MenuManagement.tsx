@@ -475,9 +475,8 @@ export const MenuManagement: React.FC = () => {
       }, user.tenantId);
 
       await logEvent(user.tenantId, {
-        tenantId: user.tenantId,
         eventType: 'Batch Refilled',
-        eventCategory: 'Operations',
+        eventCategory: 'Operational',
         performedBy: user.displayName || user.email || 'Owner',
         performedByRole: 'owner',
         title: 'Prepared Batch Refilled',
@@ -500,10 +499,12 @@ export const MenuManagement: React.FC = () => {
     const cases = [
       { name: 'Create Veg Item', run: async () => {
         const name = `Test Veg Paneer ${Math.random().toString(36).substring(2, 5)}`;
-        const testItem = {
+        const testItem: IMenuItem = {
+          id: `ITEM-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
           name,
           description: 'Delicious hot paneer cooked to perfection.',
           categoryId: categories[0]?.id || 'mock-cat',
+          category: categories[0]?.name || 'Appetizers',
           price: 1299,
           isVeg: true,
           veg: true,
@@ -528,10 +529,12 @@ export const MenuManagement: React.FC = () => {
       }},
       { name: 'Create Non Veg Item', run: async () => {
         const name = `Test NonVeg Tikka ${Math.random().toString(36).substring(2, 5)}`;
-        const testItem = {
+        const testItem: IMenuItem = {
+          id: `ITEM-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
           name,
           description: 'Spicy chicken tikka kebab.',
           categoryId: categories[0]?.id || 'mock-cat',
+          category: categories[0]?.name || 'Appetizers',
           price: 1599,
           isVeg: false,
           veg: false,
@@ -556,16 +559,21 @@ export const MenuManagement: React.FC = () => {
       }},
       { name: 'Bestseller', run: async () => {
         const name = `Test Bestseller ${Math.random().toString(36).substring(2, 5)}`;
-        const testItem = {
+        const testItem: IMenuItem = {
+          id: `ITEM-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
           name,
           description: 'Top rated item.',
           categoryId: categories[0]?.id || 'mock-cat',
+          category: categories[0]?.name || 'Appetizers',
           price: 999,
           isVeg: true,
+          veg: true,
           isAvailable: true,
+          available: true,
           spiceLevel: 'none',
           preparationTime: 5,
           image: '',
+          imageUrl: '',
           isBestSeller: true,
           bestseller: true,
           isRecommended: false,
@@ -579,16 +587,21 @@ export const MenuManagement: React.FC = () => {
       }},
       { name: 'Recommended', run: async () => {
         const name = `Test Recommended ${Math.random().toString(36).substring(2, 5)}`;
-        const testItem = {
+        const testItem: IMenuItem = {
+          id: `ITEM-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
           name,
           description: 'Highly recommended chef special.',
           categoryId: categories[0]?.id || 'mock-cat',
+          category: categories[0]?.name || 'Appetizers',
           price: 1999,
           isVeg: true,
+          veg: true,
           isAvailable: true,
+          available: true,
           spiceLevel: 'none',
           preparationTime: 18,
           image: '',
+          imageUrl: '',
           isBestSeller: false,
           isRecommended: true,
           recommended: true,
@@ -696,15 +709,23 @@ export const MenuManagement: React.FC = () => {
         try {
           const name = `Forbidden Tikka ${Math.random().toString(36).substring(2, 5)}`;
           await menuService.createItem({
+            id: `ITEM-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
             name,
             description: 'This write should be denied by rules.',
             categoryId: 'some-cat',
+            category: 'Appetizers',
             price: 1599,
             isVeg: false,
+            veg: false,
             isAvailable: true,
+            available: true,
+            isBestSeller: false,
+            isRecommended: false,
             spiceLevel: 'medium',
             preparationTime: 15,
-            image: ''
+            image: '',
+            imageUrl: '',
+            tags: ['Non-Veg']
           }, 'unauthorized-tenant-id');
           throw new Error('Write succeeded when it should have failed due to permissions!');
         } catch (e: any) {
@@ -1225,8 +1246,11 @@ export const MenuManagement: React.FC = () => {
           return a.price - b.price;
         case 'price-desc':
           return b.price - a.price;
-        case 'newest':
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case 'newest': {
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return timeB - timeA;
+        }
         default:
           return 0;
       }
@@ -1278,7 +1302,7 @@ export const MenuManagement: React.FC = () => {
         {[
           { id: 'categories', label: 'Categories', icon: Layers },
           { id: 'items', label: 'Menu Items', icon: Grid },
-          { id: 'availability', label: 'Availability', icon: Switch },
+          { id: 'availability', label: 'Availability', icon: Grid },
           { id: 'pricing', label: 'Pricing', icon: DollarSign },
           { id: 'preview', label: 'Menu Preview', icon: Eye },
           { id: 'tests', label: 'Auto-Tests', icon: Sparkles }

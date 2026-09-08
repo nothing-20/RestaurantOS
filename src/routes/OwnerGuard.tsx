@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getDashboardRoute } from '../utils/navigation';
 
 export const OwnerGuard: React.FC = () => {
   const { user, role, isLoading } = useAuth();
@@ -15,13 +16,18 @@ export const OwnerGuard: React.FC = () => {
   }
 
   if (!user || !role) {
-    return <Navigate to="/login" replace />;
+    const currentPath = window.location.pathname;
+    if (currentPath.startsWith('/owner') || currentPath.startsWith('/dashboard/owner')) {
+      return <Navigate to="/owner/login" replace />;
+    }
+    return <Navigate to="/staff/login" replace />;
   }
 
   // Allowed roles for OwnerGuard: owner, admin, manager, waiter, kitchen, cashier, reception
   const allowedRoles = ['owner', 'admin', 'manager', 'waiter', 'kitchen', 'cashier', 'reception'];
   if (!allowedRoles.includes(role)) {
-    return <Navigate to="/unauthorized" replace />;
+    const destination = getDashboardRoute(role);
+    return <Navigate to={destination} replace />;
   }
 
   return <Outlet />;

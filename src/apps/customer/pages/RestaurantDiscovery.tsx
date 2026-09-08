@@ -9,7 +9,7 @@ import SearchBar from '../../../components/ui/SearchBar/SearchBar';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner/LoadingSpinner';
 import { 
   Star, MapPin, Clock, Compass, Filter, Grid, Flame, 
-  Sparkles, CheckCircle2, ChevronDown, Check, X, ShieldAlert 
+  Sparkles, CheckCircle2, ChevronDown, Check, X, ShieldAlert, Search
 } from 'lucide-react';
 
 const REST_MOCK_IMAGES = [
@@ -82,19 +82,14 @@ export const RestaurantDiscovery: React.FC = () => {
           index++;
         });
 
-        // Mock items fallback if Firestore collections are unseeded
         if (list.length === 0) {
-          setRestaurants([
-            { id: 'l-ambroisie', name: "L'Ambroisie", cuisine: "French Haute Cuisine", rating: 4.9, distance: 0.6, priceRange: '$$$', vegOptions: true, openNow: true, image: REST_MOCK_IMAGES[0], facilities: { outdoorSeating: true, liveMusic: false, petFriendly: false, wheelchairAccess: true } },
-            { id: 'shuko', name: "Shuko Sushi", cuisine: "Premium Japanese Omakase", rating: 4.8, distance: 1.2, priceRange: '$$$', vegOptions: false, openNow: true, image: REST_MOCK_IMAGES[3], facilities: { outdoorSeating: false, liveMusic: true, petFriendly: true, wheelchairAccess: true } },
-            { id: 'osteria', name: "Osteria Francescana", cuisine: "Italian Fine Dining", rating: 4.9, distance: 2.0, priceRange: '$$', vegOptions: true, openNow: true, image: REST_MOCK_IMAGES[1], facilities: { outdoorSeating: true, liveMusic: true, petFriendly: false, wheelchairAccess: true } },
-            { id: 'eleven-madison', name: "Eleven Madison", cuisine: "Contemporary American", rating: 4.7, distance: 1.5, priceRange: '$$$', vegOptions: true, openNow: false, image: REST_MOCK_IMAGES[2], facilities: { outdoorSeating: false, liveMusic: false, petFriendly: true, wheelchairAccess: true } }
-          ]);
+          setRestaurants([]);
         } else {
           setRestaurants(list);
         }
       } catch (e) {
         console.error(e);
+        setRestaurants([]);
       } finally {
         setIsLoading(false);
       }

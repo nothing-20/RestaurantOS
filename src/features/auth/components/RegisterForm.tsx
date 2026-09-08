@@ -4,6 +4,7 @@ import { authService } from '../../../services/authService';
 import Button from '../../../components/ui/Button/Button';
 import Input from '../../../components/ui/Input/Input';
 import { useToastStore } from '../../../components/ui/Toast/Toast';
+import { getDashboardRoute } from '../../../utils/navigation';
 
 export const RegisterForm: React.FC = () => {
   const { addToast } = useToastStore();
@@ -54,11 +55,9 @@ export const RegisterForm: React.FC = () => {
       
       addToast('Restaurant registered successfully!', 'success');
       
-      // Send verification email automatically
-      if (authService.signUpOwner) {
-        // Direct route to verification view or dashboard
-        navigate('/dashboard/owner');
-      }
+      // Direct route to dashboard
+      const destination = getDashboardRoute('owner');
+      navigate(destination, { replace: true });
     } catch (err: any) {
       console.error(err);
       addToast(err.message || 'Registration failed. Please check parameters.', 'error');

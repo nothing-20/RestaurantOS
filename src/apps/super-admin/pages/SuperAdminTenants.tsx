@@ -158,9 +158,9 @@ export const SuperAdminTenants: React.FC = () => {
       name: t.name,
       planTier: t.planTier,
       status: t.status,
-      street: t.address?.street || '',
-      city: t.address?.city || '',
-      zipCode: t.address?.zipCode || ''
+      street: (t.address as any)?.street || '',
+      city: (t.address as any)?.city || '',
+      zipCode: (t.address as any)?.zipCode || ''
     });
     setIsFormOpen(true);
   };
@@ -275,9 +275,10 @@ export const SuperAdminTenants: React.FC = () => {
     },
     {
       header: 'Address location',
-      accessor: (row: ITenant) => (
-        <span className="text-slate-450 font-semibold">{row.address?.city || 'N/A'}</span>
-      )
+      accessor: (row: ITenant) => {
+        const city = (row.address && typeof row.address === 'object') ? row.address.city : (row.address || 'N/A');
+        return <span className="text-slate-450 font-semibold">{city}</span>;
+      }
     },
     {
       header: 'Subscription Plan',

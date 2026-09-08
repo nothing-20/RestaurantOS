@@ -1,15 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { authService } from './authService';
 import { TUserRole, IUser } from '../types';
+import { getDashboardRoute } from '../utils/navigation';
 
 interface IAuthContextType {
   user: IUser | null;
   role: TUserRole | null;
   tenantId: string | null;
   isLoading: boolean;
+  profileError: string | null;
   loginAsMockRole: (role: TUserRole, tenantId?: string) => void;
   logout: () => Promise<void>;
   firebaseUser: User | null;
@@ -22,99 +24,140 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<IUser | null>(null);
   const [role, setRole] = useState<TUserRole | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Check if there is a dev mock session in localStorage first
-    const mockSession = localStorage.getItem('mock_user_session');
-    if (mockSession) {
-      try {
-        const parsed: IUser = JSON.parse(mockSession);
-        setUser(parsed);
-        setRole(parsed.role);
-        setTenantId(parsed.tenantId);
-        setIsLoading(false);
-      } catch (e) {
-        console.error('Failed to restore mock user session', e);
-      }
-    }
+    let unsubscribeUserDoc: (() => void) | null = null;
 
     // Subscribe to Firebase Auth state updates
-    const unsubscribe = onAuthStateChanged(auth, async (fUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (fUser) => {
       setFirebaseUser(fUser);
 
+      if (unsubscribeUserDoc) {
+        unsubscribeUserDoc();
+        unsubscribeUserDoc = null;
+      }
+
       if (fUser) {
-        // Clear mock session since we have a real firebase user
-        localStorage.removeItem('mock_user_session');
+        setIsLoading(true);
+        setProfileError(null);
 
         try {
-          // STEP 1: Firestore is the authoritative source for role and tenantId.
-          // We fetch it FIRST so that stale JWT claims cannot override it.
-          let userRole: TUserRole | null = null;
-          let userTenantId: string | null = null;
-          let resolvedName = fUser.displayName;
-          let resolvedPhone = '';
+          const userDocRef = doc(db, 'users', fUser.uid);
 
-          try {
-            const userDocRef = doc(db, 'users', fUser.uid);
-            const userDoc = await getDoc(userDocRef);
+          // Real-time listener for user profile updates
+          unsubscribeUserDoc = onSnapshot(
+            userDocRef,
+            async (userDoc) => {
+              try {
+                if (userDoc.exists() && userDoc.data().role) {
+                  const data = userDoc.data();
+                  const resolvedUser: IUser = {
+                    uid: fUser.uid,
+                    email: (fUser.email || data.email || '').toLowerCase(),
+                    displayName: data.fullName || data.displayName || fUser.displayName || 'User',
+                    tenantId: data.tenantId || '',
+                    role: data.role as TUserRole,
+                    status: (data.status === 'inactive' ? 'inactive' : 'active') as 'active' | 'inactive',
+                    phoneNumber: data.phoneNumber || '',
+                    createdAt: data.createdAt || fUser.metadata.creationTime || new Date().toISOString()
+                  };
 
-            if (userDoc.exists()) {
-              const data = userDoc.data();
-              userRole = (data.role as TUserRole) || null;
-              userTenantId = (data.tenantId as string) || null;
-              resolvedName = data.fullName || data.displayName || resolvedName;
-              resolvedPhone = data.phoneNumber || '';
+                  console.log('[AUTH Context] Profile loaded via snapshot:', {
+                    uid: resolvedUser.uid,
+                    email: resolvedUser.email,
+                    role: resolvedUser.role,
+                    tenantId: resolvedUser.tenantId
+                  });
+
+                  setUser(resolvedUser);
+                  setRole(resolvedUser.role);
+                  setTenantId(resolvedUser.tenantId);
+                  setProfileError(null);
+                  setIsLoading(false);
+                } else {
+                  // Document missing or role missing — call authoritative roleResolver
+                  const { resolveAuthenticatedUser } = await import('./roleResolver');
+                  const profile = await resolveAuthenticatedUser(fUser);
+
+                  if (profile && profile.role) {
+                    const resolvedUser: IUser = {
+                      uid: profile.uid,
+                      email: profile.email,
+                      displayName: profile.displayName,
+                      tenantId: profile.tenantId,
+                      role: profile.role,
+                      status: (profile.status === 'inactive' ? 'inactive' : 'active') as 'active' | 'inactive',
+                      phoneNumber: profile.phoneNumber || '',
+                      createdAt: profile.createdAt
+                    };
+
+                    console.log('[AUTH Context] Profile resolved via roleResolver:', {
+                      uid: resolvedUser.uid,
+                      role: resolvedUser.role,
+                      tenantId: resolvedUser.tenantId
+                    });
+
+                    setUser(resolvedUser);
+                    setRole(resolvedUser.role);
+                    setTenantId(resolvedUser.tenantId);
+                    setProfileError(null);
+                  } else {
+                    console.warn('[AUTH Context] Profile missing or unassigned role for UID:', fUser.uid);
+                    setUser(null);
+                    setRole(null);
+                    setTenantId(null);
+                    setProfileError(`Owner profile is missing or not configured. Missing profile document in users/${fUser.uid}. Please contact your administrator.`);
+                  }
+                  setIsLoading(false);
+                }
+              } catch (snapErr: any) {
+                console.error('[AUTH Context] Error parsing snapshot data:', snapErr);
+                setUser(null);
+                setRole(null);
+                setTenantId(null);
+                setProfileError('Failed to load user session profile.');
+                setIsLoading(false);
+              }
+            },
+            (error) => {
+              console.error('[AUTH Context] Database snapshot listener error:', error);
+              setUser(null);
+              setRole(null);
+              setTenantId(null);
+              if (error.code === 'permission-denied') {
+                setProfileError('Permission denied reading your user profile.');
+              } else {
+                setProfileError('Database snapshot listener error.');
+              }
+              setIsLoading(false);
             }
-          } catch (firestoreErr) {
-            console.warn('Failed to fetch user profile from Firestore:', firestoreErr);
-          }
-
-          // STEP 2: If Firestore had no role, fall back to JWT custom claims.
-          // This handles Super Admin accounts set up via Firebase Admin SDK.
-          if (!userRole) {
-            try {
-              const claims = await authService.getUserClaims(fUser) as any;
-              if (claims?.role) userRole = claims.role as TUserRole;
-              if (claims?.tenantId && !userTenantId) userTenantId = claims.tenantId;
-            } catch (claimsErr) {
-              console.warn('Failed to retrieve JWT custom claims:', claimsErr);
-            }
-          }
-
-          // STEP 3: Build the resolved user object.
-          const resolvedUser: IUser = {
-            uid: fUser.uid,
-            email: fUser.email || '',
-            displayName: resolvedName || fUser.email?.split('@')[0] || 'Staff',
-            tenantId: userTenantId || '',
-            role: userRole || 'customer',
-            status: 'active',
-            phoneNumber: resolvedPhone,
-            createdAt: fUser.metadata.creationTime || new Date().toISOString()
-          };
-
-          setUser(resolvedUser);
-          setRole(resolvedUser.role);
-          setTenantId(resolvedUser.tenantId);
-        } catch (e) {
-          console.error('Failed to construct authenticated user metadata context', e);
+          );
+        } catch (e: any) {
+          console.error('[AUTH Context] Auth initialization error:', e);
           setUser(null);
           setRole(null);
           setTenantId(null);
+          setProfileError('Failed to initialize session.');
+          setIsLoading(false);
         }
       } else {
-        // Only clear the session if there's no mock session in localStorage
-        if (!localStorage.getItem('mock_user_session')) {
-          setUser(null);
-          setRole(null);
-          setTenantId(null);
-        }
+        // Unauthenticated
+        setUser(null);
+        setRole(null);
+        setTenantId(null);
+        setProfileError(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeUserDoc) {
+        unsubscribeUserDoc();
+      }
+    };
   }, []);
 
   const loginAsMockRole = (roleType: TUserRole, targetTenantId: string = 'gourmet-bistro') => {
@@ -131,29 +174,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(mockUser);
     setRole(roleType);
     setTenantId(mockUser.tenantId);
-    localStorage.setItem('mock_user_session', JSON.stringify(mockUser));
+    setProfileError(null);
+    console.log('[AUTH Mock] Logged in as mock role:', roleType);
     setIsLoading(false);
   };
 
   const logout = async () => {
     setIsLoading(true);
-    // Clear mock session storage
-    localStorage.removeItem('mock_user_session');
-    
-    // Trigger Firebase sign out if logged in via Firebase
-    if (auth.currentUser) {
-      await authService.signOutUser();
+    try {
+      // Clear tab-isolated sessionStorage only; preserve cross-tab independent states
+      sessionStorage.clear();
+      
+      if (auth.currentUser) {
+        await authService.signOutUser();
+      }
+    } catch (err) {
+      console.error('[AUTH Logout Error]', err);
+    } finally {
+      setUser(null);
+      setRole(null);
+      setTenantId(null);
+      setFirebaseUser(null);
+      setProfileError(null);
+      setIsLoading(false);
+      console.log('[AUTH] Deep session logout completed.');
     }
-    
-    setUser(null);
-    setRole(null);
-    setTenantId(null);
-    setFirebaseUser(null);
-    setIsLoading(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, role, tenantId, isLoading, loginAsMockRole, logout, firebaseUser }}>
+    <AuthContext.Provider value={{ user, role, tenantId, isLoading, profileError, loginAsMockRole, logout, firebaseUser }}>
       {children}
     </AuthContext.Provider>
   );

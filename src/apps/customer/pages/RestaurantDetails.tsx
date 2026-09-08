@@ -9,7 +9,7 @@ import Badge from '../../../components/ui/Badge/Badge';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner/LoadingSpinner';
 import { 
   Star, MapPin, Clock, Table, ArrowLeft, Heart, Sparkles, Check, 
-  Map, MessageSquare, ShieldCheck, HelpCircle, Phone, Compass
+  Map, MessageSquare, ShieldCheck, HelpCircle, Phone, Compass, Calendar, Coffee
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -26,10 +26,7 @@ const DISH_PREVIEWS = [
   { id: 'fd4', name: 'A5 Wagyu Ribeye', price: '$95.00', desc: '150g authentic Japanese Miyazaki Wagyu steak.', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=150&auto=format&fit=crop', chefSpecial: true }
 ];
 
-const REVIEWS_MOCK = [
-  { author: 'Sarah Jenkins', rating: 5, date: 'June 24, 2026', comment: 'The Truffle Tagliolini was absolutely out of this world. Spotless service!' },
-  { author: 'David Chen', rating: 4, date: 'June 18, 2026', comment: 'Incredible steak and ambiance. Service was busy but very attentive.' }
-];
+const REVIEWS_MOCK: any[] = [];
 
 export const RestaurantDetails: React.FC = () => {
   const { tenantId } = useParams<{ tenantId: string }>();
@@ -62,23 +59,11 @@ export const RestaurantDetails: React.FC = () => {
             facilities: data.facilities || ['Free Valet Parking', 'Outdoor Terrace', 'Pet Friendly', 'Live Music Jazz', 'Wheelchair Accessible', 'Wine Cellar']
           });
         } else {
-          // Fallback mockup
-          setRestaurant({
-            id: 'l-ambroisie',
-            name: "L'Ambroisie",
-            cuisine: "French Haute Cuisine",
-            rating: 4.9,
-            address: '9 Place des Vosges, 75004 Paris',
-            hours: '12:00 PM - 11:00 PM',
-            coverImage: REST_MOCK_IMAGES[0],
-            logoUrl: 'https://picsum.photos/100/100?random=logo',
-            description: 'Experience pure culinary delight. Established in 1986, L\'Ambroisie delivers next-level gastronomy using strictly authentic heritage techniques.',
-            phone: '+1 (555) 942-0192',
-            facilities: ['Free Valet Parking', 'Outdoor Terrace', 'Pet Friendly', 'Live Music Jazz', 'Wheelchair Accessible', 'Wine Cellar']
-          });
+          setRestaurant(null);
         }
       } catch (e) {
         console.error(e);
+        setRestaurant(null);
         toast.error('Failed to load restaurant profile.');
       } finally {
         setIsLoading(false);

@@ -10,7 +10,9 @@ import {
   getDocs,
   orderBy,
 } from 'firebase/firestore';
-import { db } from '../../../config/firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { db, auth as fbAuth } from '../../../config/firebase';
+import { emailService } from '../../../services/email/emailService';
 import { useAuth } from '../../../context/AuthContext';
 import Button from '../../../components/ui/Button/Button';
 import Input from '../../../components/ui/Input/Input';
@@ -182,34 +184,14 @@ export const OwnerStaffManager: React.FC = () => {
     try {
       const trimmedEmail = form.email.trim().toLowerCase();
 
-      // Guard: check for duplicate pending invite
-      const checkQ = query(
-        collection(db, 'employees'),
-        where('email', '==', trimmedEmail),
-        where('tenantId', '==', user.tenantId)
-      );
-      const checkSnap = await getDocs(checkQ);
-      if (!checkSnap.empty) {
-        toast.error(`An invitation for ${trimmedEmail} already exists.`);
-        setIsSubmitting(false);
-        return;
-      }
-
-      const now = new Date().toISOString();
-      await addDoc(collection(db, 'employees'), {
+      await emailService.sendStaffInvitation({
         fullName: form.fullName.trim(),
         email: trimmedEmail,
         phone: form.phone.trim(),
         role: form.role,
         department: form.department.trim(),
         tenantId: user.tenantId,
-        branchId: '',
-        status: 'pending' as EmployeeStatus,
-        activationStatus: 'invited' as ActivationStatus,
-        firebaseUid: null,
-        invitedAt: now,
         createdBy: user.uid,
-        updatedAt: now,
       });
 
       toast.success(`Invitation sent to ${trimmedEmail}!`);
@@ -218,7 +200,7 @@ export const OwnerStaffManager: React.FC = () => {
       fetchEmployees();
     } catch (err: any) {
       console.error(err);
-      toast.error('Failed to create invitation. Please try again.');
+      toast.error(err.message || 'Failed to create invitation. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -333,8 +315,6 @@ export const OwnerStaffManager: React.FC = () => {
       return;
     }
     try {
-      const { sendPasswordResetEmail } = await import('firebase/auth');
-      const { auth: fbAuth } = await import('../../../config/firebase');
       await sendPasswordResetEmail(fbAuth, emp.email);
       toast.success(`Password reset email sent to ${emp.email}.`);
     } catch (err: any) {

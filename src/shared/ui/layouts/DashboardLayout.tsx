@@ -3,9 +3,10 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 import { useAuth } from '../../../context/AuthContext';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, limit, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { inventoryService } from '../../services/inventoryService';
+import { automationService } from '../../services/automationService';
 
 export const useInventoryAutomation = () => {
   const { user } = useAuth();
@@ -17,7 +18,7 @@ export const useInventoryAutomation = () => {
     const ordersCol = collection(db, 'restaurants', tenantId, 'orders');
 
     // Listener for COMPLETED orders that need stock deductions
-    const qCompleted = query(ordersCol, where('status', '==', 'COMPLETED'));
+    const qCompleted = query(ordersCol, where('status', '==', 'COMPLETED'), limit(15));
     const unsubCompleted = onSnapshot(qCompleted, (snap) => {
       snap.forEach(docSnap => {
         const orderData = docSnap.data();
@@ -37,7 +38,7 @@ export const useInventoryAutomation = () => {
     });
 
     // Listener for PREPARING orders that need batch portion deductions early
-    const qPreparing = query(ordersCol, where('status', '==', 'PREPARING'));
+    const qPreparing = query(ordersCol, where('status', '==', 'PREPARING'), limit(15));
     const unsubPreparing = onSnapshot(qPreparing, (snap) => {
       snap.forEach(docSnap => {
         const orderData = docSnap.data();
@@ -52,7 +53,7 @@ export const useInventoryAutomation = () => {
     });
 
     // Listener for CANCELLED orders that need stock restocks
-    const qCancelled = query(ordersCol, where('status', '==', 'CANCELLED'));
+    const qCancelled = query(ordersCol, where('status', '==', 'CANCELLED'), limit(15));
     const unsubCancelled = onSnapshot(qCancelled, (snap) => {
       snap.forEach(docSnap => {
         const orderData = docSnap.data();
@@ -72,7 +73,7 @@ export const useInventoryAutomation = () => {
     });
 
     // Listener for REFUNDED orders that need batch portion restocks
-    const qRefunded = query(ordersCol, where('paymentStatus', '==', 'refunded'));
+    const qRefunded = query(ordersCol, where('paymentStatus', '==', 'refunded'), limit(15));
     const unsubRefunded = onSnapshot(qRefunded, (snap) => {
       snap.forEach(docSnap => {
         const orderData = docSnap.data();
@@ -108,34 +109,24 @@ export const useAutomationEngine = () => {
     let unsubscribeSnapshot: (() => void) | null = null;
 
     // Seed defaults and subscribe to updates
-    import('../../services/automationService').then(({ automationService }) => {
-      if (!active) return;
-      const initSchedules = async () => {
-        try {
-          const { collection, getDocs } = await import('firebase/firestore');
-          const { db } = await import('../../firebase/config');
-          const snap = await getDocs(collection(db, 'restaurants', tenantId, 'automationSchedules'));
-          if (snap.empty && active) {
-            await automationService.seedDefaultSchedules(tenantId);
-          }
-        } catch (e) {
-          console.error(e);
+    const initSchedules = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'restaurants', tenantId, 'automationSchedules'));
+        if (snap.empty && active) {
+          await automationService.seedDefaultSchedules(tenantId);
         }
-      };
+      } catch (e) {
+        console.error(e);
+      }
+    };
 
-      initSchedules().then(() => {
-        if (!active) return;
-        import('firebase/firestore').then(({ collection, onSnapshot }) => {
-          import('../../firebase/config').then(({ db }) => {
-            if (!active) return;
-            unsubscribeSnapshot = onSnapshot(collection(db, 'restaurants', tenantId, 'automationSchedules'), (snap) => {
-              const list: any[] = [];
-              snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-              localSchedules = list;
-              isSubscribed = true;
-            });
-          });
-        });
+    initSchedules().then(() => {
+      if (!active) return;
+      unsubscribeSnapshot = onSnapshot(collection(db, 'restaurants', tenantId, 'automationSchedules'), (snap) => {
+        const list: any[] = [];
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        localSchedules = list;
+        isSubscribed = true;
       });
     });
 
@@ -149,11 +140,9 @@ export const useAutomationEngine = () => {
 
         const nextRun = schedule.nextExecutionTime ? new Date(schedule.nextExecutionTime) : null;
         if (nextRun && now >= nextRun && schedule.executionStatus !== 'running') {
-          import('../../services/automationService').then(({ automationService }) => {
-            if (active) {
-              automationService.runScheduledJob(tenantId, schedule.id, schedule.name).catch(console.error);
-            }
-          });
+          if (active) {
+            automationService.runScheduledJob(tenantId, schedule.id, schedule.name).catch(console.error);
+          }
         }
       });
     }, 15000);

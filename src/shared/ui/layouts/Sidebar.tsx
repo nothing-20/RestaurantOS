@@ -44,25 +44,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
         ];
       case 'owner':
         const ownerLinks = [
-          { to: '/dashboard/owner', label: 'Dashboard', icon: LayoutDashboard },
-          { to: '/dashboard/owner/menu', label: 'Menu', icon: Menu },
-          { to: '/dashboard/owner/tables', label: 'Tables', icon: QrCode },
-          { to: '/dashboard/owner/staff', label: 'Staff', icon: Users },
-          { to: '/dashboard/owner/billing', label: 'Billing', icon: DollarSign },
-          { to: '/dashboard/owner/inventory', label: 'Inventory', icon: ClipboardList },
+          { to: '/owner/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+          { to: '/owner/menu', label: 'Menu', icon: Menu },
+          { to: '/owner/tables', label: 'Tables', icon: QrCode },
+          { to: '/owner/staff', label: 'Staff', icon: Users },
+          { to: '/owner/billing', label: 'Billing', icon: DollarSign },
+          { to: '/owner/inventory', label: 'Inventory', icon: ClipboardList },
         ];
         
         if (featureFlags.analytics) {
-          ownerLinks.push({ to: '/dashboard/owner/analytics', label: 'Analytics', icon: TrendingUp });
+          ownerLinks.push({ to: '/owner/analytics', label: 'Analytics', icon: TrendingUp });
         }
         if (featureFlags.automation) {
-          ownerLinks.push({ to: '/dashboard/owner/automation', label: 'Automation', icon: Activity });
+          ownerLinks.push({ to: '/owner/automation', label: 'Automation', icon: Activity });
         }
         if (featureFlags.intelligence) {
-          ownerLinks.push({ to: '/dashboard/owner/intelligence', label: 'Intelligence', icon: Sparkles });
+          ownerLinks.push({ to: '/owner/intelligence', label: 'Intelligence', icon: Sparkles });
         }
         if (featureFlags.strategy) {
-          ownerLinks.push({ to: '/dashboard/owner/strategy', label: 'Strategy', icon: Target });
+          ownerLinks.push({ to: '/owner/strategy', label: 'Strategy', icon: Target });
         }
         
         return ownerLinks;
@@ -146,7 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
             <NavLink
               key={link.to}
               to={link.to}
-              end={link.to === '/dashboard/owner' || link.to === '/dashboard/waiter' || link.to === '/dashboard/kitchen'}
+              end={link.to === '/owner/dashboard' || link.to === '/dashboard/owner' || link.to === '/dashboard/waiter' || link.to === '/dashboard/kitchen'}
               className={({ isActive }) => `
                 flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300
                 ${isActive 
@@ -165,7 +165,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
       {(role === 'owner' || role === 'admin') && (
         <div className="p-4 border-t border-slate-800/40 bg-slate-950/20">
           <NavLink 
-            to="/dashboard/owner/settings"
+            to="/owner/settings"
             className={({ isActive }) => 
               `flex items-center space-x-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 isActive 

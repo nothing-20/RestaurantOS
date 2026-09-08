@@ -103,7 +103,6 @@ export const inventoryService = {
             logEvent(tenantId, {
               eventType,
               eventCategory: 'Management',
-              tenantId,
               performedBy: 'System',
               performedByRole: 'System',
               title: `${eventType} warning: ${ingData.name}`,
@@ -135,7 +134,6 @@ export const inventoryService = {
             logEvent(tenantId, {
               eventType: 'Purchase Suggested',
               eventCategory: 'Management',
-              tenantId,
               performedBy: 'System',
               performedByRole: 'System',
               title: `Replenishment Suggestion: ${ingData.name}`,
@@ -150,7 +148,6 @@ export const inventoryService = {
       logEvent(tenantId, {
         eventType: 'Ingredient Consumed',
         eventCategory: 'System',
-        tenantId,
         performedBy: 'System',
         performedByRole: 'System',
         title: `Stock Deducted for Order #${orderId}`,
@@ -235,7 +232,6 @@ export const inventoryService = {
       logEvent(tenantId, {
         eventType: 'Stock Adjustment',
         eventCategory: 'System',
-        tenantId,
         performedBy: 'System',
         performedByRole: 'System',
         title: `Restocked Order #${orderId}`,
@@ -292,7 +288,6 @@ export const inventoryService = {
       logEvent(tenantId, {
         eventType: 'Waste Recorded',
         eventCategory: 'Management',
-        tenantId,
         performedBy: wasteData.submittedByName || 'Staff',
         performedByRole: 'Staff',
         title: `Waste Logged: ${wasteData.ingredientName}`,
@@ -361,8 +356,7 @@ export const inventoryService = {
 
               logEvent(tenantId, {
                 eventType,
-                eventCategory: 'Operations',
-                tenantId,
+                eventCategory: 'Operational',
                 performedBy: 'System',
                 performedByRole: 'System',
                 title,
@@ -425,8 +419,7 @@ export const inventoryService = {
             // Log event
             logEvent(tenantId, {
               eventType: 'Stock Adjustment',
-              eventCategory: 'Operations',
-              tenantId,
+              eventCategory: 'Operational',
               performedBy: 'System',
               performedByRole: 'System',
               title: `Restocked portions: ${itemData.name}`,

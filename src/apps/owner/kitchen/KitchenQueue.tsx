@@ -52,6 +52,7 @@ import SmartBatchPrediction from './SmartBatchPrediction';
 import Card from '../../../components/ui/Card/Card';
 import Select from '../../../components/ui/Select/Select';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner/LoadingSpinner';
+import Badge from '../../../components/ui/Badge/Badge';
 
 import toast from 'react-hot-toast';
 import {
@@ -74,6 +75,7 @@ import {
   X,
   History,
   Activity,
+  Calendar,
 } from 'lucide-react';
 
 // KDS-specific types & utilities
@@ -410,16 +412,17 @@ export const KitchenQueue: React.FC = () => {
 
   // Local portion deductions are automated via background transaction listener
 
-  const handlePrepareBatch = async (item: any, size: number) => {
+  const handlePrepareBatch = async (item: any, size?: number) => {
     if (!user?.tenantId) return;
+    const batchSize = size !== undefined ? size : (item.defaultBatchSize || 50);
     
     // First validate ingredients and deduct from stock using inventoryService transaction
-    await inventoryService.deductIngredientsForBatch(user.tenantId, item.id, size);
+    await inventoryService.deductIngredientsForBatch(user.tenantId, item.id, batchSize);
 
     // If validation passed, increment available servings
     const docRef = doc(db, 'restaurants', user.tenantId, 'menu', 'default', 'items', item.id);
     const currentServings = Number(item.availableServings ?? 0);
-    const newServings = currentServings + size;
+    const newServings = currentServings + batchSize;
     
     await updateDoc(docRef, {
       availableServings: newServings,
@@ -434,22 +437,22 @@ export const KitchenQueue: React.FC = () => {
     await addDoc(collection(db, 'restaurants', user.tenantId, 'preparedBatchesHistory'), {
       itemId: item.id,
       itemName: item.name,
-      portionsAdded: size,
+      portionsAdded: batchSize,
       timestamp: new Date().toISOString(),
       preparedBy: user.displayName || user.email || 'Kitchen Chef'
     });
 
     await logEvent(user.tenantId, {
       eventType: 'Batch Prepared',
-      eventCategory: 'Operations',
+      eventCategory: 'Operational',
       performedBy: user.displayName || user.email || 'Kitchen Chef',
       performedByRole: 'kitchen',
       title: 'New Prepared Batch Cooked',
-      description: `Prepared new batch of "${item.name}" adding ${size} portions. Required ingredients deducted from stock.`,
-      metadata: { itemId: item.id, batchSize: size, availableServings: newServings }
+      description: `Prepared new batch of "${item.name}" adding ${batchSize} portions. Required ingredients deducted from stock.`,
+      metadata: { itemId: item.id, batchSize, availableServings: newServings }
     });
 
-    toast.success(`Prepared new batch of ${size} portions for ${item.name}!`);
+    toast.success(`Prepared new batch of ${batchSize} portions for ${item.name}!`);
   };
 
   // ── Single Status Update (with timeline append) ───────────────────────────

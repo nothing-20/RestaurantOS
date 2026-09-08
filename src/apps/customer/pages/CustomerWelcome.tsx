@@ -16,7 +16,7 @@ import {
   Sparkles,
   ExternalLink
 } from 'lucide-react';
-import { customerService } from '../../../shared/services/customerService';
+import { customerService, isRestaurantOpen } from '../../../shared/services/customerService';
 import { QrParamsSchema } from '../../../shared/domain/customer/validation';
 import Button from '../../../shared/ui/buttons/Button';
 import Card from '../../../shared/ui/cards/Card';
@@ -181,7 +181,7 @@ export const CustomerWelcome: React.FC = () => {
       }
 
       // Check for cached active session
-      const cachedSessionStr = localStorage.getItem('restaurantos_dining_session');
+      const cachedSessionStr = sessionStorage.getItem('restaurantos_dining_session') || localStorage.getItem('restaurantos_dining_session');
       if (cachedSessionStr) {
         try {
           const cachedSession = JSON.parse(cachedSessionStr);
@@ -199,7 +199,7 @@ export const CustomerWelcome: React.FC = () => {
       }
 
       // Backend verification
-      const res = await customerService.validateDiningSessionQR(qrParams);
+      const res = await customerService.validateDiningSessionQR(qrParams) as any;
       if (!res.valid) {
         setErrorType(res.errorType);
         setRestaurant(res.restaurantData || null);

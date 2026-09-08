@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
+import { logEvent } from '../../../shared/services/eventEngine';
 import { useAuth } from '../../../context/AuthContext';
 import { formatPrice } from '../../../shared/utils/format';
 import { strategyService } from '../../../shared/intelligence/strategy/strategyService';
@@ -188,17 +189,15 @@ export const OwnerStrategyCenter: React.FC = () => {
       const desc = nextStatus === 'accepted' ? 'Owner accepted the proposed strategy.' :
                    nextStatus === 'completed' ? 'Operations Strategy completed successfully.' : 'Strategy updated.';
 
-      import('../../../shared/services/eventEngine').then(({ logEvent }) => {
-        logEvent(tenantId, {
-          tenantId,
-          eventType,
-          eventCategory: 'Management',
-          performedBy: user?.displayName || user?.email || 'Owner',
-          performedByRole: 'owner',
-          title: eventType,
-          description: desc,
-          metadata: { planId }
-        });
+      logEvent(tenantId, {
+        tenantId,
+        eventType,
+        eventCategory: 'Management',
+        performedBy: user?.displayName || user?.email || 'Owner',
+        performedByRole: 'owner',
+        title: eventType,
+        description: desc,
+        metadata: { planId }
       });
 
       toast.success(`Strategy status updated to ${nextStatus}.`);

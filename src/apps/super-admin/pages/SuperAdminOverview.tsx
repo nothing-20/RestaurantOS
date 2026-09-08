@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { 
   collection, 
   onSnapshot, 
+  query,
+  limit,
   doc, 
   setDoc, 
   updateDoc 
@@ -9,7 +11,6 @@ import {
 import { db } from '../../../config/firebase';
 import { ITenant } from '../../../types';
 import { formatPrice } from '../../../utils/format';
-import { seedDatabase } from '../../../firebase/seed';
 
 // UI Kit components
 import Card from '../../../components/ui/Card/Card';
@@ -81,6 +82,7 @@ export const SuperAdminOverview: React.FC = () => {
     }
     setIsSeeding(true);
     try {
+      const { seedDatabase } = await import('../../../firebase/seed');
       await seedDatabase(seedingTenantId.trim());
       toast.success(`Successfully seeded sample data into workspace: ${seedingTenantId}`);
     } catch (e: any) {
@@ -95,16 +97,18 @@ export const SuperAdminOverview: React.FC = () => {
   useEffect(() => {
     setIsLoading(true);
 
-    // 1. Subscribe to Tenants
-    const unsubTenants = onSnapshot(collection(db, 'tenants'), (snap) => {
+    // 1. Subscribe to Tenants (bounded to 30)
+    const qTenants = query(collection(db, 'tenants'), limit(30));
+    const unsubTenants = onSnapshot(qTenants, (snap) => {
       const list: ITenant[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as ITenant));
       setTenants(list);
       setIsLoading(false);
     });
 
-    // 2. Subscribe to Support tickets
-    const unsubTickets = onSnapshot(collection(db, 'supportTickets'), (snap) => {
+    // 2. Subscribe to Support tickets (bounded to 30)
+    const qTickets = query(collection(db, 'supportTickets'), limit(30));
+    const unsubTickets = onSnapshot(qTickets, (snap) => {
       const list: ISupportTicket[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as ISupportTicket));
       setTickets(list);
@@ -131,8 +135,9 @@ export const SuperAdminOverview: React.FC = () => {
       setFlags(list);
     });
 
-    // 4. Subscribe to Audit Logs
-    const unsubAudit = onSnapshot(collection(db, 'auditLogs'), (snap) => {
+    // 4. Subscribe to Audit Logs (bounded to 30)
+    const qAudit = query(collection(db, 'auditLogs'), limit(30));
+    const unsubAudit = onSnapshot(qAudit, (snap) => {
       const list: IAuditLog[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as IAuditLog));
       list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());

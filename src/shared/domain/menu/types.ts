@@ -8,7 +8,7 @@ export interface IMenuCategory {
 }
 
 export interface IMenuItem {
-  rating: number;
+  rating?: number;
   id: string;
   name: string;
   description: string;
@@ -23,13 +23,14 @@ export interface IMenuItem {
   veg: boolean; // for backward compatibility
   isAvailable: boolean;
   available: boolean; // for backward compatibility
+  availability?: boolean; // for backward compatibility
   isBestSeller: boolean;
   isRecommended: boolean;
   spiceLevel: string; // 'none' | 'mild' | 'medium' | 'hot'
   tags: string[];
   station?: string; // e.g. 'Grill', 'Pizza', 'Drinks', etc.
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 
   // Batch Prepared Food Management
   preparationMethod?: 'fresh' | 'batch';
@@ -38,5 +39,18 @@ export interface IMenuItem {
   lowStockThreshold?: number;
   autoUnavailable?: boolean;
   showServingsToStaff?: boolean;
+  allowRefill?: boolean;
   productionMode?: 'On Demand' | 'Batch Production';
+  createdBy?: string;
+  updatedBy?: string;
+  status?: string;
+  bestseller?: boolean;
+  recommended?: boolean;
+  prepTime?: number;
+  vegetarian?: boolean;
+  flags?: {
+    vegetarian?: boolean;
+    bestseller?: boolean;
+    recommended?: boolean;
+  };
 }

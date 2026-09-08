@@ -80,16 +80,13 @@ export const ProfilePage: React.FC = () => {
   };
 
   // State: Personal Information
-  const [displayName, setDisplayName] = useState(user?.displayName || 'Sarah Jenkins');
-  const [phoneNumber, setPhoneNumber] = useState('+91 98452 10928');
-  const [dietaryPrefs, setDietaryPrefs] = useState<string[]>(['Gluten-Free', 'Organic']);
-  const [allergens, setAllergens] = useState<string[]>(['Peanuts']);
+  const [displayName, setDisplayName] = useState(user?.displayName || user?.email?.split('@')[0] || 'Customer');
+  const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
+  const [dietaryPrefs, setDietaryPrefs] = useState<string[]>([]);
+  const [allergens, setAllergens] = useState<string[]>([]);
 
   // State: Saved Addresses
-  const [addresses, setAddresses] = useState<IAddress[]>([
-    { id: '1', name: 'Home', detail: 'Flat 402, Indiranagar, Bengaluru, KA 560038' },
-    { id: '2', name: 'Office', detail: 'Tower B, Hitech City, Hyderabad, TG 500081' }
-  ]);
+  const [addresses, setAddresses] = useState<IAddress[]>([]);
   const [newAddrName, setNewAddrName] = useState('');
   const [newAddrDetail, setNewAddrDetail] = useState('');
 
@@ -98,31 +95,17 @@ export const ProfilePage: React.FC = () => {
   const [isReservationsLoading, setIsReservationsLoading] = useState(false);
 
   // State: Rewards
-  const [loyaltyPoints, setLoyaltyPoints] = useState(780);
-  const rewardsList: IReward[] = [
-    { title: "Complimentary Gelato Sundae", desc: "Redeemable at any cafe or fine dining branch.", cost: 250 },
-    { title: "Free Premium Pinot Noir", desc: "Enjoy a select house bottle with your dinner reservation.", cost: 500 },
-    { title: "20% Dinner Check Voucher", desc: "Flat 20% discount on total table dining checks.", cost: 600 }
-  ];
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const rewardsList: IReward[] = [];
 
-  // State: Wallet
-  const [walletBalance, setWalletBalance] = useState(4250);
+  // State: Wallet & Transactions
+  const [walletBalance, setWalletBalance] = useState(0);
   const [topUpAmount, setTopUpAmount] = useState('');
-  const [transactions] = useState<ITransaction[]>([
-    { id: 'TX-9102', desc: 'Dine-in checkout at Osteria', amount: 1850, type: 'debit', date: 'Jul 06, 2026' },
-    { id: 'TX-9042', desc: 'UPI Top-up transaction', amount: 2000, type: 'credit', date: 'Jul 04, 2026' },
-    { id: 'TX-8821', desc: 'Table reservation deposit', amount: 500, type: 'debit', date: 'Jun 28, 2026' }
-  ]);
+  const [transactions, setTransactions] = useState<ITransaction[]>([]);
 
-  // State: Favourites
+  // State: Favourites & Dining History
   const [favourites, setFavourites] = useState<any[]>([]);
-
-  // State: Dining History
-  const [diningHistory] = useState([
-    { id: 'H-102', restaurant: "L'Ambroisie", date: 'June 18, 2026', diners: 2, spend: 8400.5 },
-    { id: 'H-091', restaurant: 'Shuko Sushi', date: 'May 24, 2026', diners: 4, spend: 12200 },
-    { id: 'H-074', restaurant: 'Osteria Francescana', date: 'April 12, 2026', diners: 2, spend: 4500 }
-  ]);
+  const [diningHistory, setDiningHistory] = useState<any[]>([]);
 
   // State: Notifications preferences
   const [notifSms, setNotifSms] = useState(true);
@@ -132,6 +115,57 @@ export const ProfilePage: React.FC = () => {
   // State: Settings
   const [appLang, setAppLang] = useState('English');
   const [appPrivacy, setAppPrivacy] = useState(true);
+
+  // Stream user document (Wallet, Loyalty, Profile Data) from Firestore
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const userDocRef = doc(db, 'users', user.uid);
+    const unsubUser = onSnapshot(userDocRef, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.displayName) setDisplayName(d.displayName);
+        if (d.phoneNumber || d.phone) setPhoneNumber(d.phoneNumber || d.phone);
+        if (d.walletBalance !== undefined) setWalletBalance(d.walletBalance);
+        if (d.loyaltyPoints !== undefined) setLoyaltyPoints(d.loyaltyPoints);
+        if (d.dietaryPrefs) setDietaryPrefs(d.dietaryPrefs);
+        if (d.allergens) setAllergens(d.allergens);
+      }
+    }, (err) => {
+      console.error('Error fetching user profile:', err);
+    });
+
+    // Stream addresses
+    const addrRef = collection(db, 'users', user.uid, 'addresses');
+    const unsubAddr = onSnapshot(addrRef, (snap) => {
+      const list: IAddress[] = [];
+      snap.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() } as IAddress));
+      setAddresses(list);
+    }, () => setAddresses([]));
+
+    // Stream transactions
+    const txRef = collection(db, 'users', user.uid, 'transactions');
+    const unsubTx = onSnapshot(txRef, (snap) => {
+      const list: ITransaction[] = [];
+      snap.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() } as ITransaction));
+      setTransactions(list);
+    }, () => setTransactions([]));
+
+    // Stream dining history
+    const histRef = collection(db, 'users', user.uid, 'diningHistory');
+    const unsubHist = onSnapshot(histRef, (snap) => {
+      const list: any[] = [];
+      snap.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
+      setDiningHistory(list);
+    }, () => setDiningHistory([]));
+
+    return () => {
+      unsubUser();
+      unsubAddr();
+      unsubTx();
+      unsubHist();
+    };
+  }, [user?.uid]);
 
   // Stream reservations from Firestore in real-time
   useEffect(() => {
@@ -149,10 +183,7 @@ export const ProfilePage: React.FC = () => {
       setIsReservationsLoading(false);
     }, (error) => {
       console.error('Error streaming reservations:', error);
-      // Fallback
-      setReservations([
-        { id: 'RES-82739', restaurantId: 'l-ambroisie', restaurantName: "L'Ambroisie", date: '2026-07-15', time: '8:30 PM', guests: 2, status: 'Pending', seatingPreference: 'Window Seat', directions: 'Marais, Paris' }
-      ]);
+      setReservations([]);
       setIsReservationsLoading(false);
     });
 
@@ -247,24 +278,22 @@ export const ProfilePage: React.FC = () => {
       console.error(e);
       toast.error('Failed to sign out.');
     }
-  };
-
-  // Helper menu row builder
+  }  // Helper menu row builder
   const MenuRow = ({ icon: Icon, title, desc, onClick }: { icon: any, title: string, desc: string, onClick: () => void }) => (
     <button 
       onClick={onClick}
-      className="w-full p-4 bg-slate-900/40 border border-slate-900 hover:border-slate-850 rounded-2xl flex items-center justify-between transition-all select-none"
+      className="w-full p-4 bg-white border border-[#EEE7E1] hover:border-[#E85D3F]/40 rounded-2xl flex items-center justify-between transition-all select-none shadow-xs hover:shadow-md cursor-pointer"
     >
       <div className="flex items-center space-x-3.5">
-        <div className="w-10 h-10 bg-slate-950 border border-slate-850 rounded-xl flex items-center justify-center text-primary">
+        <div className="w-10 h-10 bg-[#FFF8F2] border border-[#EEE7E1] rounded-xl flex items-center justify-center text-[#E85D3F]">
           <Icon className="w-4.5 h-4.5" />
         </div>
         <div className="text-left space-y-0.5">
-          <h4 className="text-xs font-bold text-white">{title}</h4>
-          <p className="text-[10px] text-slate-500 font-semibold">{desc}</p>
+          <h4 className="text-xs font-extrabold text-[#242424]">{title}</h4>
+          <p className="text-[10px] text-[#6B6B6B] font-medium">{desc}</p>
         </div>
       </div>
-      <ChevronRight className="w-4 h-4 text-slate-600" />
+      <ChevronRight className="w-4 h-4 text-[#6B6B6B]" />
     </button>
   );
 
@@ -275,7 +304,7 @@ export const ProfilePage: React.FC = () => {
       {activeSection !== 'menu' && (
         <button 
           onClick={() => handleSectionChange('menu')}
-          className="flex items-center space-x-1.5 text-xs text-slate-500 hover:text-slate-300 font-bold transition-all"
+          className="flex items-center space-x-1.5 text-xs text-[#E85D3F] hover:underline font-extrabold transition-all cursor-pointer"
         >
           <ChevronLeft className="w-4 h-4" />
           <span>Back to Profile Hub</span>
@@ -286,33 +315,35 @@ export const ProfilePage: React.FC = () => {
       {activeSection === 'menu' && (
         <div className="space-y-6">
           {/* Profile Quick Summary */}
-          <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-900 p-5 rounded-3xl flex items-center justify-between gap-4">
+          <div className="bg-white border border-[#EEE7E1] p-6 rounded-3xl flex items-center justify-between gap-4 shadow-xs">
             <div className="flex items-center space-x-4">
-              <div className="w-14 h-14 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center text-lg font-extrabold text-primary shadow">
+              <div className="w-14 h-14 bg-[#E85D3F] rounded-2xl flex items-center justify-center text-lg font-extrabold text-white shadow-md shadow-[#E85D3F]/20">
                 {displayName.substring(0, 2).toUpperCase()}
               </div>
-              <div className="space-y-0.5">
-                <h3 className="text-sm font-extrabold text-white">{displayName}</h3>
-                <span className="text-[9px] bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-lg uppercase tracking-wider font-extrabold block w-fit">
-                  Silver VIP Member
+              <div className="space-y-1">
+                <h3 className="text-base font-extrabold text-[#242424]">{displayName}</h3>
+                <span className="text-[9px] bg-[#FFF8F2] text-[#E85D3F] border border-[#EEE7E1] px-2.5 py-0.5 rounded-full uppercase tracking-wider font-extrabold block w-fit">
+                  {loyaltyPoints > 500 ? 'Gold VIP Member' : loyaltyPoints > 0 ? 'Member' : 'Verified Account'}
                 </span>
               </div>
             </div>
-            <Award className="w-8 h-8 text-primary shrink-0" />
+            <Award className="w-8 h-8 text-[#E85D3F] shrink-0" />
           </div>
 
           {/* Wallet Balance Card Teaser */}
-          <div className="p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-primary/20 rounded-2xl flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Wallet className="w-5 h-5 text-primary" />
+          <div className="p-5 bg-gradient-to-br from-[#FFF8F2] via-[#FFFCF9] to-[#FFF3EB] border border-[#EEE7E1] rounded-3xl flex items-center justify-between shadow-xs">
+            <div className="flex items-center space-x-3.5">
+              <div className="w-10 h-10 bg-[#E85D3F]/10 border border-[#E85D3F]/20 rounded-2xl flex items-center justify-center text-[#E85D3F]">
+                <Wallet className="w-5 h-5" />
+              </div>
               <div>
-                <span className="text-[8.5px] text-slate-550 font-extrabold uppercase block tracking-wider">RestaurantOS Pay Balance</span>
-                <span className="text-sm font-extrabold text-white">{formatCurrency(walletBalance)}</span>
+                <span className="text-[9px] text-[#6B6B6B] font-extrabold uppercase block tracking-wider">RestaurantOS Pay Balance</span>
+                <span className="text-base font-extrabold text-[#242424]">{formatCurrency(walletBalance)}</span>
               </div>
             </div>
             <button 
               onClick={() => handleSectionChange('wallet')}
-              className="text-[10px] bg-primary text-slate-950 font-bold px-3 py-1.5 rounded-lg"
+              className="text-xs bg-[#E85D3F] hover:bg-[#D04B2F] text-white font-extrabold px-4 py-2 rounded-xl shadow-md shadow-[#E85D3F]/20 cursor-pointer transition-all"
             >
               Add Money
             </button>
@@ -325,18 +356,18 @@ export const ProfilePage: React.FC = () => {
               <button 
                 type="button"
                 onClick={() => navigate('/customer/portal')}
-                className="w-full p-4 bg-primary/10 border border-primary/30 hover:border-primary/50 rounded-2xl flex items-center justify-between transition-all select-none animate-pulse"
+                className="w-full p-4 bg-[#FFF8F2] border border-[#E85D3F]/40 hover:border-[#E85D3F] rounded-2xl flex items-center justify-between transition-all select-none shadow-xs cursor-pointer"
               >
                 <div className="flex items-center space-x-3.5">
-                  <div className="w-10 h-10 bg-primary/20 border border-primary/30 rounded-xl flex items-center justify-center text-primary">
+                  <div className="w-10 h-10 bg-[#E85D3F] text-white rounded-xl flex items-center justify-center shadow-xs">
                     <Clock className="w-4.5 h-4.5" />
                   </div>
                   <div className="text-left space-y-0.5">
-                    <h4 className="text-xs font-extrabold text-primary">Enter Active Live Dining</h4>
-                    <p className="text-[10px] text-slate-400 font-semibold font-sans">Your session is active. Tap to view menu & order.</p>
+                    <h4 className="text-xs font-extrabold text-[#E85D3F]">Enter Active Live Dining</h4>
+                    <p className="text-[10px] text-[#6B6B6B] font-semibold">Your session is active. Tap to view menu & order.</p>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-primary" />
+                <ChevronRight className="w-4 h-4 text-[#E85D3F]" />
               </button>
             )}
 
@@ -401,16 +432,15 @@ export const ProfilePage: React.FC = () => {
               onClick={() => handleSectionChange('settings')}
             />
 
-            {/* Logout button STRICTLY only exists here */}
+            {/* Logout button */}
             <button
               onClick={triggerLogout}
-              className="w-full p-4 bg-red-500/10 hover:bg-red-500/15 border border-red-500/20 hover:border-red-500/30 rounded-2xl flex items-center justify-between text-red-400 font-extrabold transition-all"
+              className="w-full p-4 bg-red-50 hover:bg-red-100/60 border border-red-200 rounded-2xl flex items-center justify-between text-red-600 font-extrabold transition-all cursor-pointer shadow-xs"
             >
               <div className="flex items-center space-x-3.5">
-                <LogOut className="w-5 h-5 text-red-400" />
+                <LogOut className="w-5 h-5 text-red-600" />
                 <span>Logout</span>
               </div>
-              <ChevronRight className="w-4 h-4 text-red-500/60" />
             </button>
           </div>
         </div>

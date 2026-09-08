@@ -7,6 +7,7 @@ import {
   addDoc, 
   query,
   where,
+  limit,
   arrayUnion,
   writeBatch,
   setDoc
@@ -236,7 +237,8 @@ export const WaiterMatrix: React.FC = () => {
     });
 
     const ordersRef = collection(db, 'restaurants', user.tenantId, 'orders');
-    const unsubOrders = onSnapshot(ordersRef, (snap) => {
+    const qOrders = query(ordersRef, limit(30));
+    const unsubOrders = onSnapshot(qOrders, (snap) => {
       const list: IOrder[] = [];
       snap.forEach(docSnap => {
         list.push({ ...docSnap.data() } as IOrder);
@@ -250,7 +252,8 @@ export const WaiterMatrix: React.FC = () => {
     });
 
     const reqRef = collection(db, 'restaurants', user.tenantId, 'requests');
-    const unsubReq = onSnapshot(reqRef, (snap) => {
+    const qReq = query(reqRef, limit(20));
+    const unsubReq = onSnapshot(qReq, (snap) => {
       const list: IServiceRequest[] = [];
       snap.forEach(docSnap => {
         list.push({ ...docSnap.data() } as IServiceRequest);
@@ -259,7 +262,8 @@ export const WaiterMatrix: React.FC = () => {
     });
 
     const waiterReqRef = collection(db, 'restaurants', user.tenantId, 'waiterRequests');
-    const unsubWaiterReq = onSnapshot(waiterReqRef, (snap) => {
+    const qWaiterReq = query(waiterReqRef, limit(20));
+    const unsubWaiterReq = onSnapshot(qWaiterReq, (snap) => {
       const list: any[] = [];
       snap.forEach(docSnap => {
         const data = docSnap.data();
@@ -272,7 +276,8 @@ export const WaiterMatrix: React.FC = () => {
 
     const menuPath = getMenuItemPath(user.tenantId);
     const menuRef = collection(db, menuPath);
-    const unsubMenu = onSnapshot(menuRef, (snap) => {
+    const qMenu = query(menuRef, limit(50));
+    const unsubMenu = onSnapshot(qMenu, (snap) => {
       const list: IMenuItem[] = [];
       snap.forEach(docSnap => {
         const data = docSnap.data();
@@ -1553,7 +1558,6 @@ export const WaiterMatrix: React.FC = () => {
     const today = new Date().toDateString();
     const pendingBillsOrders = orders.filter(o => 
       o.status === 'BILL_REQUESTED' || 
-      o.status === 'BILL_GENERATED' || 
       (o.paymentStatus === 'pending' && (o.status === 'SERVED' || o.status === 'DELIVERED' || o.status === 'DINING'))
     );
     const pendingBillsCount = pendingBillsOrders.length;

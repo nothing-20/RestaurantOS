@@ -8,6 +8,7 @@ export interface IModalProps {
   title?: string;
   children: React.ReactNode;
   className?: string;
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl' | '7xl' | 'max';
 }
 
 export const Modal: React.FC<IModalProps> = ({
@@ -15,9 +16,24 @@ export const Modal: React.FC<IModalProps> = ({
   onClose,
   title,
   children,
-  className
+  className,
+  size = 'lg'
 }) => {
   if (!isOpen) return null;
+
+  const sizeClasses = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-xl',
+    '2xl': 'max-w-2xl',
+    '3xl': 'max-w-3xl',
+    '4xl': 'max-w-4xl',
+    '5xl': 'max-w-5xl',
+    '6xl': 'max-w-6xl',
+    '7xl': 'max-w-7xl',
+    max: 'max-w-[95vw]'
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-x-hidden overflow-y-auto">
@@ -30,7 +46,8 @@ export const Modal: React.FC<IModalProps> = ({
       {/* Modal Dialog Content */}
       <div 
         className={cn(
-          "w-full max-w-lg bg-slate-900 border border-slate-800 backdrop-blur-md shadow-2xl rounded-2xl relative z-10 flex flex-col p-6 animate-in fade-in zoom-in-95 duration-200",
+          "w-full bg-slate-900 border border-slate-800 backdrop-blur-md shadow-2xl rounded-2xl relative z-10 flex flex-col p-6 animate-in fade-in zoom-in-95 duration-200",
+          sizeClasses[size] || 'max-w-lg',
           className
         )}
       >

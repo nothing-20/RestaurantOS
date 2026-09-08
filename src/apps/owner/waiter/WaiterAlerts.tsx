@@ -251,7 +251,7 @@ export const WaiterAlerts: React.FC = () => {
     });
 
     // 2. Legacy QR Alerts
-    requests.forEach(r => {
+    requests.forEach((r: any) => {
       list.push({
         id: r.id || `qr-${r.createdAt}`,
         orderId: r.orderId || '—',
