@@ -1,9 +1,12 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useAuth } from '../context/AuthContext';
 
 export const WorkspaceGuard: React.FC = () => {
   const { workspace, isLoading, validationError } = useWorkspace();
+  const { user, role } = useAuth();
+  const isOwner = role === 'owner' || workspace?.role === 'owner' || user?.role === 'owner';
 
   if (isLoading) {
     return (
@@ -42,22 +45,26 @@ export const WorkspaceGuard: React.FC = () => {
 
   // Redirect to workspace error if validation has failed
   if (validationError) {
-    const isOwner = workspace?.role === 'owner';
-    if (validationError === 'subscription-expired' && isOwner) {
+    if (isOwner) {
       const currentPath = window.location.pathname;
-      if (currentPath === '/owner/billing' || currentPath === '/dashboard/owner/billing') {
-        return <Outlet />;
-      } else {
+      if (validationError === 'subscription-expired') {
+        if (currentPath === '/owner/billing' || currentPath === '/dashboard/owner/billing') {
+          return <Outlet />;
+        }
         return <Navigate to="/owner/billing" replace />;
       }
+      // Owner has full clearance to access owner dashboard
+      return <Outlet />;
     }
     return <Navigate to={`/workspace-error?type=${validationError}`} replace />;
   }
 
   // Fallback check: if no workspace has been generated
   if (!workspace || !workspace.isValid) {
-    const isOwner = workspace?.role === 'owner';
-    return <Navigate to={isOwner ? "/owner/login" : "/staff/login"} replace />;
+    if (isOwner) {
+      return <Outlet />;
+    }
+    return <Navigate to="/staff/login" replace />;
   }
 
   return <Outlet />;

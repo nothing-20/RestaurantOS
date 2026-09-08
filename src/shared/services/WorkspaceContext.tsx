@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { signOut } from 'firebase/auth';
 import toast from 'react-hot-toast';
@@ -126,37 +126,86 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       // Step 4: Validate Tenant (Restaurant)
-      const tenantId = userData.tenantId || user.tenantId || (user as any).restaurantId;
-      if (!tenantId) {
-        // tenantId missing means the employee account was not properly onboarded.
-        // Show 'user-not-found' so the user sees "Contact your administrator" guidance.
-        setValidationError('user-not-found');
-        setIsLoading(false);
-        return;
-      }
+      const isOwner = userData.role === 'owner' || user.role === 'owner';
+      let tenantId = userData.tenantId || user.tenantId || (user as any).restaurantId;
 
       let tenantData: any = null;
-      const tenantRef = doc(db, 'tenants', tenantId);
-      const tenantSnap = await getDoc(tenantRef);
+      if (tenantId) {
+        const tenantRef = doc(db, 'tenants', tenantId);
+        const tenantSnap = await getDoc(tenantRef);
 
-      if (tenantSnap.exists()) {
-        tenantData = tenantSnap.data();
-      } else {
-        const restRef = doc(db, 'restaurants', tenantId);
-        const restSnap = await getDoc(restRef);
-        if (restSnap.exists()) {
-          tenantData = restSnap.data();
+        if (tenantSnap.exists()) {
+          tenantData = tenantSnap.data();
+        } else {
+          const restRef = doc(db, 'restaurants', tenantId);
+          const restSnap = await getDoc(restRef);
+          if (restSnap.exists()) {
+            tenantData = restSnap.data();
+          }
+        }
+      }
+
+      // If tenant not resolved by ID, look up by ownerUid
+      if (!tenantData && user.uid) {
+        try {
+          const qTenants = query(collection(db, 'tenants'), where('ownerUid', '==', user.uid));
+          const snapTenants = await getDocs(qTenants);
+          if (!snapTenants.empty) {
+            tenantId = snapTenants.docs[0].id;
+            tenantData = snapTenants.docs[0].data();
+          } else {
+            const qRest = query(collection(db, 'restaurants'), where('ownerUid', '==', user.uid));
+            const snapRest = await getDocs(qRest);
+            if (!snapRest.empty) {
+              tenantId = snapRest.docs[0].id;
+              tenantData = snapRest.docs[0].data();
+            }
+          }
+        } catch (e) {
+          console.warn('[Workspace] Error querying tenant by ownerUid:', e);
+        }
+      }
+
+      // Self-heal missing restaurant document for authenticated owner
+      if (!tenantData && isOwner) {
+        tenantId = tenantId || `restaurant-${user.uid.slice(0, 8)}`;
+        tenantData = {
+          id: tenantId,
+          name: userData.restaurantName || userData.displayName || user.displayName || 'My Restaurant',
+          ownerUid: user.uid,
+          status: 'active',
+          planTier: 'starter',
+          subscriptionStatus: 'active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        try {
+          await setDoc(doc(db, 'tenants', tenantId), tenantData, { merge: true });
+          await setDoc(doc(db, 'restaurants', tenantId), tenantData, { merge: true });
+          await setDoc(doc(db, 'users', user.uid), { tenantId }, { merge: true });
+        } catch (e) {
+          console.warn('[Workspace] Self-healing tenant doc write failed, using in-memory state:', e);
         }
       }
 
       if (!tenantData) {
-        setValidationError('tenant-suspended');
-        setIsLoading(false);
-        return;
+        if (isOwner) {
+          tenantId = tenantId || `restaurant-${user.uid.slice(0, 8)}`;
+          tenantData = {
+            id: tenantId,
+            name: userData.restaurantName || userData.displayName || 'My Restaurant',
+            status: 'active',
+            subscriptionStatus: 'active'
+          };
+        } else {
+          setValidationError('tenant-suspended');
+          setIsLoading(false);
+          return;
+        }
       }
 
-      // Validate Tenant Status
-      if (tenantData.status && tenantData.status !== 'active') {
+      // Validate Tenant Status (owners are never locked out with 'tenant-suspended')
+      if (tenantData.status && tenantData.status !== 'active' && !isOwner) {
         setValidationError('tenant-suspended');
         setIsLoading(false);
         return;
