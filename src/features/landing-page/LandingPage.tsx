@@ -21,14 +21,13 @@ import {
 } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
-  const { user, loginAsMockRole, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const [showSwitcher, setShowSwitcher] = useState(false);
 
-  const handleRoleSelect = (role: any, path: string) => {
-    loginAsMockRole(role, 'gourmet-palace-saas');
+  const handlePortalNavigate = (path: string) => {
     navigate(path);
   };
 
@@ -228,8 +227,8 @@ export const LandingPage: React.FC = () => {
                   <h3 className="font-bold text-textPearl">Waiter Dashboard</h3>
                   <p className="text-slate-500 mt-0.5 mb-3">Monitor active table matrices and diner alerts.</p>
                 </div>
-                <button onClick={() => handleRoleSelect('waiter', '/dashboard/waiter')} className="w-full px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-primary font-bold rounded-lg transition-all">
-                  Enter Waiter Panel
+                <button onClick={() => handlePortalNavigate('/staff/login')} className="w-full px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-primary font-bold rounded-lg transition-all">
+                  Staff Sign In (Waiter)
                 </button>
               </div>
 
@@ -239,8 +238,8 @@ export const LandingPage: React.FC = () => {
                   <h3 className="font-bold text-textPearl">Kitchen Workspace</h3>
                   <p className="text-slate-500 mt-0.5 mb-3">Manage incoming preparation tickets.</p>
                 </div>
-                <button onClick={() => handleRoleSelect('kitchen', '/dashboard/kitchen')} className="w-full px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-primary font-bold rounded-lg transition-all">
-                  Enter Kitchen Panel
+                <button onClick={() => handlePortalNavigate('/staff/login')} className="w-full px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-primary font-bold rounded-lg transition-all">
+                  Staff Sign In (Kitchen)
                 </button>
               </div>
 
@@ -250,8 +249,8 @@ export const LandingPage: React.FC = () => {
                   <h3 className="font-bold text-textPearl">Restaurant Owner</h3>
                   <p className="text-slate-500 mt-0.5 mb-3">Check monthly revenue graphs and inventory levels.</p>
                 </div>
-                <button onClick={() => handleRoleSelect('owner', '/dashboard/owner')} className="w-full px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-primary font-bold rounded-lg transition-all">
-                  Enter Owner Panel
+                <button onClick={() => handlePortalNavigate('/owner/login')} className="w-full px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-primary font-bold rounded-lg transition-all">
+                  Owner Sign In
                 </button>
               </div>
 
@@ -261,8 +260,8 @@ export const LandingPage: React.FC = () => {
                   <h3 className="font-bold text-textPearl">Branch Manager</h3>
                   <p className="text-slate-500 mt-0.5 mb-3">Check audit trails and branches configurations.</p>
                 </div>
-                <button onClick={() => handleRoleSelect('admin', '/dashboard/admin')} className="w-full px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-primary font-bold rounded-lg transition-all">
-                  Enter Admin Panel
+                <button onClick={() => handlePortalNavigate('/staff/login')} className="w-full px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-primary font-bold rounded-lg transition-all">
+                  Staff Sign In (Admin)
                 </button>
               </div>
 
@@ -272,8 +271,8 @@ export const LandingPage: React.FC = () => {
                   <h3 className="font-bold text-textPearl">Super Admin SaaS</h3>
                   <p className="text-slate-500 mt-0.5 mb-3">Check MRR run rates and features access.</p>
                 </div>
-                <button onClick={() => handleRoleSelect('super-admin', '/super-admin')} className="w-full px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-primary font-bold rounded-lg transition-all">
-                  Enter SaaS Admin
+                <button onClick={() => handlePortalNavigate('/owner/login')} className="w-full px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-primary font-bold rounded-lg transition-all">
+                  Sign In (Super Admin)
                 </button>
               </div>
             </motion.div>

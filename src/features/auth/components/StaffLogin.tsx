@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../../../config/firebase';
 import Button from '../../../components/ui/Button/Button';
@@ -45,8 +45,13 @@ export const StaffLogin: React.FC = () => {
 
     setIsLoading(true);
     try {
-      // 1. Firebase Authentication
+      // 1. Firebase Authentication with tab-isolated session persistence
       console.log('[AUTH Staff Login] Calling Firebase authentication...');
+      try {
+        await setPersistence(auth, browserSessionPersistence);
+      } catch (persistErr) {
+        console.warn('[AUTH Staff Login] Note setting session persistence:', persistErr);
+      }
       const credentials = await signInWithEmailAndPassword(auth, cleanEmail, password);
       const fUser = credentials.user;
 

@@ -89,9 +89,9 @@ const CustomerWelcomeRoute: React.FC = () => {
 
 // Role-aware root redirect component
 const RootRedirect: React.FC = () => {
-  const { user, role, isLoading } = useAuth();
+  const { user, role, authStatus } = useAuth();
 
-  if (isLoading) {
+  if (authStatus === 'AUTH_LOADING' || authStatus === 'PROFILE_LOADING') {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 space-y-4">
         <LoadingSpinner label="Authenticating session..." />
@@ -99,7 +99,11 @@ const RootRedirect: React.FC = () => {
     );
   }
 
-  if (!user || !role) {
+  if (authStatus === 'PROFILE_MISSING') {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  if (authStatus === 'UNAUTHORIZED' || !user || !role) {
     return <LandingPage />;
   }
 

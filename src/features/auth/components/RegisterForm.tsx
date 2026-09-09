@@ -5,15 +5,24 @@ import Button from '../../../components/ui/Button/Button';
 import Input from '../../../components/ui/Input/Input';
 import { useToastStore } from '../../../components/ui/Toast/Toast';
 import { getDashboardRoute } from '../../../utils/navigation';
+import { 
+  SUPPORTED_COUNTRIES, 
+  SUPPORTED_CURRENCIES, 
+  detectDefaultCountryAndCurrency 
+} from '../../../shared/utils/format';
+import { Globe, DollarSign } from 'lucide-react';
 
 export const RegisterForm: React.FC = () => {
   const { addToast } = useToastStore();
   const navigate = useNavigate();
 
+  const detected = detectDefaultCountryAndCurrency();
   const [restaurantName, setRestaurantName] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [country, setCountry] = useState(detected.country);
+  const [currency, setCurrency] = useState(detected.currency);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{
     restaurantName?: string;
@@ -21,6 +30,15 @@ export const RegisterForm: React.FC = () => {
     email?: string;
     password?: string;
   }>({});
+
+  const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextCountry = e.target.value;
+    setCountry(nextCountry);
+    const countryConfig = SUPPORTED_COUNTRIES[nextCountry];
+    if (countryConfig) {
+      setCurrency(countryConfig.defaultCurrency);
+    }
+  };
 
   const validate = () => {
     const nextErrors: typeof errors = {};
@@ -50,8 +68,17 @@ export const RegisterForm: React.FC = () => {
 
     setIsLoading(true);
     try {
-      // Register owner credentials and write profile to Firestore
-      await authService.signUpOwner(email, password, displayName, restaurantName);
+      // Register owner credentials with localized country, currency, and locale
+      const locale = SUPPORTED_CURRENCIES[currency]?.locale || 'en-IN';
+      await authService.signUpOwner(
+        email, 
+        password, 
+        displayName, 
+        restaurantName, 
+        country, 
+        currency, 
+        locale
+      );
       
       addToast('Restaurant registered successfully!', 'success');
       
@@ -87,6 +114,47 @@ export const RegisterForm: React.FC = () => {
         error={errors.displayName}
         disabled={isLoading}
       />
+
+      {/* Country & Currency Selection */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+            <Globe className="w-3.5 h-3.5 text-primary" />
+            Country
+          </label>
+          <select
+            value={country}
+            onChange={handleCountryChange}
+            disabled={isLoading}
+            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-textPearl focus:outline-none focus:border-primary transition-colors"
+          >
+            {Object.values(SUPPORTED_COUNTRIES).map((c) => (
+              <option key={c.code} value={c.code} className="bg-slate-900 text-slate-100">
+                {c.name} ({c.code})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+            <DollarSign className="w-3.5 h-3.5 text-primary" />
+            Currency
+          </label>
+          <select
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            disabled={isLoading}
+            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-textPearl focus:outline-none focus:border-primary transition-colors"
+          >
+            {Object.values(SUPPORTED_CURRENCIES).map((curr) => (
+              <option key={curr.code} value={curr.code} className="bg-slate-900 text-slate-100">
+                {curr.name} - {curr.symbol}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <Input
         label="Contact Email"

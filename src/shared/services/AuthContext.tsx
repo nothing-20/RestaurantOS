@@ -3,16 +3,16 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { authService } from './authService';
-import { TUserRole, IUser } from '../types';
+import { TUserRole, IUser, TAuthStatus } from '../types';
 import { getDashboardRoute } from '../utils/navigation';
 
-interface IAuthContextType {
+export interface IAuthContextType {
   user: IUser | null;
   role: TUserRole | null;
   tenantId: string | null;
   isLoading: boolean;
+  authStatus: TAuthStatus;
   profileError: string | null;
-  loginAsMockRole: (role: TUserRole, tenantId?: string) => void;
   logout: () => Promise<void>;
   firebaseUser: User | null;
 }
@@ -26,6 +26,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [authStatus, setAuthStatus] = useState<TAuthStatus>('AUTH_LOADING');
 
   useEffect(() => {
     let unsubscribeUserDoc: (() => void) | null = null;
@@ -41,6 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (fUser) {
         setIsLoading(true);
+        setAuthStatus('PROFILE_LOADING');
         setProfileError(null);
 
         try {
@@ -76,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   setTenantId(resolvedUser.tenantId);
                   setProfileError(null);
                   setIsLoading(false);
+                  setAuthStatus('AUTHORIZED');
                 } else {
                   // Document missing or role missing — call authoritative roleResolver
                   const { resolveAuthenticatedUser } = await import('./roleResolver');
@@ -103,14 +106,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setRole(resolvedUser.role);
                     setTenantId(resolvedUser.tenantId);
                     setProfileError(null);
+                    setIsLoading(false);
+                    setAuthStatus('AUTHORIZED');
                   } else {
                     console.warn('[AUTH Context] Profile missing or unassigned role for UID:', fUser.uid);
                     setUser(null);
                     setRole(null);
                     setTenantId(null);
-                    setProfileError(`Owner profile is missing or not configured. Missing profile document in users/${fUser.uid}. Please contact your administrator.`);
+                    setProfileError(`User profile is missing or not configured for UID: ${fUser.uid}.`);
+                    setIsLoading(false);
+                    setAuthStatus('PROFILE_MISSING');
                   }
-                  setIsLoading(false);
                 }
               } catch (snapErr: any) {
                 console.error('[AUTH Context] Error parsing snapshot data:', snapErr);
@@ -119,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setTenantId(null);
                 setProfileError('Failed to load user session profile.');
                 setIsLoading(false);
+                setAuthStatus('PROFILE_MISSING');
               }
             },
             (error) => {
@@ -132,6 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setProfileError('Database snapshot listener error.');
               }
               setIsLoading(false);
+              setAuthStatus('PROFILE_MISSING');
             }
           );
         } catch (e: any) {
@@ -141,6 +149,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setTenantId(null);
           setProfileError('Failed to initialize session.');
           setIsLoading(false);
+          setAuthStatus('PROFILE_MISSING');
         }
       } else {
         // Unauthenticated
@@ -149,6 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setTenantId(null);
         setProfileError(null);
         setIsLoading(false);
+        setAuthStatus('UNAUTHORIZED');
       }
     });
 
@@ -159,25 +169,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
   }, []);
-
-  const loginAsMockRole = (roleType: TUserRole, targetTenantId: string = 'gourmet-bistro') => {
-    setIsLoading(true);
-    const mockUser: IUser = {
-      uid: `mock-uid-${roleType}`,
-      email: `${roleType}@restaurantos.com`,
-      displayName: `Mock ${roleType.charAt(0).toUpperCase() + roleType.slice(1)}`,
-      tenantId: roleType === 'super-admin' ? '' : targetTenantId,
-      role: roleType,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    };
-    setUser(mockUser);
-    setRole(roleType);
-    setTenantId(mockUser.tenantId);
-    setProfileError(null);
-    console.log('[AUTH Mock] Logged in as mock role:', roleType);
-    setIsLoading(false);
-  };
 
   const logout = async () => {
     setIsLoading(true);
@@ -197,12 +188,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setFirebaseUser(null);
       setProfileError(null);
       setIsLoading(false);
+      setAuthStatus('UNAUTHORIZED');
       console.log('[AUTH] Deep session logout completed.');
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, role, tenantId, isLoading, profileError, loginAsMockRole, logout, firebaseUser }}>
+    <AuthContext.Provider value={{ user, role, tenantId, isLoading, authStatus, profileError, logout, firebaseUser }}>
       {children}
     </AuthContext.Provider>
   );

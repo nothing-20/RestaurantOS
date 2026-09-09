@@ -69,7 +69,8 @@ export const DiscoverPage: React.FC = () => {
             priceRange: data.priceRange || (idx % 3 === 0 ? '$$$' : idx % 3 === 1 ? '$$' : '$'),
             vegOptions: data.vegOptions !== undefined ? data.vegOptions : true,
             openNow: data.status === 'active',
-            image: data.coverImage || REST_MOCK_IMAGES[idx % REST_MOCK_IMAGES.length],
+            image: data.coverImageUrl || data.coverImage || null,
+            logoUrl: data.logoUrl || data.logo || null,
             isFeatured: idx % 3 === 0,
             isTrending: idx % 2 === 0,
             facilities: data.facilities || {
@@ -364,8 +365,17 @@ export const DiscoverPage: React.FC = () => {
                 onClick={() => navigate(`/customer/restaurant/${r.id}`)}
                 className="group bg-white border border-[#EEE7E1] hover:border-[#E85D3F]/40 rounded-2xl overflow-hidden cursor-pointer transition-all flex flex-col justify-between shadow-xs hover:shadow-md"
               >
-                <div className="h-40 w-full overflow-hidden relative">
-                  <img src={r.image} alt={r.name} className="h-full w-full object-cover group-hover:scale-103 transition-transform" />
+                <div className="h-40 w-full overflow-hidden relative bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 flex items-center justify-center">
+                  {r.image ? (
+                    <img src={r.image} alt={r.name} className="h-full w-full object-cover group-hover:scale-103 transition-transform" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-3 select-none">
+                      <div className="w-10 h-10 rounded-xl bg-[#E85D3F]/15 border border-[#E85D3F]/30 flex items-center justify-center text-[#E85D3F] font-extrabold text-sm mb-1 shadow-inner">
+                        {r.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-[11px] font-extrabold text-white truncate max-w-[150px]">{r.name}</span>
+                    </div>
+                  )}
                   <div className="absolute top-2.5 right-2.5 bg-white/90 backdrop-blur-md px-2 py-0.5 rounded-full border border-[#EEE7E1] text-[9.5px] text-[#242424] flex items-center gap-0.5 font-extrabold shadow-xs">
                     <Star className="w-3 h-3 text-[#F4B942] fill-current" /> {r.rating}
                   </div>

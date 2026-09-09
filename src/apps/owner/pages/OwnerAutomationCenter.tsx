@@ -75,11 +75,6 @@ export const OwnerAutomationCenter: React.FC = () => {
     const unsubRules = onSnapshot(collection(db, 'restaurants', tenantId, 'automationRules'), (snap) => {
       const list: any[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-      
-      // Seed default rules if empty
-      if (list.length === 0 && snap.metadata.fromCache === false) {
-        seedDefaultRules(tenantId);
-      }
       setAutomationRules(list);
     });
 

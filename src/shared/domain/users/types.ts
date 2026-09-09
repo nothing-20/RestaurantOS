@@ -1,5 +1,7 @@
 export type TUserRole = 'super-admin' | 'owner' | 'admin' | 'manager' | 'waiter' | 'kitchen' | 'cashier' | 'reception' | 'customer';
 
+export type TAuthStatus = 'AUTH_LOADING' | 'PROFILE_LOADING' | 'AUTHORIZED' | 'UNAUTHORIZED' | 'PROFILE_MISSING';
+
 export interface IUser {
   uid: string;
   email: string;

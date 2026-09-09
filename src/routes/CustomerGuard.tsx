@@ -4,9 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { getDashboardRoute } from '../utils/navigation';
 
 export const CustomerGuard: React.FC = () => {
-  const { user, role, isLoading } = useAuth();
+  const { user, role, authStatus } = useAuth();
 
-  if (isLoading) {
+  if (authStatus === 'AUTH_LOADING' || authStatus === 'PROFILE_LOADING') {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-4">
         <div className="w-12 h-12 rounded-full border-4 border-slate-700 border-t-primary animate-spin" />
@@ -15,8 +15,12 @@ export const CustomerGuard: React.FC = () => {
     );
   }
 
-  if (!user || !role) {
+  if (authStatus === 'UNAUTHORIZED' || !user) {
     return <Navigate to="/customer/login" replace />;
+  }
+
+  if (authStatus === 'PROFILE_MISSING' || !role) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
   if (role !== 'customer') {

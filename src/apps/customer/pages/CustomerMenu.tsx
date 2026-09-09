@@ -206,7 +206,7 @@ export const CustomerMenu: React.FC = () => {
       });
       catList.sort((a, b) => a.displayOrder - b.displayOrder);
       const activeCatNames = catList.filter(c => c.isActive).map(c => c.name);
-      setCategories(activeCatNames.length > 0 ? activeCatNames : ['Starters', 'Main Course', 'Pizza', 'Burgers', 'Beverages', 'Desserts']);
+      setCategories(activeCatNames);
     });
 
     // Stream Menu Items in real-time
@@ -880,7 +880,14 @@ export const CustomerMenu: React.FC = () => {
             {filteredAndSortedItems.length === 0 ? (
               <div className="py-16 text-center border border-dashed border-slate-850 rounded-2xl bg-slate-900/10">
                 <AlertTriangle className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-                <p className="text-sm text-slate-400 font-semibold">No menu dishes match your selections.</p>
+                <p className="text-sm text-slate-400 font-semibold">
+                  {menuItems.length === 0 
+                    ? 'This restaurant has not added any menu items yet.' 
+                    : 'No menu dishes match your selections.'}
+                </p>
+                {menuItems.length === 0 && (
+                  <p className="text-xs text-slate-500 mt-1">Please check back later or ask your server for details.</p>
+                )}
               </div>
             ) : (
               Object.entries(categorizedMenu).map(([categoryName, items]) => (

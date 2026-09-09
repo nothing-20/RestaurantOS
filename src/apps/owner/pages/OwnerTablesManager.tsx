@@ -852,7 +852,13 @@ export const OwnerTablesManager: React.FC = () => {
                   isDesignMode ? 'cursor-crosshair border-dashed border-primary/45' : ''
                 }`}
               >
-                {getFilteredTables().length === 0 ? (
+                {tables.length === 0 ? (
+                  <div className="h-full flex items-center justify-center flex-col text-slate-500">
+                    <Sliders className="w-12 h-12 text-slate-700 mb-2" />
+                    <p className="text-sm font-semibold text-textPearl">No tables configured yet.</p>
+                    <p className="text-xs text-slate-500 mt-1">Click &quot;Add Table&quot; above to create your restaurant layout.</p>
+                  </div>
+                ) : getFilteredTables().length === 0 ? (
                   <div className="h-full flex items-center justify-center flex-col text-slate-500">
                     <Sliders className="w-12 h-12 text-slate-700 mb-2" />
                     <p className="text-sm font-semibold">No seating tables match filters.</p>

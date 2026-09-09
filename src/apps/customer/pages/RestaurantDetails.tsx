@@ -13,13 +13,6 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const REST_MOCK_IMAGES = [
-  'https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=600&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=600&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=600&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?q=80&w=600&auto=format&fit=crop'
-];
-
 const DISH_PREVIEWS = [
   { id: 'fd1', name: 'Truffle Tagliolini', price: '$34.00', desc: 'Handcrafted pasta tossed in white truffle butter and parmigiano.', image: 'https://images.unsplash.com/photo-1645112411341-6c4fd023714a?q=80&w=150&auto=format&fit=crop', chefSpecial: true },
   { id: 'fd2', name: 'Hamachi Crudo', price: '$28.00', desc: 'Slices of yellowtail, serrano chili, yuzu vinaigrette.', image: 'https://images.unsplash.com/photo-1534482421-64566f976cfa?q=80&w=150&auto=format&fit=crop', chefSpecial: false },
@@ -45,18 +38,25 @@ export const RestaurantDetails: React.FC = () => {
         const tenantSnap = await getDoc(tenantRef);
         if (tenantSnap.exists()) {
           const data = tenantSnap.data();
+          const cover = data.coverImageUrl || data.coverImage || null;
+          const logo = data.logoUrl || data.logo || null;
+          const name = data.restaurantName || data.name || 'Restaurant';
+          const addr = typeof data.address === 'object' && data.address 
+            ? `${data.address.street || ''}${data.address.city ? ', ' + data.address.city : ''}`.trim() || 'Address not listed'
+            : (data.address || 'Address not listed');
+
           setRestaurant({
-            id: tenantSnap.id,
-            name: data.restaurantName || data.name || 'Gourmet Bistro',
+            id: tenantId,
+            name,
             cuisine: data.cuisine || 'Fine Dining',
-            rating: data.rating || 4.9,
-            address: data.address || '9 Place des Vosges, 75004 Paris',
-            hours: data.hours || '12:00 PM - 11:00 PM',
-            coverImage: data.coverImage || REST_MOCK_IMAGES[0],
-            logoUrl: data.logoUrl || 'https://picsum.photos/100/100?random=logo',
-            description: data.description || 'Welcome to a premium dining environment where every ingredient tells a unique culinary story of passion and craftsmanship.',
-            phone: data.phone || '+1 (555) 942-0192',
-            facilities: data.facilities || ['Free Valet Parking', 'Outdoor Terrace', 'Pet Friendly', 'Live Music Jazz', 'Wheelchair Accessible', 'Wine Cellar']
+            rating: data.rating || 5.0,
+            address: addr,
+            hours: data.businessHours ? `${data.businessHours.openingTime || '09:00'} - ${data.businessHours.closingTime || '22:00'}` : (data.hours || 'Open Daily'),
+            coverImage: cover,
+            logoUrl: logo,
+            description: data.description || `Welcome to ${name}. We look forward to serving you!`,
+            phone: data.phone || '',
+            facilities: data.facilities || ['Table Service', 'QR Ordering', 'Dine-in']
           });
         } else {
           setRestaurant(null);
@@ -86,13 +86,21 @@ export const RestaurantDetails: React.FC = () => {
     <div className="space-y-6 text-left max-w-4xl mx-auto">
       
       {/* 1. Hero Cover Banner */}
-      <div className="h-64 md:h-80 w-full relative rounded-3xl overflow-hidden shadow-2xl border border-slate-900">
-        <img src={restaurant.coverImage} alt={restaurant.name} className="h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+      <div className="h-64 md:h-80 w-full relative rounded-3xl overflow-hidden shadow-2xl border border-slate-900 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 flex items-center justify-center">
+        {restaurant.coverImage ? (
+          <img src={restaurant.coverImage} alt={restaurant.name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="text-center p-6 space-y-2 select-none">
+            <span className="text-5xl block mb-2">🍽️</span>
+            <h1 className="text-2xl md:text-3xl font-display font-extrabold text-white tracking-wide">{restaurant.name}</h1>
+            <p className="text-xs text-slate-400 font-medium">{restaurant.cuisine}</p>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent pointer-events-none" />
         
         <button 
           onClick={() => navigate('/customer/discover')}
-          className="absolute top-4 left-4 w-9 h-9 bg-slate-950/75 border border-slate-800 hover:border-slate-700 backdrop-blur-md rounded-xl flex items-center justify-center text-slate-350 hover:text-white transition-all shadow"
+          className="absolute top-4 left-4 w-9 h-9 bg-slate-950/75 border border-slate-800 hover:border-slate-700 backdrop-blur-md rounded-xl flex items-center justify-center text-slate-350 hover:text-white transition-all shadow z-20"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
@@ -101,8 +109,12 @@ export const RestaurantDetails: React.FC = () => {
       {/* 2. Restaurant Basic Info Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start gap-4 p-6 bg-slate-900/30 border border-slate-900 rounded-3xl backdrop-blur-md relative -mt-16 mx-4 z-10">
         <div className="flex items-center space-x-4">
-          <div className="w-14 h-14 bg-slate-950 border border-slate-850 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center">
-            <img src={restaurant.logoUrl} alt={restaurant.name} className="h-full w-full object-cover" />
+          <div className="w-14 h-14 bg-gradient-to-br from-primary/20 to-slate-900 border border-slate-850 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center text-primary font-display font-extrabold text-lg shadow-inner">
+            {restaurant.logoUrl ? (
+              <img src={restaurant.logoUrl} alt={restaurant.name} className="h-full w-full object-cover" />
+            ) : (
+              <span>{restaurant.name.charAt(0).toUpperCase()}</span>
+            )}
           </div>
           <div>
             <h2 className="text-xl font-display font-extrabold text-white">{restaurant.name}</h2>
@@ -110,7 +122,7 @@ export const RestaurantDetails: React.FC = () => {
               <span>{restaurant.cuisine}</span>
               <span>•</span>
               <span className="text-primary flex items-center gap-0.5">
-                <Star className="w-3.5 h-3.5 fill-current" /> {restaurant.rating} (142 Reviews)
+                <Star className="w-3.5 h-3.5 fill-current" /> {restaurant.rating}
               </span>
             </div>
           </div>

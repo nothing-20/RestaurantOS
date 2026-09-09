@@ -4,10 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { getDashboardRoute } from '../utils/navigation';
 
 export const PublicGuard: React.FC = () => {
-  const { user, role, isLoading } = useAuth();
+  const { user, role, authStatus } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
+  if (authStatus === 'AUTH_LOADING' || authStatus === 'PROFILE_LOADING') {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-4">
         <div className="w-12 h-12 rounded-full border-4 border-slate-700 border-t-primary animate-spin" />
@@ -17,7 +17,7 @@ export const PublicGuard: React.FC = () => {
   }
 
   // If already authenticated
-  if (user && role) {
+  if (authStatus === 'AUTHORIZED' && user && role) {
     const isOwnerOrAdmin = ['owner', 'admin', 'super-admin'].includes(role);
     const path = location.pathname;
 

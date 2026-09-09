@@ -14,16 +14,35 @@ export interface ITenant {
   createdAt: string;
   updatedAt: string;
 
-  // Discovery Redesign fields
+  // Discovery & Localization fields
+  ownerUid?: string;
   tenantId?: string;
   restaurantName?: string;
   logo?: string;
   coverImage?: string;
+  coverImageUrl?: string | null;
   phone?: string;
-  cuisine?: string;
+  cuisine?: string | string[];
   rating?: number;
+  reviewCount?: number;
   description?: string;
   waitingTime?: string;
+  country?: string;
+  currency?: string;
+  currencyCode?: string;
+  currencySymbol?: string;
+  locale?: string;
+  settings?: {
+    currency?: string;
+    currencySymbol?: string;
+    locale?: string;
+    timezone?: string;
+    taxPercent?: number;
+    serviceCharge?: number;
+    tableServiceEnabled?: boolean;
+    qrOrderingEnabled?: boolean;
+    language?: string;
+  };
 }
 
 export interface IInventoryItem {

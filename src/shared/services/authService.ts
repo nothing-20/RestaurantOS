@@ -32,9 +32,12 @@ export const authService = {
     email: string, 
     password: string, 
     displayName: string, 
-    restaurantName: string
+    restaurantName: string,
+    country?: string,
+    currency?: string,
+    locale?: string
   ): Promise<UserCredential> {
-    return firebaseAuth.signUpOwner(email, password, displayName, restaurantName);
+    return firebaseAuth.signUpOwner(email, password, displayName, restaurantName, country, currency, locale);
   },
 
   /**

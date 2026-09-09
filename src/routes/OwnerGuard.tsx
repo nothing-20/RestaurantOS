@@ -4,9 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { getDashboardRoute } from '../utils/navigation';
 
 export const OwnerGuard: React.FC = () => {
-  const { user, role, isLoading } = useAuth();
+  const { user, role, authStatus } = useAuth();
 
-  if (isLoading) {
+  if (authStatus === 'AUTH_LOADING' || authStatus === 'PROFILE_LOADING') {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-4">
         <div className="w-12 h-12 rounded-full border-4 border-slate-700 border-t-primary animate-spin" />
@@ -15,12 +15,21 @@ export const OwnerGuard: React.FC = () => {
     );
   }
 
-  if (!user || !role) {
+  if (authStatus === 'UNAUTHORIZED' || !user) {
     const currentPath = window.location.pathname;
     if (currentPath.startsWith('/owner') || currentPath.startsWith('/dashboard/owner')) {
       return <Navigate to="/owner/login" replace />;
     }
     return <Navigate to="/staff/login" replace />;
+  }
+
+  if (authStatus === 'PROFILE_MISSING' || !role) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  // A customer must never be able to access Owner Dashboard
+  if (role === 'customer') {
+    return <Navigate to="/customer/home" replace />;
   }
 
   // Allowed roles for OwnerGuard: owner, admin, manager, waiter, kitchen, cashier, reception

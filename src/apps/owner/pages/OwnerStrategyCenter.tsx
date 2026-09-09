@@ -21,7 +21,9 @@ import {
   Flame, 
   Award, 
   Plus, 
-  Workflow} from 'lucide-react';
+  Workflow,
+  BrainCircuit
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const OwnerStrategyCenter: React.FC = () => {
@@ -58,24 +60,18 @@ export const OwnerStrategyCenter: React.FC = () => {
         const payload = await intelligenceService.compileIntelligence(tenantId);
         setIntelData(payload);
 
-        // Seed default goals if empty
+        // Listen to business goals
         goalsSnap = onSnapshot(collection(db, 'restaurants', tenantId, 'businessGoals'), (snap) => {
           const list: any[] = [];
           snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-          if (list.length === 0 && snap.metadata.fromCache === false) {
-            seedDefaultGoals(tenantId, payload.context);
-          }
           setBusinessGoals(list);
           setIsLoading(false);
         });
 
-        // Seed default strategies if empty
+        // Listen to strategy plans
         plansSnap = onSnapshot(collection(db, 'restaurants', tenantId, 'strategyPlans'), (snap) => {
           const list: any[] = [];
           snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-          if (list.length === 0 && snap.metadata.fromCache === false) {
-            seedDefaultStrategies(tenantId, payload);
-          }
           setStrategyPlans(list);
         });
 
@@ -251,7 +247,14 @@ export const OwnerStrategyCenter: React.FC = () => {
               Active Business Goals
             </h3>
             <div className="space-y-4">
-              {businessGoals.map(goal => {
+              {businessGoals.length === 0 ? (
+                <div className="py-12 text-center border border-dashed border-slate-800 rounded-2xl bg-slate-950/20">
+                  <Target className="w-8 h-8 text-slate-700 mx-auto mb-2" />
+                  <p className="text-xs text-slate-400 font-semibold">No business goals configured yet.</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Define your first target goal using the form on the right.</p>
+                </div>
+              ) : (
+                businessGoals.map(goal => {
                 const labelMap = {
                   revenue: 'Increase Revenue Target',
                   csat: 'Boost Customer Satisfaction (CSAT)',
@@ -307,7 +310,7 @@ export const OwnerStrategyCenter: React.FC = () => {
                     </div>
                   </div>
                 );
-              })}
+              }))}
             </div>
           </Card>
 
@@ -358,7 +361,14 @@ export const OwnerStrategyCenter: React.FC = () => {
             Suggested Strategic Action Plans ({strategyPlans.filter(p => p.category === activeTab).length})
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {strategyPlans.filter(p => p.category === activeTab).map((plan: any) => (
+            {strategyPlans.filter(p => p.category === activeTab).length === 0 ? (
+              <div className="col-span-full py-12 text-center border border-dashed border-slate-800 rounded-2xl bg-slate-950/20">
+                <BrainCircuit className="w-8 h-8 text-slate-700 mx-auto mb-2" />
+                <p className="text-xs text-slate-400 font-semibold">No strategy plans in this category yet.</p>
+                <p className="text-[10px] text-slate-500 mt-1">Compile operational intelligence to generate customized consulting action plans.</p>
+              </div>
+            ) : (
+              strategyPlans.filter(p => p.category === activeTab).map((plan: any) => (
               <div key={plan.id} className="bg-slate-950/40 p-4.5 border border-slate-855 rounded-2xl flex flex-col justify-between space-y-4 select-none">
                 <div className="space-y-2">
                   <div className="flex justify-between items-start gap-3">
@@ -418,7 +428,7 @@ export const OwnerStrategyCenter: React.FC = () => {
                   )}
                 </div>
               </div>
-            ))}
+            )))}
           </div>
         </Card>
       )}

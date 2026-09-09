@@ -9,6 +9,14 @@ import Card from '../../../components/ui/Card/Card';
 import Tabs from '../../../components/ui/Tabs/Tabs';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner/LoadingSpinner';
 import toast from 'react-hot-toast';
+import { uploadRestaurantAsset } from '../../../shared/services/storageService';
+import { 
+  SUPPORTED_CURRENCIES, 
+  SUPPORTED_COUNTRIES,
+  getCurrencySymbol, 
+  detectDefaultCountryAndCurrency, 
+  setGlobalCurrencyConfig 
+} from '../../../shared/utils/format';
 import { 
   Building2, 
   Clock, 
@@ -20,7 +28,10 @@ import {
   CheckCircle,
   AlertTriangle,
   Database,
-  RotateCcw
+  RotateCcw,
+  Trash2,
+  UploadCloud,
+  Loader2
 } from 'lucide-react';
 
 export const OwnerSettings: React.FC = () => {
@@ -60,6 +71,8 @@ export const OwnerSettings: React.FC = () => {
   // Form Fields - Branding Tab
   const [logo, setLogo] = useState('');
   const [coverImage, setCoverImage] = useState('');
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
 
   // Form Fields - Business Settings Tab
   const [currency, setCurrency] = useState('USD');
@@ -148,16 +161,16 @@ export const OwnerSettings: React.FC = () => {
         if (snap.exists()) {
           const data = snap.data();
           
-          setRestaurantName(data.restaurantName || data.name || 'Gourmet Restaurant');
+          setRestaurantName(data.restaurantName || data.name || '');
           setLogo(data.logo || data.logoUrl || '');
-          setCoverImage(data.coverImage || '');
+          setCoverImage(data.coverImage || data.coverImageUrl || '');
           setDescription(data.description || '');
-          setCuisine(data.cuisine || 'Fine Dining');
-          setGstNumber(data.gstNumber || 'GST-MOCK-12345');
+          setCuisine(data.cuisine || '');
+          setGstNumber(data.gstNumber || '');
           setPan(data.pan || '');
-          setFssaiNumber(data.fssaiNumber || data.fssaiLicense || '12345678901234');
+          setFssaiNumber(data.fssaiNumber || data.fssaiLicense || '');
           setContactPhone(data.phone || '');
-          setContactEmail(data.email || '');
+          setContactEmail(data.email || user.email || '');
           setWebsiteUrl(data.website || '');
           
           if (data.address) {
@@ -168,8 +181,10 @@ export const OwnerSettings: React.FC = () => {
               setAddressCity(data.address.city || '');
               setAddressZip(data.address.zipCode || data.address.postalCode || '');
               setAddressState(data.address.state || '');
-              setAddressCountry(data.address.country || 'USA');
+              setAddressCountry(data.address.country || data.country || 'IN');
             }
+          } else {
+            setAddressCountry(data.country || 'IN');
           }
           setGoogleMapsUrl(data.googleMapsUrl || '');
 
@@ -183,40 +198,49 @@ export const OwnerSettings: React.FC = () => {
             setClosingTime(data.closingHours || '22:00');
           }
 
+          const curr = data.settings?.currency || data.currency || data.currencyCode || 'INR';
+          setCurrency(curr);
           if (data.settings) {
-            setCurrency(data.settings.currency || 'USD');
-            setTimezone(data.settings.timezone || 'GMT');
+            setTimezone(data.settings.timezone || 'UTC');
             setLanguage(data.settings.language || 'en');
             setTaxPercent(data.settings.taxPercent ?? data.taxPercent ?? 5);
-            setServiceCharge(data.settings.serviceCharge ?? 5);
+            setServiceCharge(data.settings.serviceCharge ?? 0);
             setTableServiceEnabled(data.settings.tableServiceEnabled ?? true);
             setQrOrderingEnabled(data.settings.qrOrderingEnabled ?? true);
           } else {
             setTaxPercent(data.taxPercent ?? 5);
-            setCurrency(data.currencyCode || 'USD');
+            setServiceCharge(0);
           }
         } else {
+          const detected = detectDefaultCountryAndCurrency();
           const defaultPayload = {
             tenantId: activeTenantId,
-            restaurantName: 'Gourmet Restaurant',
-            name: 'Gourmet Restaurant',
-            logo: '',
-            coverImage: '',
-            description: 'Welcome to Gourmet Restaurant!',
-            cuisine: 'Fine Dining',
-            gstNumber: 'GST-MOCK-12345',
+            restaurantName: user.displayName ? `${user.displayName}'s Restaurant` : 'My Restaurant',
+            name: user.displayName ? `${user.displayName}'s Restaurant` : 'My Restaurant',
+            logo: null,
+            logoUrl: null,
+            coverImage: null,
+            coverImageUrl: null,
+            description: '',
+            cuisine: '',
+            gstNumber: '',
             pan: '',
-            fssaiNumber: '12345678901234',
-            phone: user.email ? '555-019-2834' : '',
+            fssaiNumber: '',
+            phone: '',
             email: user.email || '',
             website: '',
             address: {
-              street: '123 Dining St',
-              city: 'San Francisco',
-              zipCode: '94103',
-              state: 'CA',
-              country: 'USA'
+              street: '',
+              city: '',
+              zipCode: '',
+              state: '',
+              country: detected.country
             },
+            country: detected.country,
+            currency: detected.currency,
+            currencyCode: detected.currency,
+            currencySymbol: detected.symbol,
+            locale: detected.locale,
             googleMapsUrl: '',
             businessHours: {
               openingTime: '09:00',
@@ -225,11 +249,13 @@ export const OwnerSettings: React.FC = () => {
               holidaySettings: 'None'
             },
             settings: {
-              currency: 'USD',
-              timezone: 'GMT',
+              currency: detected.currency,
+              currencySymbol: detected.symbol,
+              locale: detected.locale,
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
               language: 'en',
               taxPercent: 5,
-              serviceCharge: 5,
+              serviceCharge: 0,
               tableServiceEnabled: true,
               qrOrderingEnabled: true
             },
@@ -240,33 +266,33 @@ export const OwnerSettings: React.FC = () => {
           await setDoc(docRef, defaultPayload);
 
           setRestaurantName(defaultPayload.restaurantName);
-          setLogo(defaultPayload.logo);
-          setCoverImage(defaultPayload.coverImage);
-          setDescription(defaultPayload.description);
-          setCuisine(defaultPayload.cuisine);
-          setGstNumber(defaultPayload.gstNumber);
-          setPan(defaultPayload.pan);
-          setFssaiNumber(defaultPayload.fssaiNumber);
-          setContactPhone(defaultPayload.phone);
-          setContactEmail(defaultPayload.email);
-          setWebsiteUrl(defaultPayload.website);
-          setAddressStreet(defaultPayload.address.street);
-          setAddressCity(defaultPayload.address.city);
-          setAddressZip(defaultPayload.address.zipCode);
-          setAddressState(defaultPayload.address.state);
-          setAddressCountry(defaultPayload.address.country);
-          setGoogleMapsUrl(defaultPayload.googleMapsUrl);
-          setOpeningTime(defaultPayload.businessHours.openingTime);
-          setClosingTime(defaultPayload.businessHours.closingTime);
-          setWorkingDays(defaultPayload.businessHours.workingDays);
-          setHolidaySettings(defaultPayload.businessHours.holidaySettings);
-          setCurrency(defaultPayload.settings.currency);
+          setLogo('');
+          setCoverImage('');
+          setDescription('');
+          setCuisine('');
+          setGstNumber('');
+          setPan('');
+          setFssaiNumber('');
+          setContactPhone('');
+          setContactEmail(user.email || '');
+          setWebsiteUrl('');
+          setAddressStreet('');
+          setAddressCity('');
+          setAddressZip('');
+          setAddressState('');
+          setAddressCountry(detected.country);
+          setGoogleMapsUrl('');
+          setOpeningTime('09:00');
+          setClosingTime('22:00');
+          setWorkingDays(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+          setHolidaySettings('None');
+          setCurrency(detected.currency);
           setTimezone(defaultPayload.settings.timezone);
-          setLanguage(defaultPayload.settings.language);
-          setTaxPercent(defaultPayload.settings.taxPercent);
-          setServiceCharge(defaultPayload.settings.serviceCharge);
-          setTableServiceEnabled(defaultPayload.settings.tableServiceEnabled);
-          setQrOrderingEnabled(defaultPayload.settings.qrOrderingEnabled);
+          setLanguage('en');
+          setTaxPercent(5);
+          setServiceCharge(0);
+          setTableServiceEnabled(true);
+          setQrOrderingEnabled(true);
         }
       } catch (e) {
         console.error('Failed to load settings', e);
@@ -315,13 +341,19 @@ export const OwnerSettings: React.FC = () => {
 
     try {
       const docRef = doc(db, 'tenants', targetTenantId);
+      const restDocRef = doc(db, 'restaurants', targetTenantId);
       
+      const symbol = getCurrencySymbol(currency);
+      const locale = SUPPORTED_CURRENCIES[currency]?.locale || 'en-IN';
+      setGlobalCurrencyConfig(currency, locale);
+
       const payload = {
         name: restaurantName,
         restaurantName,
-        logo,
-        logoUrl: logo,
-        coverImage,
+        logo: logo || null,
+        logoUrl: logo || null,
+        coverImage: coverImage || null,
+        coverImageUrl: coverImage || null,
         description,
         cuisine,
         gstNumber,
@@ -330,6 +362,11 @@ export const OwnerSettings: React.FC = () => {
         phone: contactPhone,
         email: contactEmail,
         website: websiteUrl,
+        country: addressCountry || 'IN',
+        currency,
+        currencyCode: currency,
+        currencySymbol: symbol,
+        locale,
         address: {
           street: addressStreet,
           city: addressCity,
@@ -346,6 +383,8 @@ export const OwnerSettings: React.FC = () => {
         },
         settings: {
           currency,
+          currencySymbol: symbol,
+          locale,
           timezone,
           language,
           taxPercent,
@@ -357,6 +396,11 @@ export const OwnerSettings: React.FC = () => {
       };
 
       await updateDoc(docRef, payload);
+      try {
+        await setDoc(restDocRef, payload, { merge: true });
+      } catch (rErr) {
+        console.warn('Sync to restaurants collection fallback:', rErr);
+      }
       
       setSaveStatus('saved');
       if (!silent) toast.success('Profile configurations saved!');
@@ -373,35 +417,133 @@ export const OwnerSettings: React.FC = () => {
     handleSave(undefined, true);
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error('Logo image size must be less than 2MB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogo(reader.result as string);
-        setTimeout(() => handleSave(undefined, true), 100);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Logo image size must be less than 2MB');
+      return;
+    }
+    const targetTenantId = resolvedTenantId || user?.tenantId;
+    if (!targetTenantId) {
+      toast.error('No restaurant workspace resolved.');
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    const toastId = toast.loading('Uploading logo to Storage...');
+    try {
+      const downloadUrl = await uploadRestaurantAsset(targetTenantId, file, 'logo');
+      setLogo(downloadUrl);
+      
+      await updateDoc(doc(db, 'tenants', targetTenantId), { 
+        logo: downloadUrl, 
+        logoUrl: downloadUrl, 
+        updatedAt: new Date().toISOString() 
+      });
+      try {
+        await setDoc(doc(db, 'restaurants', targetTenantId), { 
+          logo: downloadUrl, 
+          logoUrl: downloadUrl, 
+          updatedAt: new Date().toISOString() 
+        }, { merge: true });
+      } catch (_) {}
+
+      toast.success('Logo uploaded and saved!', { id: toastId });
+    } catch (err: any) {
+      console.error('Logo upload error:', err);
+      toast.error(`Logo upload failed: ${err.message || 'Unknown error'}`, { id: toastId });
+    } finally {
+      setIsUploadingLogo(false);
+      if (logoInputRef.current) logoInputRef.current.value = '';
     }
   };
 
-  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Cover image size must be less than 5MB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCoverImage(reader.result as string);
-        setTimeout(() => handleSave(undefined, true), 100);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Cover image size must be less than 5MB');
+      return;
+    }
+    const targetTenantId = resolvedTenantId || user?.tenantId;
+    if (!targetTenantId) {
+      toast.error('No restaurant workspace resolved.');
+      return;
+    }
+
+    setIsUploadingCover(true);
+    const toastId = toast.loading('Uploading cover photo to Storage...');
+    try {
+      const downloadUrl = await uploadRestaurantAsset(targetTenantId, file, 'cover');
+      setCoverImage(downloadUrl);
+      
+      await updateDoc(doc(db, 'tenants', targetTenantId), { 
+        coverImage: downloadUrl, 
+        coverImageUrl: downloadUrl, 
+        updatedAt: new Date().toISOString() 
+      });
+      try {
+        await setDoc(doc(db, 'restaurants', targetTenantId), { 
+          coverImage: downloadUrl, 
+          coverImageUrl: downloadUrl, 
+          updatedAt: new Date().toISOString() 
+        }, { merge: true });
+      } catch (_) {}
+
+      toast.success('Cover photo uploaded and saved!', { id: toastId });
+    } catch (err: any) {
+      console.error('Cover upload error:', err);
+      toast.error(`Cover upload failed: ${err.message || 'Unknown error'}`, { id: toastId });
+    } finally {
+      setIsUploadingCover(false);
+      if (coverInputRef.current) coverInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    const targetTenantId = resolvedTenantId || user?.tenantId;
+    if (!targetTenantId) return;
+    setLogo('');
+    try {
+      await updateDoc(doc(db, 'tenants', targetTenantId), { 
+        logo: null, 
+        logoUrl: null, 
+        updatedAt: new Date().toISOString() 
+      });
+      try {
+        await setDoc(doc(db, 'restaurants', targetTenantId), { 
+          logo: null, 
+          logoUrl: null, 
+          updatedAt: new Date().toISOString() 
+        }, { merge: true });
+      } catch (_) {}
+      toast.success('Logo removed');
+    } catch (err: any) {
+      toast.error('Failed to remove logo');
+    }
+  };
+
+  const handleRemoveCover = async () => {
+    const targetTenantId = resolvedTenantId || user?.tenantId;
+    if (!targetTenantId) return;
+    setCoverImage('');
+    try {
+      await updateDoc(doc(db, 'tenants', targetTenantId), { 
+        coverImage: null, 
+        coverImageUrl: null, 
+        updatedAt: new Date().toISOString() 
+      });
+      try {
+        await setDoc(doc(db, 'restaurants', targetTenantId), { 
+          coverImage: null, 
+          coverImageUrl: null, 
+          updatedAt: new Date().toISOString() 
+        }, { merge: true });
+      } catch (_) {}
+      toast.success('Cover photo removed');
+    } catch (err: any) {
+      toast.error('Failed to remove cover photo');
     }
   };
 
@@ -658,21 +800,28 @@ export const OwnerSettings: React.FC = () => {
               <h3 className="text-xs font-bold text-textPearl uppercase tracking-wide">Branding Visual Assets</h3>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-6">
+            <div className="flex flex-col sm:flex-row items-start gap-6">
+              {/* LOGO SECTION */}
               <div className="flex flex-col items-center space-y-2 shrink-0">
-                <span className="text-xs font-semibold text-slate-400 w-full text-left">Brand Logo</span>
+                <span className="text-xs font-semibold text-slate-400 w-full text-left">Restaurant Logo</span>
                 <div className="relative w-28 h-28 bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-all group">
-                  {logo ? (
+                  {isUploadingLogo ? (
+                    <div className="flex flex-col items-center justify-center space-y-1 text-primary">
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      <span className="text-[9px] font-bold">Uploading...</span>
+                    </div>
+                  ) : logo ? (
                     <>
                       <img src={logo} alt="Logo preview" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-slate-950/85 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-textPearl text-[10px] font-bold text-center">
-                        <span>Change Logo</span>
+                      <div className="absolute inset-0 bg-slate-950/85 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-textPearl text-[10px] font-bold text-center p-1">
+                        <span>Click to Replace Logo</span>
                       </div>
                     </>
                   ) : (
                     <div className="text-center text-slate-500 space-y-1 p-2">
-                      <ImageIcon className="w-5 h-5 mx-auto text-slate-700" />
-                      <span className="text-[9px] font-bold block">Upload Logo</span>
+                      <UploadCloud className="w-6 h-6 mx-auto text-slate-600" />
+                      <span className="text-[9px] font-bold block text-slate-400">Upload Logo</span>
+                      <span className="text-[8px] text-slate-600 block">PNG/JPG &lt;2MB</span>
                     </div>
                   )}
                   <input 
@@ -680,26 +829,44 @@ export const OwnerSettings: React.FC = () => {
                     accept="image/*"
                     ref={logoInputRef}
                     onChange={handleLogoUpload}
-                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    disabled={isUploadingLogo}
+                    className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
                   />
                 </div>
+                {logo && !isUploadingLogo && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveLogo}
+                    className="text-[10px] font-semibold text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Remove Logo</span>
+                  </button>
+                )}
               </div>
 
+              {/* COVER PHOTO SECTION */}
               <div className="flex-1 space-y-2 w-full">
-                <span className="text-xs font-semibold text-slate-400 block">Branding Cover Photo</span>
+                <span className="text-xs font-semibold text-slate-400 block">Cover / Hero Photo</span>
                 <div className="relative h-28 bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-all group">
-                  {coverImage ? (
+                  {isUploadingCover ? (
+                    <div className="flex flex-col items-center justify-center space-y-1 text-primary">
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      <span className="text-xs font-bold">Uploading cover image...</span>
+                    </div>
+                  ) : coverImage ? (
                     <>
                       <img src={coverImage} alt="Cover preview" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-textPearl text-xs font-bold gap-2">
-                        <ImageIcon className="w-4 h-4 text-primary" />
-                        <span>Upload Cover</span>
+                        <UploadCloud className="w-4 h-4 text-primary" />
+                        <span>Click to Replace Cover</span>
                       </div>
                     </>
                   ) : (
                     <div className="text-center text-slate-500 space-y-1">
-                      <ImageIcon className="w-6 h-6 mx-auto text-slate-700" />
-                      <span className="text-xs font-bold block">Upload Cover Photo</span>
+                      <UploadCloud className="w-7 h-7 mx-auto text-slate-600" />
+                      <span className="text-xs font-bold block text-slate-400">Upload Cover Photo</span>
+                      <span className="text-[10px] text-slate-600 block">Wide banner for customer discovery & menu header (&lt;5MB)</span>
                     </div>
                   )}
                   <input 
@@ -707,9 +874,20 @@ export const OwnerSettings: React.FC = () => {
                     accept="image/*"
                     ref={coverInputRef}
                     onChange={handleCoverUpload}
-                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    disabled={isUploadingCover}
+                    className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
                   />
                 </div>
+                {coverImage && !isUploadingCover && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveCover}
+                    className="text-[10px] font-semibold text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Remove Cover Photo</span>
+                  </button>
+                )}
               </div>
             </div>
           </Card>

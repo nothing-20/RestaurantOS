@@ -6,7 +6,6 @@ import {
   sendEmailVerification,
   getIdTokenResult,
   setPersistence,
-  browserLocalPersistence,
   browserSessionPersistence,
   User,
   UserCredential
@@ -14,6 +13,7 @@ import {
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from './config';
 import { TUserRole } from '../types';
+import { getCurrencySymbol, detectDefaultCountryAndCurrency } from '../utils/format';
 
 function slugify(text: string): string {
   return text
@@ -39,29 +39,94 @@ export const signUpOwner = async (
   email: string, 
   password: string, 
   displayName: string, 
-  restaurantName: string
+  restaurantName: string,
+  countryInput?: string,
+  currencyInput?: string,
+  localeInput?: string
 ): Promise<UserCredential> => {
+  // Always enforce tab-isolated session persistence for owner signups
+  try {
+    await setPersistence(auth, browserSessionPersistence);
+  } catch (persistErr) {
+    console.warn('[AUTH signUpOwner] Note setting session persistence:', persistErr);
+  }
+
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   const user = userCredential.user;
 
   const tenantId = `${slugify(restaurantName)}-${Math.random().toString(36).substring(2, 6)}`;
 
-  // Create tenant
+  // Determine localized settings
+  const detected = detectDefaultCountryAndCurrency();
+  const selectedCountry = countryInput || detected.country;
+  const selectedCurrency = currencyInput || detected.currency;
+  const selectedLocale = localeInput || detected.locale;
+  const symbol = getCurrencySymbol(selectedCurrency);
+
+  // 1. Create tenant document with null logo/cover and ownerUid
   const tenantRef = doc(db, 'tenants', tenantId);
   await setDoc(tenantRef, {
     id: tenantId,
     name: restaurantName,
-    logoUrl: '',
+    restaurantName,
+    ownerUid: user.uid,
+    logoUrl: null,
+    logo: null,
+    coverImageUrl: null,
+    coverImage: null,
     planTier: 'starter',
     status: 'active',
+    country: selectedCountry,
+    currency: selectedCurrency,
+    currencyCode: selectedCurrency,
+    currencySymbol: symbol,
+    locale: selectedLocale,
     address: { street: '', city: '', zipCode: '' },
     stripeCustomerId: '',
     stripeSubscriptionId: '',
+    settings: {
+      currency: selectedCurrency,
+      currencySymbol: symbol,
+      locale: selectedLocale,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      taxPercent: 5,
+      serviceCharge: 0,
+      tableServiceEnabled: true,
+      qrOrderingEnabled: true,
+      language: 'en'
+    },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   });
 
-  // Create user profile — store fullName for WorkspaceContext and StaffLogin compatibility
+  // 2. Create corresponding restaurant document with null logo/cover and ownerUid
+  const restaurantRef = doc(db, 'restaurants', tenantId);
+  await setDoc(restaurantRef, {
+    id: tenantId,
+    tenantId,
+    name: restaurantName,
+    restaurantName,
+    ownerUid: user.uid,
+    logoUrl: null,
+    logo: null,
+    coverImageUrl: null,
+    coverImage: null,
+    country: selectedCountry,
+    currency: selectedCurrency,
+    currencyCode: selectedCurrency,
+    currencySymbol: symbol,
+    locale: selectedLocale,
+    cuisine: [],
+    rating: 0,
+    reviewCount: 0,
+    priceRange: '$$',
+    status: 'active',
+    address: { street: '', city: '', zipCode: '' },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+
+  // 3. Create user profile in users/{uid} with ownerUid and tenantId
   const userRef = doc(db, 'users', user.uid);
   await setDoc(userRef, {
     uid: user.uid,
@@ -75,13 +140,8 @@ export const signUpOwner = async (
     createdAt: new Date().toISOString()
   });
 
-  // Automatically seed default restaurant data
-  try {
-    const { seedDatabase } = await import('./seed');
-    await seedDatabase(tenantId);
-  } catch (err) {
-    console.error('[Autoseed] Failed to run automatic seeder:', err);
-  }
+  // Note: Newly created restaurants start with ZERO mock/demo data.
+  // Tables, menus, inventory, staff, and strategies start completely empty.
 
   await user.getIdToken(true);
   return userCredential;
@@ -93,6 +153,13 @@ export const signUpCustomer = async (
   fullName: string,
   phoneNumber?: string
 ): Promise<UserCredential> => {
+  // Always enforce tab-isolated session persistence for customer signups
+  try {
+    await setPersistence(auth, browserSessionPersistence);
+  } catch (persistErr) {
+    console.warn('[AUTH signUpCustomer] Note setting session persistence:', persistErr);
+  }
+
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   const user = userCredential.user;
 

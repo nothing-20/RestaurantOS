@@ -3,7 +3,12 @@ import { useLocation } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from './AuthContext';
-import { setGlobalCurrencyConfig } from '../shared/utils/format';
+import { 
+  SUPPORTED_CURRENCIES, 
+  detectDefaultCountryAndCurrency, 
+  getCurrencySymbol, 
+  setGlobalCurrencyConfig 
+} from '../shared/utils/format';
 
 interface ICurrencyContextType {
   currency: string;
@@ -14,22 +19,6 @@ interface ICurrencyContextType {
 }
 
 const CurrencyContext = createContext<ICurrencyContextType | undefined>(undefined);
-
-// Supported currencies mapping to their corresponding locales and fallback symbols
-const CURRENCY_CONFIGS: Record<string, { locale: string; symbol: string }> = {
-  INR: { locale: 'en-IN', symbol: '₹' },
-  USD: { locale: 'en-US', symbol: '$' },
-  EUR: { locale: 'en-IE', symbol: '€' },
-  GBP: { locale: 'en-GB', symbol: '£' },
-  AED: { locale: 'en-AE', symbol: 'AED ' },
-  SAR: { locale: 'en-SA', symbol: 'SR ' },
-  AUD: { locale: 'en-AUD', symbol: '$' },
-  CAD: { locale: 'en-CA', symbol: '$' },
-  JPY: { locale: 'ja-JP', symbol: '¥' },
-  SGD: { locale: 'en-SG', symbol: 'S$' },
-  MYR: { locale: 'ms-MY', symbol: 'RM' },
-  THB: { locale: 'th-TH', symbol: '฿' }
-};
 
 function getTenantIdFromUrl(): string | null {
   const path = window.location.pathname;
@@ -53,35 +42,55 @@ function getTenantIdFromUrl(): string | null {
 export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const location = useLocation();
-  const [currency, setCurrency] = useState<string>('USD');
-  const [currencySymbol, setCurrencySymbol] = useState<string>('$');
-  const [locale, setLocale] = useState<string>('en-US');
+
+  const detected = detectDefaultCountryAndCurrency();
+  const [currency, setCurrency] = useState<string>(detected.currency);
+  const [currencySymbol, setCurrencySymbol] = useState<string>(detected.symbol);
+  const [locale, setLocale] = useState<string>(detected.locale);
 
   useEffect(() => {
-    // Resolve tenant ID: first check logged-in user, then URL, then default demo restaurant
-    const resolvedTenantId = user?.tenantId || getTenantIdFromUrl() || 'l-ambroisie';
+    // Resolve tenant ID: first check logged-in user, then URL
+    const resolvedTenantId = user?.tenantId || getTenantIdFromUrl();
     
+    if (!resolvedTenantId) {
+      const def = detectDefaultCountryAndCurrency();
+      setCurrency(def.currency);
+      setCurrencySymbol(def.symbol);
+      setLocale(def.locale);
+      setGlobalCurrencyConfig(def.currency, def.locale);
+      return;
+    }
+
     const docRef = doc(db, 'tenants', resolvedTenantId);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const curr = data.settings?.currency || data.currencyCode || 'USD';
+        const curr = data.settings?.currency || data.currency || data.currencyCode || detected.currency;
+        const config = SUPPORTED_CURRENCIES[curr] || {
+          code: curr,
+          locale: data.locale || detected.locale,
+          symbol: data.currencySymbol || data.settings?.currencySymbol || getCurrencySymbol(curr)
+        };
         setCurrency(curr);
-        const config = CURRENCY_CONFIGS[curr] || { locale: 'en-US', symbol: '$' };
         setCurrencySymbol(config.symbol);
         setLocale(config.locale);
         
         // Sync to vanilla TS formatters
         setGlobalCurrencyConfig(curr, config.locale);
       } else {
-        // Fallback to USD
-        setCurrency('USD');
-        setCurrencySymbol('$');
-        setLocale('en-US');
-        setGlobalCurrencyConfig('USD', 'en-US');
+        const def = detectDefaultCountryAndCurrency();
+        setCurrency(def.currency);
+        setCurrencySymbol(def.symbol);
+        setLocale(def.locale);
+        setGlobalCurrencyConfig(def.currency, def.locale);
       }
     }, (err) => {
       console.error("Failed to sync currency settings from Firestore:", err);
+      const def = detectDefaultCountryAndCurrency();
+      setCurrency(def.currency);
+      setCurrencySymbol(def.symbol);
+      setLocale(def.locale);
+      setGlobalCurrencyConfig(def.currency, def.locale);
     });
 
     return () => unsubscribe();
@@ -116,4 +125,5 @@ export const useCurrency = () => {
   }
   return context;
 };
+
 export default CurrencyContext;

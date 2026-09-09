@@ -196,8 +196,8 @@ export const CustomerHome: React.FC = () => {
           isTrending: index % 3 === 0,
           isNew: index % 4 === 0,
           hasOffer: index % 2 === 0,
-          offerText: index % 2 === 0 ? 'Flat 20% OFF' : '',
-          image: data.coverImage || REST_MOCK_IMAGES[index % REST_MOCK_IMAGES.length],
+          image: data.coverImageUrl || data.coverImage || null,
+          logoUrl: data.logoUrl || data.logo || null,
           city,
           area,
           latitude: data.latitude || POPULAR_CITIES[index % POPULAR_CITIES.length].lat,
@@ -841,8 +841,17 @@ export const CustomerHome: React.FC = () => {
                 key={r.id}
                 className="group bg-white border border-[#EEE7E1] hover:border-[#E85D3F]/40 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md transition-all relative select-none"
               >
-                <div className="h-36 w-full overflow-hidden relative">
-                  <img src={r.image} alt={r.name} loading="lazy" className="h-full w-full object-cover group-hover:scale-103 transition-transform duration-300" />
+                <div className="h-36 w-full overflow-hidden relative bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 flex items-center justify-center">
+                  {r.image ? (
+                    <img src={r.image} alt={r.name} loading="lazy" className="h-full w-full object-cover group-hover:scale-103 transition-transform duration-300" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-3 select-none">
+                      <div className="w-10 h-10 rounded-xl bg-[#E85D3F]/15 border border-[#E85D3F]/30 flex items-center justify-center text-[#E85D3F] font-extrabold text-sm mb-1 shadow-inner">
+                        {r.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-[11px] font-extrabold text-white truncate max-w-[150px]">{r.name}</span>
+                    </div>
+                  )}
                   
                   {/* Favourites Button */}
                   <button 
