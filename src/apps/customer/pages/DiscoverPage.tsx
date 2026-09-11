@@ -1,16 +1,15 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
-import Card from '../../../components/ui/Card/Card';
 import Badge from '../../../components/ui/Badge/Badge';
-import LoadingSpinner from '../../../components/ui/LoadingSpinner/LoadingSpinner';
 import { 
-  Star, MapPin, Filter, Search, X, RotateCcw, 
+  Star, MapPin, Search, X, RotateCcw, 
   ExternalLink, Utensils, Compass, ArrowUpDown, 
-  Check, ChevronDown, SlidersHorizontal, AlertCircle, Heart
+  ChevronDown, SlidersHorizontal, AlertCircle, Heart
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ErrorBoundary from '../../../shared/ui/feedback/ErrorBoundary';
 
 const HYDERABAD_AREAS = [
   'Jubilee Hills', 'Banjara Hills', 'Hitech City', 'Gachibowli', 'Madhapur', 
@@ -21,7 +20,7 @@ const HYDERABAD_AREAS = [
 ];
 
 function extractAreaFromAddress(street: string, fallbackCity: string): string {
-  if (!street) return fallbackCity;
+  if (!street || typeof street !== 'string') return fallbackCity;
   for (const area of HYDERABAD_AREAS) {
     if (new RegExp(`\\b${area.replace(/\\s+/g, '\\s+')}\\b`, 'i').test(street)) {
       return area;
@@ -37,7 +36,40 @@ function extractAreaFromAddress(street: string, fallbackCity: string): string {
   return fallbackCity;
 }
 
-export const DiscoverPage: React.FC = () => {
+const DEFAULT_LOCATION = {
+  country: 'India',
+  state: 'Telangana',
+  city: 'Hyderabad',
+  area: 'All Areas',
+  latitude: 17.3850,
+  longitude: 78.4867,
+  label: 'Hyderabad, Telangana'
+};
+
+function getSafeLocation() {
+  try {
+    const saved = localStorage.getItem('diner_location');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed.city === 'string' && parsed.city.trim().length > 0) {
+        return {
+          country: typeof parsed.country === 'string' ? parsed.country : 'India',
+          state: typeof parsed.state === 'string' ? parsed.state : 'Telangana',
+          city: parsed.city.trim(),
+          area: typeof parsed.area === 'string' ? parsed.area.trim() : 'All Areas',
+          latitude: typeof parsed.latitude === 'number' ? parsed.latitude : 17.3850,
+          longitude: typeof parsed.longitude === 'number' ? parsed.longitude : 78.4867,
+          label: typeof parsed.label === 'string' ? parsed.label : `${parsed.city}, India`
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[Explore] Failed to parse diner_location from localStorage:', err);
+  }
+  return DEFAULT_LOCATION;
+}
+
+const DiscoverPageInner: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -46,40 +78,31 @@ export const DiscoverPage: React.FC = () => {
   const initialCategory = searchParams.get('category') || 'All';
   const initialArea = searchParams.get('area') || 'All Areas';
 
-  // Location Hub State (Unified single source of truth from localStorage)
-  const [currentLocation, setCurrentLocation] = useState<{
-    country: string;
-    state: string;
-    city: string;
-    area: string;
-    latitude: number;
-    longitude: number;
-    label: string;
-  }>(() => {
-    const defaultHyd = {
-      country: 'India',
-      state: 'Telangana',
-      city: 'Hyderabad',
-      area: 'All Areas',
-      latitude: 17.3850,
-      longitude: 78.4867,
-      label: 'Hyderabad, Telangana'
-    };
-    try {
-      const saved = localStorage.getItem('diner_location');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.city) return parsed;
-      }
-    } catch (_) {}
-    return defaultHyd;
-  });
+  // Location Hub State (Unified single source of truth from localStorage with safe fallback)
+  const [currentLocation, setCurrentLocation] = useState(getSafeLocation);
 
   // Primary Data States
   const [restaurantsList, setRestaurantsList] = useState<any[]>(() => {
-    return (window as any).__cachedTenants || [];
+    try {
+      const cached = (window as any)?.__cachedTenants;
+      if (Array.isArray(cached) && cached.length > 0) {
+        console.log('[Explore] cache status: hit with', cached.length, 'restaurants');
+        return cached;
+      }
+    } catch (_) {}
+    console.log('[Explore] cache status: empty');
+    return [];
   });
-  const [isLoading, setIsLoading] = useState<boolean>(!(window as any).__cachedTenants?.length);
+
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    try {
+      const cached = (window as any)?.__cachedTenants;
+      return !(Array.isArray(cached) && cached.length > 0);
+    } catch (_) {
+      return true;
+    }
+  });
+
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Search & Filter States
@@ -99,24 +122,26 @@ export const DiscoverPage: React.FC = () => {
   const [favourites, setFavourites] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('diner_favourites');
-      return saved ? JSON.parse(saved) : [];
-    } catch (_) {
-      return [];
-    }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed.map(String) : [];
+      }
+    } catch (_) {}
+    return [];
   });
+
+  // Diagnostic lifecycle log
+  useEffect(() => {
+    console.log('[Explore] component mounted');
+    console.log('[Explore] location loaded:', currentLocation.city, '|', currentLocation.area);
+  }, []);
 
   // Synchronize location changes from custom window events and storage
   useEffect(() => {
     const handleLocationChanged = () => {
-      try {
-        const saved = localStorage.getItem('diner_location');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && parsed.city) {
-            setCurrentLocation(parsed);
-          }
-        }
-      } catch (_) {}
+      const loc = getSafeLocation();
+      console.log('[Explore] location updated from event:', loc.city, '|', loc.area);
+      setCurrentLocation(loc);
     };
 
     window.addEventListener('diner_location_changed', handleLocationChanged);
@@ -137,81 +162,126 @@ export const DiscoverPage: React.FC = () => {
   }, [searchParams]);
 
   // Stream real Firestore tenants in real-time
-  const loadTenants = () => {
-    setIsLoading(true);
+  const loadTenants = useCallback(() => {
+    setIsLoading(prev => restaurantsList.length === 0 ? true : prev);
     setLoadError(null);
 
-    const qTenants = query(collection(db, 'tenants'), limit(50));
-    const unsubscribe = onSnapshot(qTenants, (snap) => {
-      const list: any[] = [];
-      snap.forEach(d => {
-        const data = d.data();
+    console.log('[Explore] Firestore listener started');
+
+    try {
+      const qTenants = query(collection(db, 'tenants'), limit(50));
+      const unsubscribe = onSnapshot(qTenants, (snap) => {
+        console.log('[Explore] snapshot received:', snap.docs.length, 'documents');
+        const list: any[] = [];
         
-        // Exclude suspended / inactive accounts
-        const status = data.status || 'active';
-        if (status === 'suspended' || status === 'inactive') {
-          return;
-        }
+        snap.forEach(d => {
+          try {
+            const data = d.data();
+            if (!data) return;
+            
+            // Exclude suspended / inactive accounts only
+            const status = String(data.status || 'active').toLowerCase();
+            if (status === 'suspended' || status === 'inactive') {
+              return;
+            }
 
-        const city = data.address?.city || data.city || 'Hyderabad';
-        const state = data.address?.state || data.state || 'Telangana';
-        const country = data.address?.country || data.country || 'India';
-        const street = data.address?.street || data.street || '';
-        const area = data.area || data.address?.area || extractAreaFromAddress(street, city);
+            const city = String(data.address?.city || data.city || 'Hyderabad').trim();
+            const state = String(data.address?.state || data.state || 'Telangana').trim();
+            const country = String(data.address?.country || data.country || 'India').trim();
+            const street = String(data.address?.street || data.street || '').trim();
+            const area = String(data.area || data.address?.area || extractAreaFromAddress(street, city)).trim();
 
-        const currency = data.currency || data.settings?.currency || 'INR';
-        const currencySymbol = data.currencySymbol || data.settings?.currencySymbol || (currency === 'INR' || city === 'Hyderabad' ? '₹' : '$');
+            const currency = String(data.currency || data.settings?.currency || 'INR');
+            const currencySymbol = String(data.currencySymbol || data.settings?.currencySymbol || (currency === 'INR' || city.toLowerCase() === 'hyderabad' ? '₹' : '$'));
 
-        list.push({
-          id: d.id,
-          name: data.restaurantName || data.name || 'Restaurant',
-          cuisine: data.cuisine || 'Multi-Cuisine',
-          rating: typeof data.rating === 'number' ? data.rating : null,
-          reviewsCount: typeof data.reviewsCount === 'number' ? data.reviewsCount : null,
-          priceRange: data.priceRange || '₹₹',
-          vegOptions: data.vegOptions !== undefined ? data.vegOptions : true,
-          nonVegOptions: data.nonVegOptions !== undefined ? data.nonVegOptions : true,
-          openNow: data.status === 'active' || data.openNow !== false,
-          isFeatured: Boolean(data.isFeatured),
-          isTrending: Boolean(data.isTrending),
-          isNew: Boolean(data.isNew),
-          hasOffer: Boolean(data.hasOffer),
-          image: data.coverImageUrl || data.coverImage || null,
-          logoUrl: data.logoUrl || data.logo || null,
-          city,
-          state,
-          country,
-          area,
-          street,
-          address: data.address || null,
-          googleMapsUrl: data.googleMapsUrl || null,
-          description: data.description || '',
-          currency,
-          currencySymbol,
-          latitude: typeof data.latitude === 'number' ? data.latitude : null,
-          longitude: typeof data.longitude === 'number' ? data.longitude : null,
-          facilities: data.facilities || null
+            // Safe cuisine string formatting
+            let cuisineStr = 'Multi-Cuisine';
+            if (Array.isArray(data.cuisine)) {
+              cuisineStr = data.cuisine.filter(Boolean).join(' / ');
+            } else if (typeof data.cuisine === 'string' && data.cuisine.trim().length > 0) {
+              cuisineStr = data.cuisine.trim();
+            }
+
+            // Safe rating parsing
+            let numRating: number | null = null;
+            if (typeof data.rating === 'number' && !isNaN(data.rating)) {
+              numRating = data.rating;
+            } else if (typeof data.rating === 'string') {
+              const p = parseFloat(data.rating);
+              if (!isNaN(p)) numRating = p;
+            }
+
+            // Safe reviewsCount parsing
+            let numReviews: number | null = null;
+            if (typeof data.reviewsCount === 'number' && !isNaN(data.reviewsCount)) {
+              numReviews = data.reviewsCount;
+            } else if (typeof data.reviewsCount === 'string') {
+              const p = parseInt(data.reviewsCount, 10);
+              if (!isNaN(p)) numReviews = p;
+            }
+
+            list.push({
+              id: d.id,
+              name: String(data.restaurantName || data.name || 'Restaurant').trim(),
+              cuisine: cuisineStr,
+              rating: numRating,
+              reviewsCount: numReviews,
+              priceRange: String(data.priceRange || '₹₹'),
+              vegOptions: data.vegOptions !== undefined ? Boolean(data.vegOptions) : true,
+              nonVegOptions: data.nonVegOptions !== undefined ? Boolean(data.nonVegOptions) : true,
+              openNow: status === 'active' || data.openNow !== false,
+              isFeatured: Boolean(data.isFeatured),
+              isTrending: Boolean(data.isTrending),
+              isNew: Boolean(data.isNew),
+              hasOffer: Boolean(data.hasOffer),
+              image: data.coverImageUrl || data.coverImage || null,
+              logoUrl: data.logoUrl || data.logo || null,
+              city,
+              state,
+              country,
+              area,
+              street,
+              address: data.address || null,
+              googleMapsUrl: typeof data.googleMapsUrl === 'string' ? data.googleMapsUrl : null,
+              description: String(data.description || ''),
+              currency,
+              currencySymbol,
+              latitude: typeof data.latitude === 'number' ? data.latitude : null,
+              longitude: typeof data.longitude === 'number' ? data.longitude : null,
+              facilities: data.facilities || null
+            });
+          } catch (itemErr) {
+            console.error('[Explore] Error processing tenant document:', d.id, itemErr);
+          }
         });
+
+        console.log('[Explore] tenant count:', list.length);
+        setRestaurantsList(list);
+        try {
+          (window as any).__cachedTenants = list;
+        } catch (_) {}
+        setIsLoading(false);
+      }, (error) => {
+        console.error('[Explore] runtime error in Firestore subscription:', error);
+        setLoadError('Unable to load restaurants. Please check your network connection.');
+        setIsLoading(false);
       });
 
-      setRestaurantsList(list);
-      (window as any).__cachedTenants = list;
+      return unsubscribe;
+    } catch (subErr) {
+      console.error('[Explore] runtime error creating Firestore query:', subErr);
+      setLoadError('Unable to connect to database.');
       setIsLoading(false);
-    }, (error) => {
-      console.error('[DiscoverPage] Failed to fetch restaurants from Firestore:', error);
-      setLoadError('Unable to load restaurants. Please check your network connection.');
-      setIsLoading(false);
-    });
-
-    return unsubscribe;
-  };
+      return () => {};
+    }
+  }, [restaurantsList.length]);
 
   useEffect(() => {
     const unsub = loadTenants();
     return () => {
       if (typeof unsub === 'function') unsub();
     };
-  }, []);
+  }, [loadTenants]);
 
   const toggleFavourite = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -231,17 +301,19 @@ export const DiscoverPage: React.FC = () => {
   };
 
   // Dynamic list of cuisines extracted from current city's restaurants
+  // Supports both "/" and "," as delimiters (e.g. "Hyderabadi / Biryani / Mughlai")
   const availableCuisines = useMemo(() => {
     const set = new Set<string>();
-    const currentCity = (currentLocation?.city || 'Hyderabad').toLowerCase();
+    const currentCity = String(currentLocation?.city || 'Hyderabad').toLowerCase().trim();
     
     restaurantsList.forEach(r => {
-      const rCity = (r.city || '').toLowerCase();
+      const rCity = String(r.city || '').toLowerCase().trim();
       if (rCity.includes(currentCity) || currentCity.includes(rCity)) {
-        if (r.cuisine) {
-          r.cuisine.split(',').forEach((c: string) => {
+        if (typeof r.cuisine === 'string') {
+          // Split on both '/' and ',' to handle all delimiter formats cleanly
+          r.cuisine.split(/[/,]/).forEach((c: string) => {
             const clean = c.trim();
-            if (clean.length > 2 && clean.length < 24) {
+            if (clean.length > 2 && clean.length < 32) {
               set.add(clean);
             }
           });
@@ -255,12 +327,12 @@ export const DiscoverPage: React.FC = () => {
   // Dynamic list of areas extracted from current city's restaurants
   const availableAreas = useMemo(() => {
     const set = new Set<string>();
-    const currentCity = (currentLocation?.city || 'Hyderabad').toLowerCase();
+    const currentCity = String(currentLocation?.city || 'Hyderabad').toLowerCase().trim();
 
     restaurantsList.forEach(r => {
-      const rCity = (r.city || '').toLowerCase();
+      const rCity = String(r.city || '').toLowerCase().trim();
       if (rCity.includes(currentCity) || currentCity.includes(rCity)) {
-        if (r.area && r.area !== 'All Areas' && r.area.toLowerCase() !== currentCity) {
+        if (r.area && r.area !== 'All Areas' && String(r.area).toLowerCase().trim() !== currentCity) {
           set.add(r.area);
         }
       }
@@ -273,25 +345,29 @@ export const DiscoverPage: React.FC = () => {
   const filteredRestaurants = useMemo(() => {
     let result = [...restaurantsList];
 
-    // 1. City Filter (Matches selected location)
+    // 1. City Filter (Matches selected location city)
     if (currentLocation && currentLocation.city && currentLocation.city !== 'All Cities') {
-      const curCity = currentLocation.city.toLowerCase().trim();
+      const curCity = String(currentLocation.city).toLowerCase().trim();
       result = result.filter(r => {
-        const rCity = (r.city || '').toLowerCase().trim();
+        const rCity = String(r.city || '').toLowerCase().trim();
         return rCity === curCity || rCity.includes(curCity) || curCity.includes(rCity);
       });
     }
 
-    // 2. Area Filter (selectedArea or currentLocation.area)
-    const activeAreaFilter = selectedArea !== 'All Areas' 
-      ? selectedArea 
-      : (currentLocation?.area && currentLocation.area !== 'All Areas' ? currentLocation.area : 'All Areas');
+    // 2. Area Filter:
+    // Only filter by area if an actual specific sub-locality is active (not 'All Areas' and not the city name itself)
+    const curCity = String(currentLocation?.city || 'Hyderabad').toLowerCase().trim();
+    const locArea = currentLocation?.area && currentLocation.area !== 'All Areas' && String(currentLocation.area).toLowerCase().trim() !== curCity
+      ? currentLocation.area 
+      : 'All Areas';
+
+    const activeAreaFilter = selectedArea !== 'All Areas' ? selectedArea : locArea;
 
     if (activeAreaFilter !== 'All Areas') {
-      const targetArea = activeAreaFilter.toLowerCase().trim();
+      const targetArea = String(activeAreaFilter).toLowerCase().trim();
       result = result.filter(r => {
-        const rArea = (r.area || '').toLowerCase();
-        const rStreet = (r.street || '').toLowerCase();
+        const rArea = String(r.area || '').toLowerCase();
+        const rStreet = String(r.street || '').toLowerCase();
         return rArea.includes(targetArea) || rStreet.includes(targetArea);
       });
     }
@@ -300,12 +376,12 @@ export const DiscoverPage: React.FC = () => {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(r => {
-        const matchesName = (r.name || '').toLowerCase().includes(q);
-        const matchesCuisine = (r.cuisine || '').toLowerCase().includes(q);
-        const matchesArea = (r.area || '').toLowerCase().includes(q);
-        const matchesCity = (r.city || '').toLowerCase().includes(q);
-        const matchesStreet = (r.street || '').toLowerCase().includes(q);
-        const matchesDescription = (r.description || '').toLowerCase().includes(q);
+        const matchesName = String(r.name || '').toLowerCase().includes(q);
+        const matchesCuisine = String(r.cuisine || '').toLowerCase().includes(q);
+        const matchesArea = String(r.area || '').toLowerCase().includes(q);
+        const matchesCity = String(r.city || '').toLowerCase().includes(q);
+        const matchesStreet = String(r.street || '').toLowerCase().includes(q);
+        const matchesDescription = String(r.description || '').toLowerCase().includes(q);
         return matchesName || matchesCuisine || matchesArea || matchesCity || matchesStreet || matchesDescription;
       });
     }
@@ -313,7 +389,7 @@ export const DiscoverPage: React.FC = () => {
     // 4. Cuisine Filter
     if (selectedCuisine !== 'All') {
       const cLower = selectedCuisine.toLowerCase().trim();
-      result = result.filter(r => (r.cuisine || '').toLowerCase().includes(cLower));
+      result = result.filter(r => String(r.cuisine || '').toLowerCase().includes(cLower));
     }
 
     // 5. Price Filter
@@ -323,20 +399,20 @@ export const DiscoverPage: React.FC = () => {
 
     // 6. Quick Toggles
     if (showVegOnly) {
-      result = result.filter(r => r.vegOptions === true || (r.cuisine || '').toLowerCase().includes('vegetarian'));
+      result = result.filter(r => r.vegOptions === true || String(r.cuisine || '').toLowerCase().includes('veg'));
     }
     if (showOpenNow) {
       result = result.filter(r => r.openNow === true);
     }
     if (showTopRated) {
-      result = result.filter(r => r.rating !== null && r.rating >= 4.0);
+      result = result.filter(r => typeof r.rating === 'number' && r.rating >= 4.0);
     }
 
     // 7. Sorting
     if (sortBy === 'rating') {
       result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
     } else if (sortBy === 'name') {
-      result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      result.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
     } else if (sortBy === 'reviews') {
       result.sort((a, b) => (b.reviewsCount || 0) - (a.reviewsCount || 0));
     }
@@ -354,6 +430,8 @@ export const DiscoverPage: React.FC = () => {
     showTopRated, 
     sortBy
   ]);
+
+  console.log('[Explore] rendering with', filteredRestaurants.length, 'filtered restaurants (total in state:', restaurantsList.length, ')');
 
   // Count of active filters for drawer badge
   const activeFiltersCount = useMemo(() => {
@@ -384,7 +462,7 @@ export const DiscoverPage: React.FC = () => {
   const currentCityName = currentLocation?.city || 'Hyderabad';
 
   return (
-    <div className="space-y-6 text-left max-w-6xl mx-auto pb-20 select-none">
+    <div className="w-full min-h-[60vh] space-y-6 text-left max-w-6xl mx-auto pb-20 select-none">
       
       {/* 1. Header Bar: Title, Contextual Location Badge & Search Bar */}
       <div className="bg-white border border-[#F3E8DF] rounded-3xl p-6 md:p-8 shadow-xs space-y-6">
@@ -405,6 +483,7 @@ export const DiscoverPage: React.FC = () => {
 
           {/* Unified Location Indicator */}
           <button
+            type="button"
             onClick={openLocationModal}
             className="flex items-center gap-2 px-3.5 py-2 bg-[#FCFAF7] border border-[#F3E8DF] hover:border-[#C85A3F]/50 rounded-2xl transition-all group shadow-2xs cursor-pointer"
             title="Change Dining City or Area"
@@ -439,6 +518,7 @@ export const DiscoverPage: React.FC = () => {
             />
             {searchQuery && (
               <button
+                type="button"
                 onClick={() => {
                   setSearchQuery('');
                   const p = new URLSearchParams(searchParams);
@@ -471,6 +551,7 @@ export const DiscoverPage: React.FC = () => {
 
             {/* Filter Drawer Button */}
             <button
+              type="button"
               onClick={() => setIsFilterDrawerOpen(true)}
               className="px-4 py-3 bg-[#FCFAF7] border border-[#F3E8DF] hover:border-[#C85A3F]/50 text-xs font-bold text-[#202124] rounded-2xl transition-all flex items-center gap-2 shadow-2xs cursor-pointer relative shrink-0"
             >
@@ -493,6 +574,7 @@ export const DiscoverPage: React.FC = () => {
             </span>
             {selectedCuisine !== 'All' && (
               <button 
+                type="button"
                 onClick={() => setSelectedCuisine('All')}
                 className="text-[#C85A3F] font-bold hover:underline cursor-pointer text-[11px]"
               >
@@ -505,6 +587,7 @@ export const DiscoverPage: React.FC = () => {
               const isSelected = selectedCuisine.toLowerCase() === c.toLowerCase();
               return (
                 <button
+                  type="button"
                   key={c}
                   onClick={() => setSelectedCuisine(c)}
                   className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border shrink-0 cursor-pointer ${
@@ -523,6 +606,7 @@ export const DiscoverPage: React.FC = () => {
         {/* 3. Quick Feature Toggles Bar */}
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
+            type="button"
             onClick={() => setShowOpenNow(prev => !prev)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
               showOpenNow 
@@ -535,6 +619,7 @@ export const DiscoverPage: React.FC = () => {
           </button>
 
           <button
+            type="button"
             onClick={() => setShowTopRated(prev => !prev)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
               showTopRated 
@@ -547,6 +632,7 @@ export const DiscoverPage: React.FC = () => {
           </button>
 
           <button
+            type="button"
             onClick={() => setShowVegOnly(prev => !prev)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
               showVegOnly 
@@ -559,6 +645,7 @@ export const DiscoverPage: React.FC = () => {
 
           {activeFiltersCount > 0 && (
             <button
+              type="button"
               onClick={clearAllFilters}
               className="px-3 py-1.5 rounded-xl text-xs font-bold text-[#C85A3F] hover:bg-[#F3E8DF] transition-all flex items-center gap-1 cursor-pointer ml-auto"
             >
@@ -575,7 +662,7 @@ export const DiscoverPage: React.FC = () => {
             Restaurants in {currentCityName}
           </h2>
           <p className="text-xs text-[#756B64] font-medium">
-            {isLoading 
+            {isLoading && restaurantsList.length === 0
               ? 'Loading restaurants...' 
               : `Showing ${filteredRestaurants.length} dining venue${filteredRestaurants.length === 1 ? '' : 's'}`
             }
@@ -599,7 +686,7 @@ export const DiscoverPage: React.FC = () => {
       </div>
 
       {/* 5. Main Content: Loading, Error, Empty State, or Restaurant Grid */}
-      {isLoading ? (
+      {isLoading && restaurantsList.length === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map((n) => (
             <div key={n} className="bg-white border border-[#E5DCD5] rounded-3xl overflow-hidden p-4 space-y-4 animate-pulse">
@@ -622,6 +709,7 @@ export const DiscoverPage: React.FC = () => {
             <p className="text-xs text-[#756B64] max-w-md mx-auto">{loadError}</p>
           </div>
           <button
+            type="button"
             onClick={() => loadTenants()}
             className="px-6 py-2.5 bg-[#C85A3F] hover:bg-[#A94332] text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs"
           >
@@ -641,12 +729,14 @@ export const DiscoverPage: React.FC = () => {
           </div>
           <div className="flex items-center justify-center gap-3 pt-2">
             <button
+              type="button"
               onClick={clearAllFilters}
               className="px-5 py-2.5 bg-[#C85A3F] hover:bg-[#A94332] text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs"
             >
               Clear All Filters
             </button>
             <button
+              type="button"
               onClick={openLocationModal}
               className="px-5 py-2.5 bg-[#FCFAF7] border border-[#F3E8DF] hover:border-[#C85A3F]/50 text-[#202124] rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-2xs"
             >
@@ -658,8 +748,10 @@ export const DiscoverPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredRestaurants.map((r) => {
             const isFav = favourites.includes(r.id);
+            const hasValidRating = typeof r.rating === 'number' && !isNaN(r.rating);
+            const hasValidReviews = typeof r.reviewsCount === 'number' && !isNaN(r.reviewsCount) && r.reviewsCount > 0;
             return (
-              <Card
+              <div
                 key={r.id}
                 onClick={() => navigate(`/customer/restaurant/${r.id}`)}
                 className="group bg-white border border-[#E5DCD5] hover:border-[#C85A3F]/60 rounded-3xl overflow-hidden cursor-pointer transition-all duration-200 flex flex-col justify-between shadow-2xs hover:shadow-md hover:-translate-y-0.5"
@@ -670,12 +762,16 @@ export const DiscoverPage: React.FC = () => {
                     <img 
                       src={r.image} 
                       alt={r.name} 
-                      className="h-full w-full object-cover group-hover:scale-103 transition-transform duration-300" 
+                      className="h-full w-full object-cover group-hover:scale-103 transition-transform duration-300"
+                      onError={(e) => {
+                        // Safe fallback on broken image link
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
                     />
                   ) : (
                     <div className="flex flex-col items-center justify-center text-center p-4 select-none">
                       <div className="w-12 h-12 rounded-2xl bg-white border border-[#E5DCD5] flex items-center justify-center text-[#C85A3F] font-extrabold text-base mb-1 shadow-inner">
-                        {r.name.charAt(0).toUpperCase()}
+                        {(r.name || 'R').charAt(0).toUpperCase()}
                       </div>
                       <span className="text-xs font-extrabold text-[#202124] truncate max-w-[180px]">
                         {r.name}
@@ -684,12 +780,12 @@ export const DiscoverPage: React.FC = () => {
                   )}
 
                   {/* Top Badges: Rating & Favorite */}
-                  <div className="absolute top-3 left-3 right-3 flex justify-between items-center">
-                    {r.rating !== null ? (
-                      <div className="bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-full border border-[#E5DCD5] text-[10.5px] text-[#202124] flex items-center gap-1 font-extrabold shadow-xs">
+                  <div className="absolute top-3 left-3 right-3 flex justify-between items-center pointer-events-none">
+                    {hasValidRating ? (
+                      <div className="bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-full border border-[#E5DCD5] text-[10.5px] text-[#202124] flex items-center gap-1 font-extrabold shadow-xs pointer-events-auto">
                         <Star className="w-3.5 h-3.5 text-[#F4B942] fill-current" />
                         <span>{r.rating.toFixed(1)}</span>
-                        {r.reviewsCount && (
+                        {hasValidReviews && (
                           <span className="text-[#756B64] font-medium text-[9.5px]">({r.reviewsCount})</span>
                         )}
                       </div>
@@ -700,7 +796,7 @@ export const DiscoverPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={(e) => toggleFavourite(r.id, e)}
-                      className="w-8 h-8 rounded-full bg-white/95 backdrop-blur-xs border border-[#E5DCD5] flex items-center justify-center text-[#756B64] hover:text-[#C85A3F] transition-colors shadow-xs cursor-pointer"
+                      className="w-8 h-8 rounded-full bg-white/95 backdrop-blur-xs border border-[#E5DCD5] flex items-center justify-center text-[#756B64] hover:text-[#C85A3F] transition-colors shadow-xs cursor-pointer pointer-events-auto"
                       title={isFav ? 'Remove from favorites' : 'Add to favorites'}
                     >
                       <Heart className={`w-4 h-4 ${isFav ? 'text-[#C85A3F] fill-current' : ''}`} />
@@ -708,7 +804,7 @@ export const DiscoverPage: React.FC = () => {
                   </div>
 
                   {/* Status Badge: Open Now */}
-                  <div className="absolute bottom-3 left-3">
+                  <div className="absolute bottom-3 left-3 pointer-events-none">
                     {r.openNow ? (
                       <Badge className="bg-[#2E8B57] text-white border-0 text-[9.5px] font-extrabold px-2 py-0.5 shadow-xs">
                         Open Now
@@ -766,6 +862,7 @@ export const DiscoverPage: React.FC = () => {
                   {/* Primary CTA */}
                   <div className="pt-1">
                     <button
+                      type="button"
                       onClick={() => navigate(`/customer/restaurant/${r.id}`)}
                       className="w-full py-2.5 bg-[#C85A3F] hover:bg-[#A94332] text-white font-extrabold text-xs rounded-2xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
                     >
@@ -773,7 +870,7 @@ export const DiscoverPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
-              </Card>
+              </div>
             );
           })}
         </div>
@@ -796,6 +893,7 @@ export const DiscoverPage: React.FC = () => {
                   </span>
                 </div>
                 <button 
+                  type="button"
                   onClick={() => setIsFilterDrawerOpen(false)} 
                   className="p-1 hover:bg-[#F3E8DF] rounded-xl text-[#756B64] cursor-pointer"
                 >
@@ -884,6 +982,7 @@ export const DiscoverPage: React.FC = () => {
             {/* Bottom Drawer Actions */}
             <div className="pt-6 border-t border-[#F3E8DF] space-y-2">
               <button
+                type="button"
                 onClick={() => setIsFilterDrawerOpen(false)}
                 className="w-full bg-[#C85A3F] hover:bg-[#A94332] text-white font-extrabold py-3 rounded-2xl text-xs transition-all shadow-xs cursor-pointer"
               >
@@ -891,6 +990,7 @@ export const DiscoverPage: React.FC = () => {
               </button>
               {activeFiltersCount > 0 && (
                 <button
+                  type="button"
                   onClick={clearAllFilters}
                   className="w-full bg-[#FCFAF7] hover:bg-[#F3E8DF] text-[#756B64] font-bold py-2.5 rounded-2xl text-xs transition-all cursor-pointer"
                 >
@@ -903,6 +1003,17 @@ export const DiscoverPage: React.FC = () => {
       )}
 
     </div>
+  );
+};
+
+export const DiscoverPage: React.FC = () => {
+  return (
+    <ErrorBoundary
+      fallbackTitle="Explore failed to load"
+      fallbackSubtitle="Something went wrong while opening restaurant discovery."
+    >
+      <DiscoverPageInner />
+    </ErrorBoundary>
   );
 };
 
