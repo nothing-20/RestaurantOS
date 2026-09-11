@@ -53,7 +53,7 @@ service cloud.firestore {
       allow update, delete: if false; // Immutable protection
     }
 
-    // Root-level User accounts
+    // Root-level User accounts (restaurant staff and owners)
     // A user can read user profiles when authenticated.
     // Avoid calling getUserData() or helper functions here to prevent recursive rule evaluation.
     match /users/{userId} {
@@ -65,6 +65,43 @@ service cloud.firestore {
 
       match /{subcollection}/{docId} {
         allow read, write: if isAuth() && request.auth.uid == userId;
+      }
+    }
+
+    // Root-level Customer accounts (diner profiles, strictly isolated by UID)
+    match /customers/{customerUid} {
+      allow read: if isAuth() && (
+        request.auth.uid == customerUid ||
+        request.auth.token.role == 'super-admin' ||
+        getUserData().get('role', '') in ['super-admin', 'admin']
+      );
+      allow write: if isAuth() && (
+        request.auth.uid == customerUid ||
+        request.auth.token.role == 'super-admin' ||
+        getUserData().get('role', '') in ['super-admin', 'admin']
+      );
+
+      // Customer reservations subcollection: customer can read/write; restaurant staff can update reservation status
+      match /reservations/{reservationId} {
+        allow read: if isAuth() && (
+          request.auth.uid == customerUid ||
+          request.auth.token.role == 'super-admin' ||
+          getUserData().get('role', '') in ['super-admin', 'admin']
+        );
+        allow write: if isAuth() && (
+          request.auth.uid == customerUid ||
+          request.auth.token.role == 'super-admin' ||
+          userExists()
+        );
+      }
+
+      // Customer private subcollections (addresses, transactions, diningHistory, notifications, orders)
+      match /{subcollection}/{docId} {
+        allow read, write: if isAuth() && (
+          request.auth.uid == customerUid ||
+          request.auth.token.role == 'super-admin' ||
+          getUserData().get('role', '') in ['super-admin', 'admin']
+        );
       }
     }
 

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { authService } from './authService';
 import { TUserRole, IUser, TAuthStatus } from '../types';
@@ -46,27 +46,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfileError(null);
 
         try {
-          const userDocRef = doc(db, 'users', fUser.uid);
+          // Check if customer profile exists at customers/{uid}
+          const custDocRef = doc(db, 'customers', fUser.uid);
+          let isCustomerProfile = false;
+          try {
+            const custSnap = await getDoc(custDocRef);
+            if (custSnap.exists()) {
+              isCustomerProfile = true;
+            }
+          } catch (_err) {}
 
-          // Real-time listener for user profile updates
+          const profileDocRef = isCustomerProfile ? custDocRef : doc(db, 'users', fUser.uid);
+
+          // Real-time listener for user or customer profile updates
           unsubscribeUserDoc = onSnapshot(
-            userDocRef,
+            profileDocRef,
             async (userDoc) => {
               try {
-                if (userDoc.exists() && userDoc.data().role) {
+                if (userDoc.exists() && (userDoc.data().role || isCustomerProfile)) {
                   const data = userDoc.data();
+                  const resolvedRole = (data.role || (isCustomerProfile ? 'customer' : null)) as TUserRole;
                   const resolvedUser: IUser = {
                     uid: fUser.uid,
                     email: (fUser.email || data.email || '').toLowerCase(),
-                    displayName: data.fullName || data.displayName || fUser.displayName || 'User',
+                    displayName: data.fullName || data.displayName || fUser.displayName || (resolvedRole === 'customer' ? 'Customer' : 'User'),
                     tenantId: data.tenantId || '',
-                    role: data.role as TUserRole,
+                    role: resolvedRole,
                     status: (data.status === 'inactive' ? 'inactive' : 'active') as 'active' | 'inactive',
-                    phoneNumber: data.phoneNumber || '',
+                    phoneNumber: data.phoneNumber || data.phone || '',
                     createdAt: data.createdAt || fUser.metadata.creationTime || new Date().toISOString()
                   };
 
-                  console.log('[AUTH Context] Profile loaded via snapshot:', {
+                  console.log('[AUTH Context] Profile loaded via snapshot (' + (isCustomerProfile ? 'customers' : 'users') + '):', {
                     uid: resolvedUser.uid,
                     email: resolvedUser.email,
                     role: resolvedUser.role,

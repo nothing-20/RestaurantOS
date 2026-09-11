@@ -12,13 +12,6 @@ import {
   Sparkles, CheckCircle2, ChevronDown, Check, X, ShieldAlert, Search
 } from 'lucide-react';
 
-const REST_MOCK_IMAGES = [
-  'https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=600&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=600&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=600&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?q=80&w=600&auto=format&fit=crop'
-];
-
 export const RestaurantDiscovery: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -35,8 +28,8 @@ export const RestaurantDiscovery: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [activeCuisine, setActiveCuisine] = useState(initialCategory);
   const [activePrice, setActivePrice] = useState<string>('all');
-  const [activeDistance, setActiveDistance] = useState<number>(5); // max 5 miles
-  const [sortBy, setSortBy] = useState<string>('rating'); // rating, distance, prepTime
+  const [activeDistance, setActiveDistance] = useState<number>(10);
+  const [sortBy, setSortBy] = useState<string>('rating');
   const [showVegOnly, setShowVegOnly] = useState(false);
   const [showOpenNow, setShowOpenNow] = useState(false);
   
@@ -59,36 +52,29 @@ export const RestaurantDiscovery: React.FC = () => {
       try {
         const colSnap = await getDocs(collection(db, 'tenants'));
         const list: any[] = [];
-        let index = 0;
         colSnap.forEach(d => {
           const data = d.data();
           list.push({
             id: d.id,
-            name: data.restaurantName || data.name || 'Gourmet Bistro',
-            cuisine: data.cuisine || 'Fine Dining',
-            rating: data.rating || 4.7,
-            distance: data.distanceNum || (0.4 + Math.random() * 3.5),
-            priceRange: data.priceRange || (index % 3 === 0 ? '$$$' : index % 3 === 1 ? '$$' : '$'),
+            name: data.restaurantName || data.name || 'Restaurant',
+            cuisine: data.cuisine || 'Multi-Cuisine',
+            rating: typeof data.rating === 'number' ? data.rating : null,
+            distance: typeof data.distanceNum === 'number' ? data.distanceNum : null,
+            priceRange: data.priceRange || null,
             vegOptions: data.vegOptions !== undefined ? data.vegOptions : true,
             openNow: data.status === 'active',
-            image: data.coverImage || REST_MOCK_IMAGES[index % REST_MOCK_IMAGES.length],
-            facilities: data.facilities || {
-              outdoorSeating: index % 2 === 0,
-              liveMusic: index % 3 === 0,
-              petFriendly: index % 2 !== 0,
-              wheelchairAccess: true
-            }
+            image: data.coverImage || data.coverImageUrl || data.logo || data.logoUrl || null,
+            city: data.address?.city || data.city || '',
+            street: data.address?.street || data.street || '',
+            googleMapsUrl: data.googleMapsUrl || '',
+            currencySymbol: data.currencySymbol || '₹',
+            facilities: data.facilities || {}
           });
-          index++;
         });
 
-        if (list.length === 0) {
-          setRestaurants([]);
-        } else {
-          setRestaurants(list);
-        }
+        setRestaurants(list);
       } catch (e) {
-        console.error(e);
+        console.error('Error fetching restaurants for RestaurantDiscovery:', e);
         setRestaurants([]);
       } finally {
         setIsLoading(false);
@@ -106,7 +92,9 @@ export const RestaurantDiscovery: React.FC = () => {
       const q = searchQuery.toLowerCase();
       result = result.filter(r => 
         r.name.toLowerCase().includes(q) || 
-        r.cuisine.toLowerCase().includes(q)
+        r.cuisine.toLowerCase().includes(q) ||
+        (r.city && r.city.toLowerCase().includes(q)) ||
+        (r.street && r.street.toLowerCase().includes(q))
       );
     }
 
@@ -120,8 +108,10 @@ export const RestaurantDiscovery: React.FC = () => {
       result = result.filter(r => r.priceRange === activePrice);
     }
 
-    // 4. Distance limit filter
-    result = result.filter(r => r.distance <= activeDistance);
+    // 4. Distance limit filter - only if distance is available
+    if (activeDistance < 10) {
+      result = result.filter(r => r.distance === null || r.distance <= activeDistance);
+    }
 
     // 5. Veg Options only
     if (showVegOnly) {
@@ -142,9 +132,9 @@ export const RestaurantDiscovery: React.FC = () => {
 
     // 8. Sorting
     if (sortBy === 'rating') {
-      result.sort((a, b) => b.rating - a.rating);
+      result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
     } else if (sortBy === 'distance') {
-      result.sort((a, b) => a.distance - b.distance);
+      result.sort((a, b) => (a.distance || 999) - (b.distance || 999));
     }
 
     return result;
@@ -340,21 +330,35 @@ export const RestaurantDiscovery: React.FC = () => {
                   onClick={() => navigate(`/customer/restaurant/${r.id}`)}
                   className="group bg-slate-900/20 border-slate-850 hover:border-slate-850 rounded-2xl overflow-hidden cursor-pointer transition-all flex flex-col justify-between shadow-lg"
                 >
-                  <div className="h-36 w-full overflow-hidden relative">
-                    <img src={r.image} alt={r.name} className="h-full w-full object-cover group-hover:scale-103 transition-all duration-300" />
-                    <div className="absolute top-2.5 right-2.5 bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-lg border border-slate-800 text-[9px] text-slate-350 flex items-center gap-0.5 font-bold">
-                      <Star className="w-2.5 h-2.5 text-primary fill-current" /> {r.rating}
-                    </div>
+                  <div className="h-36 w-full overflow-hidden relative bg-slate-950 flex items-center justify-center">
+                    {r.image ? (
+                      <img src={r.image} alt={r.name} className="h-full w-full object-cover group-hover:scale-103 transition-all duration-300" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl bg-primary/20 border border-primary/40 flex items-center justify-center text-primary font-bold text-sm">
+                        {r.name ? r.name.charAt(0).toUpperCase() : 'R'}
+                      </div>
+                    )}
+                    {r.rating !== null && (
+                      <div className="absolute top-2.5 right-2.5 bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-lg border border-slate-800 text-[9px] text-slate-350 flex items-center gap-0.5 font-bold">
+                        <Star className="w-2.5 h-2.5 text-primary fill-current" /> {r.rating}
+                      </div>
+                    )}
                   </div>
                   <div className="p-4 space-y-3">
                     <div className="space-y-0.5">
                       <h4 className="text-xs font-extrabold text-white group-hover:text-primary transition-all truncate">{r.name}</h4>
                       <p className="text-[10px] text-slate-500 font-semibold">{r.cuisine}</p>
+                      {r.street && <p className="text-[9.5px] text-slate-450 truncate">{r.street}</p>}
                     </div>
                     <div className="flex justify-between items-center text-[9px] text-slate-450 pt-2 border-t border-slate-900">
-                      <span className="flex items-center gap-0.5"><MapPin className="w-3 h-3 text-slate-500" /> {r.distance.toFixed(1)} mi</span>
+                      <span className="flex items-center gap-0.5 truncate max-w-[120px]">
+                        <MapPin className="w-3 h-3 text-slate-500 shrink-0" />
+                        {r.distance !== null ? `${r.distance.toFixed(1)} mi` : (r.street || r.city || 'Hyderabad')}
+                      </span>
                       <div className="flex space-x-1 items-center">
-                        <span className="text-slate-450 uppercase font-extrabold text-[8px] bg-slate-950/40 py-0.5 px-1.5 rounded border border-slate-900">{r.priceRange}</span>
+                        {r.priceRange && (
+                          <span className="text-slate-450 uppercase font-extrabold text-[8px] bg-slate-950/40 py-0.5 px-1.5 rounded border border-slate-900">{r.priceRange}</span>
+                        )}
                         {r.openNow ? (
                           <Badge variant="success" className="text-[7.5px] uppercase font-bold py-0.5 px-1 border-0">Open</Badge>
                         ) : (
@@ -362,6 +366,19 @@ export const RestaurantDiscovery: React.FC = () => {
                         )}
                       </div>
                     </div>
+                    {r.googleMapsUrl && (
+                      <div className="pt-0.5">
+                        <a
+                          href={r.googleMapsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center text-[9.5px] text-primary hover:underline font-bold"
+                        >
+                          <MapPin className="w-3 h-3 mr-0.5" /> View on Maps
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </Card>
               ))}

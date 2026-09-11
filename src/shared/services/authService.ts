@@ -20,7 +20,8 @@ export const authService = {
   },
 
   /**
-   * Registers a new restaurant owner and seeds the default restaurant data.
+   * Registers a new restaurant owner with an empty, production-ready tenant.
+   * Does NOT seed mock data.
    * 
    * @param email - The owner's email address.
    * @param password - The owner's password.

@@ -4,6 +4,7 @@ export const COLLECTIONS = {
   TENANTS: 'tenants',
   RESTAURANTS: 'restaurants',
   USERS: 'users',
+  CUSTOMERS: 'customers',
   EMPLOYEES: 'employees',
   AUDIT_LOGS: 'auditLogs',
   SUPPORT_TICKETS: 'supportTickets',

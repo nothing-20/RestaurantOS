@@ -28,8 +28,18 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoadingProfile(true);
     const fetchProfile = async () => {
       try {
-        const docRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
+        const isCustomer = user.role === 'customer';
+        let docRef = doc(db, isCustomer ? 'customers' : 'users', user.uid);
+        let docSnap = await getDoc(docRef);
+
+        if (!docSnap.exists() && isCustomer) {
+          // Backward compatibility fallback to users/{uid}
+          const fallbackRef = doc(db, 'users', user.uid);
+          const fallbackSnap = await getDoc(fallbackRef);
+          if (fallbackSnap.exists()) {
+            docSnap = fallbackSnap;
+          }
+        }
 
         if (docSnap.exists()) {
           setUserProfile(docSnap.data() as IUser);
@@ -53,7 +63,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!userProfile) return;
     setIsLoadingProfile(true);
     try {
-      const docRef = doc(db, 'users', userProfile.uid);
+      const isCustomer = userProfile.role === 'customer';
+      const col = isCustomer ? 'customers' : 'users';
+      const docRef = doc(db, col, userProfile.uid);
       await updateDoc(docRef, data);
       setUserProfile((prev) => (prev ? { ...prev, ...data } : null));
       setError(null);

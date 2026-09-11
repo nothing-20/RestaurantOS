@@ -41,7 +41,37 @@ export async function resolveAuthenticatedUser(fUser: User): Promise<IResolvedUs
     throw new Error('PERMISSION_DENIED_USER_PROFILE');
   }
 
-  // 1. Profile document exists in users/{uid}
+  // 1. Check customers/{uid} for customer-side accounts
+  try {
+    const custDocRef = doc(db, 'customers', fUser.uid);
+    const custSnap = await getDoc(custDocRef);
+    if (custSnap.exists()) {
+      const custData = custSnap.data();
+      const resolvedCust: IResolvedUserProfile = {
+        uid: fUser.uid,
+        email: cleanEmail || custData.email || '',
+        displayName: custData.fullName || custData.displayName || fUser.displayName || cleanEmail.split('@')[0] || 'Customer',
+        role: 'customer' as TUserRole,
+        tenantId: custData.tenantId || '',
+        branchId: '',
+        department: '',
+        status: custData.status || 'active',
+        phoneNumber: custData.phoneNumber || custData.phone || '',
+        createdAt: custData.createdAt || fUser.metadata.creationTime || new Date().toISOString()
+      };
+
+      console.log('[AUTH ROLE RESOLVER] Resolved customer profile from customers/' + fUser.uid, {
+        uid: resolvedCust.uid,
+        role: resolvedCust.role
+      });
+
+      return resolvedCust;
+    }
+  } catch (custErr: any) {
+    console.warn('[AUTH ROLE RESOLVER] Note checking customers/' + fUser.uid + ':', custErr?.message || custErr);
+  }
+
+  // 2. Read restaurant-side profile from Firestore: users/{uid} (or legacy customer fallback)
   if (userSnap.exists()) {
     const data = userSnap.data();
     if (!data.role) {
@@ -62,11 +92,18 @@ export async function resolveAuthenticatedUser(fUser: User): Promise<IResolvedUs
       createdAt: data.createdAt || fUser.metadata.creationTime || new Date().toISOString()
     };
 
-    console.log('[AUTH ROLE RESOLVER] Resolved from users/' + fUser.uid + ':', {
-      uid: resolved.uid,
-      role: resolved.role,
-      tenantId: resolved.tenantId
-    });
+    if (resolved.role === 'customer') {
+      console.log('[AUTH ROLE RESOLVER] Resolved customer from legacy users/' + fUser.uid + ' (migration fallback):', {
+        uid: resolved.uid,
+        role: resolved.role
+      });
+    } else {
+      console.log('[AUTH ROLE RESOLVER] Resolved from users/' + fUser.uid + ':', {
+        uid: resolved.uid,
+        role: resolved.role,
+        tenantId: resolved.tenantId
+      });
+    }
 
     return resolved;
   }

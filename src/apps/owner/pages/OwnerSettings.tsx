@@ -9,7 +9,8 @@ import Card from '../../../components/ui/Card/Card';
 import Tabs from '../../../components/ui/Tabs/Tabs';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner/LoadingSpinner';
 import toast from 'react-hot-toast';
-import { uploadRestaurantAsset } from '../../../shared/services/storageService';
+import { uploadRestaurantAsset, deleteOldBrandingAsset } from '../../../shared/services/storageService';
+import { validateImageFile, compressImage } from '../../../shared/utils/imageCompression';
 import { 
   SUPPORTED_CURRENCIES, 
   SUPPORTED_COUNTRIES,
@@ -27,6 +28,7 @@ import {
   Image as ImageIcon,
   CheckCircle,
   AlertTriangle,
+  AlertCircle,
   Database,
   RotateCcw,
   Trash2,
@@ -73,6 +75,16 @@ export const OwnerSettings: React.FC = () => {
   const [coverImage, setCoverImage] = useState('');
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [logoUploadProgress, setLogoUploadProgress] = useState(0);
+  const [coverUploadProgress, setCoverUploadProgress] = useState(0);
+  const [logoFileInfo, setLogoFileInfo] = useState<{ name: string; size: string } | null>(null);
+  const [coverFileInfo, setCoverFileInfo] = useState<{ name: string; size: string } | null>(null);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
+  const [coverUploadError, setCoverUploadError] = useState<string | null>(null);
+  const [logoSuccessMessage, setLogoSuccessMessage] = useState<string | null>(null);
+  const [coverSuccessMessage, setCoverSuccessMessage] = useState<string | null>(null);
+  const [logoFileToRetry, setLogoFileToRetry] = useState<File | null>(null);
+  const [coverFileToRetry, setCoverFileToRetry] = useState<File | null>(null);
 
   // Form Fields - Business Settings Tab
   const [currency, setCurrency] = useState('USD');
@@ -417,23 +429,41 @@ export const OwnerSettings: React.FC = () => {
     handleSave(undefined, true);
   };
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Logo image size must be less than 2MB');
-      return;
-    }
+  const executeLogoUpload = async (file: File) => {
     const targetTenantId = resolvedTenantId || user?.tenantId;
     if (!targetTenantId) {
       toast.error('No restaurant workspace resolved.');
       return;
     }
 
-    setIsUploadingLogo(true);
-    const toastId = toast.loading('Uploading logo to Storage...');
     try {
-      const downloadUrl = await uploadRestaurantAsset(targetTenantId, file, 'logo');
+      validateImageFile(file, 'logo');
+    } catch (valErr: any) {
+      const msg = valErr.message || 'Invalid logo image file.';
+      setLogoUploadError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    setLogoFileToRetry(file);
+    setLogoFileInfo({
+      name: file.name,
+      size: `${(file.size / 1024).toFixed(1)} KB`
+    });
+    setLogoUploadError(null);
+    setLogoSuccessMessage(null);
+    setIsUploadingLogo(true);
+    setLogoUploadProgress(0);
+
+    const toastId = toast.loading('Processing and uploading logo...');
+    const previousLogo = logo;
+
+    try {
+      const compressedFile = await compressImage(file, 'logo');
+      const downloadUrl = await uploadRestaurantAsset(targetTenantId, compressedFile, 'logo', {
+        onProgress: (percent) => setLogoUploadProgress(percent)
+      });
+
       setLogo(downloadUrl);
       
       await updateDoc(doc(db, 'tenants', targetTenantId), { 
@@ -449,33 +479,72 @@ export const OwnerSettings: React.FC = () => {
         }, { merge: true });
       } catch (_) {}
 
+      setLogoSuccessMessage('Logo uploaded successfully');
+      setLogoUploadError(null);
       toast.success('Logo uploaded and saved!', { id: toastId });
+
+      // Clean up superseded logo in background safely
+      if (previousLogo && previousLogo !== downloadUrl) {
+        deleteOldBrandingAsset(previousLogo).catch(() => {});
+      }
     } catch (err: any) {
       console.error('Logo upload error:', err);
-      toast.error(`Logo upload failed: ${err.message || 'Unknown error'}`, { id: toastId });
+      const errMsg = err.message || 'Logo upload failed. Please try again.';
+      setLogoUploadError(errMsg);
+      toast.error(errMsg, { id: toastId });
     } finally {
       setIsUploadingLogo(false);
       if (logoInputRef.current) logoInputRef.current.value = '';
     }
   };
 
-  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Cover image size must be less than 5MB');
-      return;
+    await executeLogoUpload(file);
+  };
+
+  const handleRetryLogoUpload = async () => {
+    if (logoFileToRetry) {
+      await executeLogoUpload(logoFileToRetry);
     }
+  };
+
+  const executeCoverUpload = async (file: File) => {
     const targetTenantId = resolvedTenantId || user?.tenantId;
     if (!targetTenantId) {
       toast.error('No restaurant workspace resolved.');
       return;
     }
 
-    setIsUploadingCover(true);
-    const toastId = toast.loading('Uploading cover photo to Storage...');
     try {
-      const downloadUrl = await uploadRestaurantAsset(targetTenantId, file, 'cover');
+      validateImageFile(file, 'cover');
+    } catch (valErr: any) {
+      const msg = valErr.message || 'Invalid cover image file.';
+      setCoverUploadError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    setCoverFileToRetry(file);
+    setCoverFileInfo({
+      name: file.name,
+      size: `${(file.size / 1024).toFixed(1)} KB`
+    });
+    setCoverUploadError(null);
+    setCoverSuccessMessage(null);
+    setIsUploadingCover(true);
+    setCoverUploadProgress(0);
+
+    const toastId = toast.loading('Processing and uploading cover photo...');
+    const previousCover = coverImage;
+
+    try {
+      const compressedFile = await compressImage(file, 'cover');
+      const downloadUrl = await uploadRestaurantAsset(targetTenantId, compressedFile, 'cover', {
+        onProgress: (percent) => setCoverUploadProgress(percent)
+      });
+
       setCoverImage(downloadUrl);
       
       await updateDoc(doc(db, 'tenants', targetTenantId), { 
@@ -491,20 +560,45 @@ export const OwnerSettings: React.FC = () => {
         }, { merge: true });
       } catch (_) {}
 
+      setCoverSuccessMessage('Cover photo uploaded successfully');
+      setCoverUploadError(null);
       toast.success('Cover photo uploaded and saved!', { id: toastId });
+
+      // Clean up superseded cover in background safely
+      if (previousCover && previousCover !== downloadUrl) {
+        deleteOldBrandingAsset(previousCover).catch(() => {});
+      }
     } catch (err: any) {
       console.error('Cover upload error:', err);
-      toast.error(`Cover upload failed: ${err.message || 'Unknown error'}`, { id: toastId });
+      const errMsg = err.message || 'Cover photo upload failed. Please try again.';
+      setCoverUploadError(errMsg);
+      toast.error(errMsg, { id: toastId });
     } finally {
       setIsUploadingCover(false);
       if (coverInputRef.current) coverInputRef.current.value = '';
     }
   };
 
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await executeCoverUpload(file);
+  };
+
+  const handleRetryCoverUpload = async () => {
+    if (coverFileToRetry) {
+      await executeCoverUpload(coverFileToRetry);
+    }
+  };
+
   const handleRemoveLogo = async () => {
     const targetTenantId = resolvedTenantId || user?.tenantId;
     if (!targetTenantId) return;
+    const previousLogo = logo;
     setLogo('');
+    setLogoFileInfo(null);
+    setLogoSuccessMessage(null);
+    setLogoUploadError(null);
     try {
       await updateDoc(doc(db, 'tenants', targetTenantId), { 
         logo: null, 
@@ -518,6 +612,9 @@ export const OwnerSettings: React.FC = () => {
           updatedAt: new Date().toISOString() 
         }, { merge: true });
       } catch (_) {}
+      if (previousLogo) {
+        deleteOldBrandingAsset(previousLogo).catch(() => {});
+      }
       toast.success('Logo removed');
     } catch (err: any) {
       toast.error('Failed to remove logo');
@@ -527,7 +624,11 @@ export const OwnerSettings: React.FC = () => {
   const handleRemoveCover = async () => {
     const targetTenantId = resolvedTenantId || user?.tenantId;
     if (!targetTenantId) return;
+    const previousCover = coverImage;
     setCoverImage('');
+    setCoverFileInfo(null);
+    setCoverSuccessMessage(null);
+    setCoverUploadError(null);
     try {
       await updateDoc(doc(db, 'tenants', targetTenantId), { 
         coverImage: null, 
@@ -541,6 +642,9 @@ export const OwnerSettings: React.FC = () => {
           updatedAt: new Date().toISOString() 
         }, { merge: true });
       } catch (_) {}
+      if (previousCover) {
+        deleteOldBrandingAsset(previousCover).catch(() => {});
+      }
       toast.success('Cover photo removed');
     } catch (err: any) {
       toast.error('Failed to remove cover photo');
@@ -797,47 +901,91 @@ export const OwnerSettings: React.FC = () => {
           <Card className="p-6 border-slate-850 bg-slate-900/40 space-y-6">
             <div className="flex items-center space-x-2.5 pb-2 border-b border-slate-850">
               <ImageIcon className="w-4 h-4 text-primary" />
-              <h3 className="text-xs font-bold text-textPearl uppercase tracking-wide">Branding Visual Assets</h3>
+              <div>
+                <h3 className="text-xs font-bold text-textPearl uppercase tracking-wide">Branding Visual Assets</h3>
+                <p className="text-[11px] text-slate-500">Configure your restaurant identity across discovery cards and customer digital menus.</p>
+              </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-start gap-6">
+            <div className="flex flex-col md:flex-row items-start gap-8">
               {/* LOGO SECTION */}
-              <div className="flex flex-col items-center space-y-2 shrink-0">
-                <span className="text-xs font-semibold text-slate-400 w-full text-left">Restaurant Logo</span>
-                <div className="relative w-28 h-28 bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-all group">
+              <div className="flex flex-col space-y-2 w-full md:w-48 shrink-0">
+                <span className="text-xs font-semibold text-slate-300">Restaurant Logo</span>
+                <div className="relative w-36 h-36 bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden flex flex-col items-center justify-center cursor-pointer hover:border-primary/80 transition-all group shadow-inner">
                   {isUploadingLogo ? (
-                    <div className="flex flex-col items-center justify-center space-y-1 text-primary">
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                      <span className="text-[9px] font-bold">Uploading...</span>
+                    <div className="flex flex-col items-center justify-center space-y-2 p-3 text-primary text-center">
+                      <Loader2 className="w-7 h-7 animate-spin" />
+                      <span className="text-[10px] font-bold tracking-tight">Uploading... {logoUploadProgress}%</span>
+                      <div className="w-24 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-primary h-full transition-all duration-200" 
+                          style={{ width: `${logoUploadProgress}%` }}
+                        />
+                      </div>
                     </div>
                   ) : logo ? (
                     <>
-                      <img src={logo} alt="Logo preview" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-slate-950/85 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-textPearl text-[10px] font-bold text-center p-1">
+                      <img src={logo} alt="Restaurant Logo" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-slate-950/85 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-textPearl text-[10px] font-bold text-center p-2 gap-1 pointer-events-none">
+                        <UploadCloud className="w-4 h-4 text-primary" />
                         <span>Click to Replace Logo</span>
                       </div>
                     </>
                   ) : (
-                    <div className="text-center text-slate-500 space-y-1 p-2">
-                      <UploadCloud className="w-6 h-6 mx-auto text-slate-600" />
-                      <span className="text-[9px] font-bold block text-slate-400">Upload Logo</span>
-                      <span className="text-[8px] text-slate-600 block">PNG/JPG &lt;2MB</span>
+                    <div className="text-center text-slate-500 space-y-1.5 p-3 pointer-events-none">
+                      <UploadCloud className="w-7 h-7 mx-auto text-slate-500" />
+                      <span className="text-[10px] font-bold block text-slate-300">Upload Logo</span>
+                      <span className="text-[9px] text-slate-500 block">PNG, JPG, or WebP &lt; 2 MB</span>
                     </div>
                   )}
                   <input 
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/webp"
                     ref={logoInputRef}
                     onChange={handleLogoUpload}
                     disabled={isUploadingLogo}
-                    className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
+                    title="Upload Logo"
                   />
                 </div>
+
+                {/* File info / status / retry */}
+                {logoFileInfo && (
+                  <span className="text-[10px] text-slate-400 truncate max-w-[144px]" title={logoFileInfo.name}>
+                    {logoFileInfo.name} ({logoFileInfo.size})
+                  </span>
+                )}
+
+                {logoSuccessMessage && !isUploadingLogo && !logoUploadError && (
+                  <span className="text-[11px] font-medium text-emerald-400 flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3 shrink-0" />
+                    <span>{logoSuccessMessage}</span>
+                  </span>
+                )}
+
+                {logoUploadError && !isUploadingLogo && (
+                  <div className="flex flex-col gap-1.5 p-2 bg-red-950/40 border border-red-800/60 rounded-xl text-red-300 w-36">
+                    <div className="flex items-start gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                      <span className="text-[10px] leading-tight break-words">{logoUploadError}</span>
+                    </div>
+                    {logoFileToRetry && (
+                      <button
+                        type="button"
+                        onClick={handleRetryLogoUpload}
+                        className="self-end px-2 py-0.5 bg-red-800/50 hover:bg-red-700/60 text-white rounded text-[9px] font-semibold transition-colors flex items-center gap-1"
+                      >
+                        <RotateCcw className="w-2.5 h-2.5" /> Retry
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {logo && !isUploadingLogo && (
                   <button
                     type="button"
                     onClick={handleRemoveLogo}
-                    className="text-[10px] font-semibold text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
+                    className="text-[11px] font-semibold text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors pt-1"
                   >
                     <Trash2 className="w-3 h-3" />
                     <span>Remove Logo</span>
@@ -847,46 +995,89 @@ export const OwnerSettings: React.FC = () => {
 
               {/* COVER PHOTO SECTION */}
               <div className="flex-1 space-y-2 w-full">
-                <span className="text-xs font-semibold text-slate-400 block">Cover / Hero Photo</span>
-                <div className="relative h-28 bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-all group">
+                <span className="text-xs font-semibold text-slate-300 block">Cover / Hero Photo</span>
+                <div className="relative h-36 bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden flex flex-col items-center justify-center cursor-pointer hover:border-primary/80 transition-all group shadow-inner">
                   {isUploadingCover ? (
-                    <div className="flex flex-col items-center justify-center space-y-1 text-primary">
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                      <span className="text-xs font-bold">Uploading cover image...</span>
+                    <div className="flex flex-col items-center justify-center space-y-2 text-primary p-4">
+                      <Loader2 className="w-8 h-8 animate-spin" />
+                      <span className="text-xs font-bold">Uploading cover photo... {coverUploadProgress}%</span>
+                      <div className="w-48 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-primary h-full transition-all duration-200" 
+                          style={{ width: `${coverUploadProgress}%` }}
+                        />
+                      </div>
                     </div>
                   ) : coverImage ? (
                     <>
                       <img src={coverImage} alt="Cover preview" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-textPearl text-xs font-bold gap-2">
+                      <div className="absolute inset-0 bg-slate-950/75 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-textPearl text-xs font-bold gap-2 pointer-events-none">
                         <UploadCloud className="w-4 h-4 text-primary" />
-                        <span>Click to Replace Cover</span>
+                        <span>Click to Replace Cover Photo</span>
                       </div>
                     </>
                   ) : (
-                    <div className="text-center text-slate-500 space-y-1">
-                      <UploadCloud className="w-7 h-7 mx-auto text-slate-600" />
-                      <span className="text-xs font-bold block text-slate-400">Upload Cover Photo</span>
-                      <span className="text-[10px] text-slate-600 block">Wide banner for customer discovery & menu header (&lt;5MB)</span>
+                    <div className="text-center text-slate-500 space-y-1 p-4 pointer-events-none">
+                      <UploadCloud className="w-8 h-8 mx-auto text-slate-500" />
+                      <span className="text-xs font-bold block text-slate-300">Upload Cover / Hero Photo</span>
+                      <span className="text-[11px] text-slate-500 block">Banner image for customer discovery and menu header (PNG, JPG, or WebP &lt; 5 MB)</span>
                     </div>
                   )}
                   <input 
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/webp"
                     ref={coverInputRef}
                     onChange={handleCoverUpload}
                     disabled={isUploadingCover}
-                    className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
+                    title="Upload Cover Photo"
                   />
                 </div>
-                {coverImage && !isUploadingCover && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveCover}
-                    className="text-[10px] font-semibold text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>Remove Cover Photo</span>
-                  </button>
+
+                {/* File info / status / retry */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                  <div className="flex flex-col gap-1">
+                    {coverFileInfo && (
+                      <span className="text-[11px] text-slate-400">
+                        {coverFileInfo.name} ({coverFileInfo.size})
+                      </span>
+                    )}
+                    {coverSuccessMessage && !isUploadingCover && !coverUploadError && (
+                      <span className="text-xs font-medium text-emerald-400 flex items-center gap-1.5">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>{coverSuccessMessage}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {coverImage && !isUploadingCover && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveCover}
+                      className="text-[11px] font-semibold text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Remove Cover Photo</span>
+                    </button>
+                  )}
+                </div>
+
+                {coverUploadError && !isUploadingCover && (
+                  <div className="flex items-center justify-between p-2.5 bg-red-950/40 border border-red-800/60 rounded-xl text-xs text-red-300">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      <span>{coverUploadError}</span>
+                    </div>
+                    {coverFileToRetry && (
+                      <button
+                        type="button"
+                        onClick={handleRetryCoverUpload}
+                        className="px-2.5 py-1 bg-red-800/50 hover:bg-red-700/60 text-white rounded text-xs font-semibold transition-colors flex items-center gap-1 shrink-0 ml-3"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Retry
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

@@ -59,7 +59,8 @@ import {
   Flame, 
   Leaf, 
   ShoppingBag,
-  TrendingUp
+  TrendingUp,
+  UtensilsCrossed
 } from 'lucide-react';
 
 // Clean helper function to strip undefined properties
@@ -1349,8 +1350,22 @@ export const MenuManagement: React.FC = () => {
               </div>
 
               {categories.length === 0 ? (
-                <Card className="p-10 text-center border-slate-850 bg-slate-900/10">
-                  <p className="text-sm text-slate-500">No categories created yet. Click Add Category to start.</p>
+                <Card className="p-12 text-center border-slate-850 bg-slate-900/10">
+                  <UtensilsCrossed className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+                  <h3 className="text-base font-bold text-textPearl">Your menu is empty</h3>
+                  <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    Start building your menu by adding your first category and menu item.
+                  </p>
+                  <div className="flex items-center justify-center space-x-3 mt-5">
+                    <Button onClick={openAddCategory} className="flex items-center space-x-1.5" size="sm">
+                      <Plus className="w-4 h-4" />
+                      <span>Add Category</span>
+                    </Button>
+                    <Button onClick={openAddItem} variant="outline" className="flex items-center space-x-1.5" size="sm">
+                      <Plus className="w-4 h-4" />
+                      <span>Add Menu Item</span>
+                    </Button>
+                  </div>
                 </Card>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
@@ -1475,7 +1490,25 @@ export const MenuManagement: React.FC = () => {
               </Card>
 
               {/* Items List */}
-              {getFilteredItems().length === 0 ? (
+              {menuItems.length === 0 ? (
+                <Card className="p-12 text-center border-slate-850 bg-slate-900/10">
+                  <UtensilsCrossed className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+                  <h3 className="text-base font-bold text-textPearl">Your menu is empty</h3>
+                  <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    Start building your menu by adding your first category and menu item.
+                  </p>
+                  <div className="flex items-center justify-center space-x-3 mt-5">
+                    <Button onClick={openAddCategory} variant="outline" className="flex items-center space-x-1.5" size="sm">
+                      <Plus className="w-4 h-4" />
+                      <span>Add Category</span>
+                    </Button>
+                    <Button onClick={openAddItem} className="flex items-center space-x-1.5" size="sm">
+                      <Plus className="w-4 h-4" />
+                      <span>Add Menu Item</span>
+                    </Button>
+                  </div>
+                </Card>
+              ) : getFilteredItems().length === 0 ? (
                 <Card className="p-10 text-center border-slate-850 bg-slate-900/10">
                   <p className="text-sm text-slate-500">No menu items match your current search/filters.</p>
                 </Card>

@@ -168,17 +168,11 @@ export const OwnerTablesManager: React.FC = () => {
         setFloors(data.floors || []);
         setSections(data.sections || []);
       } else {
-        const defaultFloors = [
-          { id: 'FLR-GROUND', name: 'Ground Floor' },
-          { id: 'FLR-ROOFTOP', name: 'Rooftop' }
-        ];
-        const defaultSections = [
-          { id: 'SEC-INDOOR', floorId: 'FLR-GROUND', name: 'Indoor Main' },
-          { id: 'SEC-OUTDOOR', floorId: 'FLR-GROUND', name: 'Outdoor Patio' },
-          { id: 'SEC-VIP', floorId: 'FLR-ROOFTOP', name: 'VIP Lounge' }
-        ];
-        setDoc(layoutDocRef, { floors: defaultFloors, sections: defaultSections });
+        setFloors([]);
+        setSections([]);
       }
+    }, (err) => {
+      console.warn('[OwnerTablesManager] Layout settings listener error:', err);
     });
 
     const tablesColRef = collection(db, 'restaurants', user.tenantId, 'tables');
@@ -266,12 +260,14 @@ export const OwnerTablesManager: React.FC = () => {
   // ----------------------------------------------------
   const openAddModal = () => {
     setEditingTable(null);
+    const defaultFloor = floors[0]?.name || 'Main Floor';
+    const defaultSection = sections.filter(s => s.floorId === floors[0]?.id)[0]?.name || 'Main Dining Area';
     reset({
       tableNumber: '',
       tableName: '',
       capacity: 4,
-      floor: floors[0]?.name || '',
-      section: sections.filter(s => s.floorId === floors[0]?.id)[0]?.name || '',
+      floor: defaultFloor,
+      section: defaultSection,
       shape: 'square',
       notes: '',
       status: 'Available',
@@ -853,10 +849,16 @@ export const OwnerTablesManager: React.FC = () => {
                 }`}
               >
                 {tables.length === 0 ? (
-                  <div className="h-full flex items-center justify-center flex-col text-slate-500">
-                    <Sliders className="w-12 h-12 text-slate-700 mb-2" />
-                    <p className="text-sm font-semibold text-textPearl">No tables configured yet.</p>
-                    <p className="text-xs text-slate-500 mt-1">Click &quot;Add Table&quot; above to create your restaurant layout.</p>
+                  <div className="h-full flex items-center justify-center flex-col text-slate-500 py-12">
+                    <Sliders className="w-12 h-12 text-slate-700 mb-3" />
+                    <h3 className="text-base font-bold text-textPearl">No tables created yet</h3>
+                    <p className="text-xs text-slate-400 mt-1 max-w-sm text-center">
+                      Create your first table to start accepting dine-in orders.
+                    </p>
+                    <Button onClick={openAddModal} className="mt-4 flex items-center space-x-1.5" size="sm">
+                      <Plus className="w-4 h-4" />
+                      <span>Add Table</span>
+                    </Button>
                   </div>
                 ) : getFilteredTables().length === 0 ? (
                   <div className="h-full flex items-center justify-center flex-col text-slate-500">
@@ -904,6 +906,19 @@ export const OwnerTablesManager: React.FC = () => {
 
           {/* LIST VIEW */}
           {activeTab === 'list' && (
+            tables.length === 0 ? (
+              <Card className="p-12 text-center border-slate-850 bg-slate-900/10">
+                <Sliders className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+                <h3 className="text-base font-bold text-textPearl">No tables created yet</h3>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  Create your first table to start accepting dine-in orders.
+                </p>
+                <Button onClick={openAddModal} className="mt-4 mx-auto flex items-center space-x-1.5" size="sm">
+                  <Plus className="w-4 h-4" />
+                  <span>Add Table</span>
+                </Button>
+              </Card>
+            ) : (
             <Card className="p-0 overflow-hidden border-slate-850">
               <div className="w-full overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -978,7 +993,7 @@ export const OwnerTablesManager: React.FC = () => {
                 </table>
               </div>
             </Card>
-          )}
+          ))}
 
         </div>
       )}
@@ -1101,16 +1116,19 @@ export const OwnerTablesManager: React.FC = () => {
           <div className="grid grid-cols-2 gap-4">
             <Select 
               label="Floor *"
-              options={floors.map(f => ({ value: f.name, label: f.name }))}
+              options={floors.length > 0 ? floors.map(f => ({ value: f.name, label: f.name })) : [{ value: 'Main Floor', label: 'Main Floor' }]}
               error={errors.floor?.message}
               disabled={isSubmitting}
               {...register('floor')}
             />
             <Select 
               label="Section *"
-              options={sections
-                .filter(s => s.floorId === floors.find(f => f.name === watchFloor)?.id)
-                .map(s => ({ value: s.name, label: s.name }))}
+              options={(() => {
+                const availableSections = sections
+                  .filter(s => s.floorId === floors.find(f => f.name === watchFloor)?.id)
+                  .map(s => ({ value: s.name, label: s.name }));
+                return availableSections.length > 0 ? availableSections : [{ value: 'Main Dining Area', label: 'Main Dining Area' }];
+              })()}
               error={errors.section?.message}
               disabled={isSubmitting}
               {...register('section')}

@@ -11,13 +11,6 @@ import {
   Sparkles, CheckCircle2, ChevronDown, Check, X, ShieldAlert, Search
 } from 'lucide-react';
 
-const REST_MOCK_IMAGES = [
-  'https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=600&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=600&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=600&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?q=80&w=600&auto=format&fit=crop'
-];
-
 export const DiscoverPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -35,7 +28,7 @@ export const DiscoverPage: React.FC = () => {
   // Filters state
   const [activeCuisine, setActiveCuisine] = useState('All');
   const [activePrice, setActivePrice] = useState('all');
-  const [activeDistance, setActiveDistance] = useState<number>(5);
+  const [activeDistance, setActiveDistance] = useState<number>(10);
   const [showVegOnly, setShowVegOnly] = useState(false);
   const [showOpenNow, setShowOpenNow] = useState(false);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
@@ -55,41 +48,36 @@ export const DiscoverPage: React.FC = () => {
     const loadRestaurants = async () => {
       setIsLoading(true);
       try {
-        const snap = await getDocs(query(collection(db, 'tenants'), limit(12)));
+        const snap = await getDocs(query(collection(db, 'tenants'), limit(50)));
         const list: any[] = [];
-        let idx = 0;
         snap.forEach(d => {
           const data = d.data();
           list.push({
             id: d.id,
-            name: data.restaurantName || data.name || 'Gourmet Bistro',
-            cuisine: data.cuisine || 'Fine Dining',
-            rating: data.rating || 4.7,
-            distance: data.distanceNum || (0.4 + Math.random() * 3.5),
-            priceRange: data.priceRange || (idx % 3 === 0 ? '$$$' : idx % 3 === 1 ? '$$' : '$'),
+            name: data.restaurantName || data.name || 'Restaurant',
+            cuisine: data.cuisine || 'Multi-Cuisine',
+            rating: typeof data.rating === 'number' ? data.rating : null,
+            reviewsCount: typeof data.reviewsCount === 'number' ? data.reviewsCount : null,
+            distance: typeof data.distanceNum === 'number' ? data.distanceNum : null,
+            priceRange: data.priceRange || null,
             vegOptions: data.vegOptions !== undefined ? data.vegOptions : true,
             openNow: data.status === 'active',
-            image: data.coverImageUrl || data.coverImage || null,
+            image: data.coverImageUrl || data.coverImage || data.logoUrl || data.logo || null,
             logoUrl: data.logoUrl || data.logo || null,
-            isFeatured: idx % 3 === 0,
-            isTrending: idx % 2 === 0,
-            facilities: data.facilities || {
-              outdoorSeating: idx % 2 === 0,
-              liveMusic: idx % 3 === 0,
-              petFriendly: idx % 2 !== 0,
-              wheelchairAccess: true
-            }
+            city: data.address?.city || data.city || '',
+            state: data.address?.state || data.state || '',
+            street: data.address?.street || data.street || '',
+            googleMapsUrl: data.googleMapsUrl || '',
+            currencySymbol: data.currencySymbol || '₹',
+            isFeatured: !!data.isFeatured,
+            isTrending: !!data.isTrending,
+            facilities: data.facilities || {}
           });
-          idx++;
         });
 
-        if (list.length === 0) {
-          setRestaurantsList([]);
-        } else {
-          setRestaurantsList(list);
-        }
+        setRestaurantsList(list);
       } catch (e) {
-        console.error(e);
+        console.error('Error fetching restaurants for DiscoverPage:', e);
         setRestaurantsList([]);
       } finally {
         setIsLoading(false);
@@ -106,12 +94,22 @@ export const DiscoverPage: React.FC = () => {
   const restaurants = restaurantsList ?? [];
   
   const categories = useMemo(() => {
-    return ['All', 'Fine Dining', 'Casual Eat', 'Sushi Bar', 'Cafeteria', 'Dessert'];
+    return ['All', 'Biryani', 'Fine Dining', 'Family Dining', 'Buffet', 'Cafe'];
   }, []);
 
   const cuisineFilters = useMemo(() => {
-    return ['All', 'French', 'Japanese', 'Italian', 'American'];
-  }, []);
+    const defaultCuisines = ['All', 'Biryani', 'Indian', 'Barbecue', 'Mughlai', 'Chinese'];
+    const dynamicCuisines = new Set<string>();
+    restaurants.forEach(r => {
+      if (r.cuisine) {
+        r.cuisine.split(',').forEach((c: string) => {
+          const trimmed = c.trim();
+          if (trimmed.length > 2 && trimmed.length < 18) dynamicCuisines.add(trimmed);
+        });
+      }
+    });
+    return Array.from(new Set([...defaultCuisines, ...Array.from(dynamicCuisines).slice(0, 4)]));
+  }, [restaurants]);
 
   // Filtered lists computation
   const processedRestaurants = useMemo(() => {
@@ -132,7 +130,9 @@ export const DiscoverPage: React.FC = () => {
       const q = searchQuery.toLowerCase();
       result = result.filter(r => 
         r.name.toLowerCase().includes(q) || 
-        r.cuisine.toLowerCase().includes(q)
+        r.cuisine.toLowerCase().includes(q) ||
+        (r.city && r.city.toLowerCase().includes(q)) ||
+        (r.street && r.street.toLowerCase().includes(q))
       );
     }
 
@@ -141,8 +141,10 @@ export const DiscoverPage: React.FC = () => {
       result = result.filter(r => r.priceRange === activePrice);
     }
 
-    // Distance
-    result = result.filter(r => r.distance <= activeDistance);
+    // Distance - only filter if distance is measured
+    if (activeDistance < 10) {
+      result = result.filter(r => r.distance === null || r.distance <= activeDistance);
+    }
 
     // Veg Only
     if (showVegOnly) {
@@ -301,18 +303,29 @@ export const DiscoverPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {trendingRestaurants.slice(0, 3).map(r => (
               <Card 
-                key={r.id}
+                key={r.id} 
                 onClick={() => navigate(`/customer/restaurant/${r.id}`)}
                 className="group bg-white border border-[#EEE7E1] hover:border-[#E85D3F]/40 rounded-2xl overflow-hidden cursor-pointer transition-all flex flex-col justify-between shadow-xs hover:shadow-md"
               >
-                <div className="h-36 w-full overflow-hidden relative">
-                  <img src={r.image} alt={r.name} className="h-full w-full object-cover group-hover:scale-103 transition-transform" />
+                <div className="h-36 w-full overflow-hidden relative bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 flex items-center justify-center">
+                  {r.image ? (
+                    <img src={r.image} alt={r.name} className="h-full w-full object-cover group-hover:scale-103 transition-transform" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-3 select-none">
+                      <div className="w-10 h-10 rounded-xl bg-[#E85D3F]/15 border border-[#E85D3F]/30 flex items-center justify-center text-[#E85D3F] font-extrabold text-sm mb-1 shadow-inner">
+                        {r.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-[11px] font-extrabold text-white truncate max-w-[150px]">{r.name}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="p-4 space-y-2">
                   <h4 className="text-sm font-extrabold text-[#242424] group-hover:text-[#E85D3F] transition-colors">{r.name}</h4>
                   <div className="flex justify-between items-center text-xs text-[#6B6B6B] pt-2 border-t border-[#EEE7E1]">
                     <span>{r.cuisine}</span>
-                    <span className="flex items-center gap-0.5 font-bold text-[#242424]"><Star className="w-3.5 h-3.5 text-[#F4B942] fill-current" /> {r.rating}</span>
+                    {r.rating !== null && (
+                      <span className="flex items-center gap-0.5 font-bold text-[#242424]"><Star className="w-3.5 h-3.5 text-[#F4B942] fill-current" /> {r.rating}</span>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -376,19 +389,27 @@ export const DiscoverPage: React.FC = () => {
                       <span className="text-[11px] font-extrabold text-white truncate max-w-[150px]">{r.name}</span>
                     </div>
                   )}
-                  <div className="absolute top-2.5 right-2.5 bg-white/90 backdrop-blur-md px-2 py-0.5 rounded-full border border-[#EEE7E1] text-[9.5px] text-[#242424] flex items-center gap-0.5 font-extrabold shadow-xs">
-                    <Star className="w-3 h-3 text-[#F4B942] fill-current" /> {r.rating}
-                  </div>
+                  {r.rating !== null && (
+                    <div className="absolute top-2.5 right-2.5 bg-white/90 backdrop-blur-md px-2 py-0.5 rounded-full border border-[#EEE7E1] text-[9.5px] text-[#242424] flex items-center gap-0.5 font-extrabold shadow-xs">
+                      <Star className="w-3 h-3 text-[#F4B942] fill-current" /> {r.rating}
+                    </div>
+                  )}
                 </div>
                 <div className="p-4 space-y-3">
                   <div className="space-y-0.5">
                     <h4 className="text-sm font-extrabold text-[#242424] group-hover:text-[#E85D3F] transition-colors truncate">{r.name}</h4>
                     <p className="text-xs text-[#6B6B6B] font-semibold">{r.cuisine}</p>
+                    {r.street && <p className="text-[10px] text-[#888888] truncate">{r.street}</p>}
                   </div>
                   <div className="flex justify-between items-center text-xs text-[#6B6B6B] pt-2 border-t border-[#EEE7E1]">
-                    <span className="flex items-center gap-0.5"><MapPin className="w-3.5 h-3.5 text-[#E85D3F]" /> {r.distance.toFixed(1)} mi</span>
+                    <span className="flex items-center gap-0.5 truncate max-w-[130px]" title={r.street || r.city}>
+                      <MapPin className="w-3.5 h-3.5 text-[#E85D3F] shrink-0" />
+                      {r.distance !== null ? `${r.distance.toFixed(1)} mi` : (r.street || r.city || 'Hyderabad')}
+                    </span>
                     <div className="flex items-center space-x-2">
-                      <span className="text-[9px] bg-[#FFF8F2] px-2 py-0.5 border border-[#EEE7E1] rounded-full font-bold text-[#242424]">{r.priceRange}</span>
+                      {r.priceRange && (
+                        <span className="text-[9px] bg-[#FFF8F2] px-2 py-0.5 border border-[#EEE7E1] rounded-full font-bold text-[#242424]">{r.priceRange}</span>
+                      )}
                       {r.openNow ? (
                         <Badge variant="success" className="text-[8px] uppercase py-0.5 px-2 font-bold border-0 bg-[#22A06B] text-white">Open</Badge>
                       ) : (
@@ -396,6 +417,19 @@ export const DiscoverPage: React.FC = () => {
                       )}
                     </div>
                   </div>
+                  {r.googleMapsUrl && (
+                    <div className="pt-0.5">
+                      <a
+                        href={r.googleMapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center text-[10px] text-[#E85D3F] hover:underline font-bold"
+                      >
+                        <MapPin className="w-3 h-3 mr-0.5" /> View on Maps
+                      </a>
+                    </div>
+                  )}
                 </div>
               </Card>
             ))}

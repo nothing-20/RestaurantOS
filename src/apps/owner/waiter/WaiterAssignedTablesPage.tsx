@@ -173,7 +173,7 @@ export const WaiterAssignedTablesPage: React.FC = () => {
       
       // Update customer record too if exists
       if (activeCheckInRes.customerId && activeCheckInRes.customerId !== 'guest-uid') {
-        const custResRef = doc(db, 'users', activeCheckInRes.customerId, 'reservations', activeCheckInRes.id);
+        const custResRef = doc(db, 'customers', activeCheckInRes.customerId, 'reservations', activeCheckInRes.id);
         batch.update(custResRef, { status: 'Seated', seatedAt: new Date().toISOString() });
       }
 

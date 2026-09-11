@@ -106,7 +106,7 @@ export const TableBooking: React.FC = () => {
             city: data.city || 'Hyderabad',
             latitude: data.latitude || 17.3850,
             longitude: data.longitude || 78.4867,
-            image: data.coverImage || REST_MOCK_IMAGES[index % REST_MOCK_IMAGES.length],
+            image: data.coverImage || data.coverImageUrl || REST_MOCK_IMAGES[index % REST_MOCK_IMAGES.length],
             ...config
           });
           index++;
@@ -195,9 +195,9 @@ export const TableBooking: React.FC = () => {
         createdAt: new Date().toISOString()
       };
 
-      // 1. Write booking details to Customer Profile Reservations History
+      // 1. Write booking details to Customer Profile Reservations History (customers/{uid})
       if (user?.uid) {
-        await setDoc(doc(db, 'users', user.uid, 'reservations', bookingId), bookingPayload);
+        await setDoc(doc(db, 'customers', user.uid, 'reservations', bookingId), bookingPayload);
       }
       
       // 2. Write booking details to Restaurant central reservations collection
@@ -260,9 +260,10 @@ export const TableBooking: React.FC = () => {
   const handleCancelBooking = async () => {
     if (!bookingConfirmed) return;
     try {
-      // Delete in both user and tenant collections
+      // Delete in both customer and tenant collections
       if (user?.uid) {
-        await deleteDoc(doc(db, 'users', user.uid, 'reservations', bookingConfirmed.id));
+        await deleteDoc(doc(db, 'customers', user.uid, 'reservations', bookingConfirmed.id)).catch(() => {});
+        await deleteDoc(doc(db, 'users', user.uid, 'reservations', bookingConfirmed.id)).catch(() => {});
       }
       await deleteDoc(doc(db, 'restaurants', bookingConfirmed.restaurantId, 'reservations', bookingConfirmed.id));
       

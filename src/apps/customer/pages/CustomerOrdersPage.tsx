@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { formatPrice } from '../../../shared/utils/format';
@@ -49,32 +49,51 @@ export const CustomerOrdersPage: React.FC = () => {
 
     const targetTenant = sessionTenantId;
     if (!targetTenant) {
-      // Query user orders from user's orders collection if no active tenant session
-      const userOrdersRef = collection(db, 'users', user!.uid, 'orders');
-      const unsubUserOrders = onSnapshot(userOrdersRef, (snap) => {
-        const active: any[] = [];
-        const past: any[] = [];
-        snap.forEach(d => {
-          const data = d.data();
-          const orderObj = { id: d.id, ...data };
-          const statusUpper = (data.status || 'NEW').toUpperCase();
-          if (['COMPLETED', 'CANCELLED'].includes(statusUpper)) {
-            past.push(orderObj);
-          } else {
-            active.push(orderObj);
+      // Query user orders from customer's orders collection (with fallback) if no active tenant session
+      let unsubUserOrders = () => {};
+
+      const setupOrdersStream = async () => {
+        let targetCol = 'customers';
+        try {
+          const custSnap = await getDoc(doc(db, 'customers', user!.uid));
+          if (!custSnap.exists()) {
+            const userSnap = await getDoc(doc(db, 'users', user!.uid));
+            if (userSnap.exists()) {
+              targetCol = 'users';
+            }
           }
+        } catch (_e) {
+          targetCol = 'customers';
+        }
+
+        const userOrdersRef = collection(db, targetCol, user!.uid, 'orders');
+        unsubUserOrders = onSnapshot(userOrdersRef, (snap) => {
+          const active: any[] = [];
+          const past: any[] = [];
+          snap.forEach(d => {
+            const data = d.data();
+            const orderObj = { id: d.id, ...data };
+            const statusUpper = (data.status || 'NEW').toUpperCase();
+            if (['COMPLETED', 'CANCELLED'].includes(statusUpper)) {
+              past.push(orderObj);
+            } else {
+              active.push(orderObj);
+            }
+          });
+          active.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          past.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          setActiveOrders(active);
+          setPastOrders(past);
+          setIsLoading(false);
+        }, (err) => {
+          console.error('Failed to fetch customer user orders:', err);
+          setActiveOrders([]);
+          setPastOrders([]);
+          setIsLoading(false);
         });
-        active.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-        past.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-        setActiveOrders(active);
-        setPastOrders(past);
-        setIsLoading(false);
-      }, (err) => {
-        console.error('Failed to fetch customer user orders:', err);
-        setActiveOrders([]);
-        setPastOrders([]);
-        setIsLoading(false);
-      });
+      };
+
+      setupOrdersStream();
       return () => unsubUserOrders();
     }
 

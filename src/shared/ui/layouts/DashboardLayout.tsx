@@ -108,26 +108,15 @@ export const useAutomationEngine = () => {
     let isSubscribed = false;
     let unsubscribeSnapshot: (() => void) | null = null;
 
-    // Seed defaults and subscribe to updates
-    const initSchedules = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'restaurants', tenantId, 'automationSchedules'));
-        if (snap.empty && active) {
-          await automationService.seedDefaultSchedules(tenantId);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    };
-
-    initSchedules().then(() => {
+    // Subscribe to automation schedules (do not auto-seed documents into Firestore)
+    unsubscribeSnapshot = onSnapshot(collection(db, 'restaurants', tenantId, 'automationSchedules'), (snap) => {
       if (!active) return;
-      unsubscribeSnapshot = onSnapshot(collection(db, 'restaurants', tenantId, 'automationSchedules'), (snap) => {
-        const list: any[] = [];
-        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-        localSchedules = list;
-        isSubscribed = true;
-      });
+      const list: any[] = [];
+      snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+      localSchedules = list;
+      isSubscribed = true;
+    }, (err) => {
+      console.warn('[DashboardLayout] Automation schedules listener error:', err);
     });
 
     // Check loop every 15 seconds in memory

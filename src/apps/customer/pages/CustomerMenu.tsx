@@ -5,7 +5,7 @@ import { db } from '../../../shared/firebase/config';
 import { getMenuItemPath, getMenuCategoryPath } from '../../../shared/firebase/collections';
 import { IMenuItem, IOrderItem } from '../../../shared/types';
 import { useCart } from '../../../shared/services/CartContext';
-import { formatPrice } from '../../../shared/utils/format';
+import { formatPrice, setGlobalCurrencyConfig } from '../../../shared/utils/format';
 import { customerService } from '../../../shared/services/customerService';
 import { recommendationEngine, IRecommendationGroup } from '../../../shared/services/recommendationEngine';
 import { generateUniqueOrderId } from '../../../shared/utils/orderUtils';
@@ -38,7 +38,8 @@ import {
   Calendar,
   Layers,
   Award,
-  CheckCircle2
+  CheckCircle2,
+  Utensils
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -165,6 +166,14 @@ export const CustomerMenu: React.FC = () => {
       }
     }
 
+    // Clear previous state when tenantId changes to prevent stale data
+    setMenuItems([]);
+    setCategories([]);
+    setRestaurantName('Loading...');
+    setCoverImage('');
+    setLogoUrl('');
+    setIsLoading(true);
+
     // Fetch Tenant Info
     const fetchTenantInfo = async () => {
       try {
@@ -172,9 +181,12 @@ export const CustomerMenu: React.FC = () => {
         const tenantSnap = await getDoc(tenantRef);
         if (tenantSnap.exists()) {
           const tenantData = tenantSnap.data();
-          setRestaurantName(tenantData.restaurantName || tenantData.name || 'Gourmet Bistro');
-          setCoverImage(tenantData.coverImage || '');
-          setLogoUrl(tenantData.logoUrl || '');
+          setRestaurantName(tenantData.restaurantName || tenantData.name || 'Restaurant');
+          setCoverImage(tenantData.coverImage || tenantData.coverImageUrl || '');
+          setLogoUrl(tenantData.logoUrl || tenantData.logo || '');
+          if (tenantData.currency) {
+            setGlobalCurrencyConfig(tenantData.currency);
+          }
           setBrandingColors({
             primary: tenantData.primaryColor,
             secondary: tenantData.secondaryColor
@@ -680,19 +692,28 @@ export const CustomerMenu: React.FC = () => {
       <div className="absolute top-[-10%] left-[-15%] w-[600px] h-[600px] rounded-full bg-primary/5 blur-[150px] pointer-events-none" />
 
       {/* TOP RESTAURANT COVER HEADER */}
-      <div className="w-full h-48 md:h-60 relative overflow-hidden shrink-0">
-        <img
-          src={coverImage || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=60'}
-          alt={restaurantName}
-          className="w-full h-full object-cover"
-        />
+      <div className="w-full h-48 md:h-60 relative overflow-hidden shrink-0 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 flex items-center justify-center">
+        {coverImage ? (
+          <img
+            src={coverImage}
+            alt={restaurantName}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="text-center p-6 space-y-1 select-none">
+            <h1 className="text-2xl font-display font-extrabold text-white/90 drop-shadow-md">
+              {restaurantName}
+            </h1>
+          </div>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
 
         {/* Floating active session / table tag details */}
         <div className="absolute top-4 left-6 z-20 flex items-center gap-2">
           <button
-            onClick={() => navigate('/customer')}
-            className="p-2 bg-slate-950/70 border border-slate-800/40 rounded-xl text-slate-400 hover:text-textPearl transition-all backdrop-blur-md"
+            onClick={() => navigate(-1)}
+            className="p-2 bg-slate-950/70 border border-slate-800/40 rounded-xl text-slate-400 hover:text-textPearl transition-all backdrop-blur-md cursor-pointer"
+            title="Go back"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -907,28 +928,42 @@ export const CustomerMenu: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5">
                     {items.map((item) => {
                       const isVeg = item.isVeg || item.veg;
+                      const isAvailable = item.isAvailable !== false && item.available !== false;
                       const discountPrice = item.discountPrice;
 
                       return (
                         <Card
                           key={item.id}
-                          className={`p-4 border-slate-855 bg-slate-900/20 hover:border-slate-800/80 hover:bg-slate-900/40 flex flex-col space-y-3.5 cursor-pointer transition-all ${item.available === false ? 'opacity-40' : ''
-                            }`}
-                          onClick={() => item.available !== false && setSelectedItem(item)}
+                          className={`p-4 border-slate-855 bg-slate-900/20 hover:border-slate-800/80 hover:bg-slate-900/40 flex flex-col space-y-3.5 cursor-pointer transition-all ${
+                            !isAvailable ? 'opacity-40' : ''
+                          }`}
+                          onClick={() => isAvailable && setSelectedItem(item)}
                         >
                           {/* 1. Food Image + Preparation Time Badge */}
-                          <div className="w-full h-40 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 relative shrink-0">
-                            <img
-                              src={item.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'}
-                              alt={item.name}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
+                          <div className="w-full h-40 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 relative shrink-0 flex items-center justify-center">
+                            {(item.imageUrl || item.image) ? (
+                              <img
+                                src={item.imageUrl || item.image}
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-500">
+                                <Utensils className="w-7 h-7 mb-1 text-primary/60" />
+                                <span className="text-[10px] font-semibold text-slate-400">House Specialty</span>
+                              </div>
+                            )}
                             {/* Preparation Time Badge overlaid absolute */}
                             <div className="absolute bottom-2.5 right-2.5 bg-slate-950/80 backdrop-blur-md text-[10px] text-slate-350 font-bold px-2 py-0.5 rounded-lg border border-slate-800/40 flex items-center space-x-1">
                               <Clock className="w-3 h-3 text-slate-400" />
                               <span>{item.preparationTime || 15} mins</span>
                             </div>
+                            {!isAvailable && (
+                              <span className="absolute top-2.5 left-2.5 bg-slate-950/90 text-slate-300 px-2 py-0.5 rounded-md text-[9px] font-bold border border-slate-800">
+                                Currently Unavailable
+                              </span>
+                            )}
                           </div>
 
                           {/* 2. Title + Price */}

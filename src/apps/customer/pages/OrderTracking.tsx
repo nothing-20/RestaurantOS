@@ -329,19 +329,33 @@ export const OrderTracking: React.FC = () => {
         }
 
         // Add records to customer profile database
+        // Add records to customer profile database (customers/{uid} with fallback)
         if (user?.uid) {
+          let targetCol = 'customers';
+          try {
+            const custSnap = await getDoc(doc(db, 'customers', user.uid));
+            if (!custSnap.exists()) {
+              const userSnap = await getDoc(doc(db, 'users', user.uid));
+              if (userSnap.exists()) {
+                targetCol = 'users';
+              }
+            }
+          } catch (_e) {
+            targetCol = 'customers';
+          }
+
           // Append dining history record
-          await addDoc(collection(db, 'users', user.uid, 'diningHistory'), {
+          await addDoc(collection(db, targetCol, user.uid, 'diningHistory'), {
             restaurantId: tenantId,
             restaurantName: restaurantName || 'Gourmet Bistro',
             orderId,
             total: order.total,
             date: new Date().toISOString(),
             diners: order.guests || 2
-          });
+          }).catch(err => console.warn('Failed to append dining history:', err));
 
           // Increment loyalty points
-          const userDocRef = doc(db, 'users', user.uid);
+          const userDocRef = doc(db, targetCol, user.uid);
           const pointsEarned = Math.round((order.total || 0) / 100) || 50; // default 50 if total is 0
           await updateDoc(userDocRef, {
             loyaltyPoints: increment(pointsEarned)

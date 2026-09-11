@@ -1,0 +1,29 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /restaurants/{tenantId}/{allPaths=**} {
+      // Branding assets (logo, cover photo) are publicly readable by customers
+      allow read: if true;
+      
+      // Helper function to check if user belongs to this tenant and has management role
+      function isTenantAuthorized() {
+        return request.auth != null && (
+          (request.auth.token.tenantId == tenantId && request.auth.token.role in ['owner', 'admin', 'super-admin']) ||
+          (
+            firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+            firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.tenantId == tenantId &&
+            firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['owner', 'admin', 'super-admin']
+          )
+        );
+      }
+
+      // Write (create, update) is restricted to authenticated authorized owners/admins of this tenant
+      allow create, update: if isTenantAuthorized()
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(png|jpeg|jpg|webp)');
+
+      // Deletion of old assets is allowed for authorized owners/admins
+      allow delete: if isTenantAuthorized();
+    }
+  }
+}

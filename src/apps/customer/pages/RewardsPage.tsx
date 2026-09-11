@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import Card from '../../../components/ui/Card/Card';
 import Badge from '../../../components/ui/Badge/Badge';
@@ -14,13 +14,32 @@ export const RewardsPage: React.FC = () => {
 
   useEffect(() => {
     if (!user?.uid) return;
-    const userDocRef = doc(db, 'users', user.uid);
-    const unsub = onSnapshot(userDocRef, (snap) => {
-      if (snap.exists()) {
-        const d = snap.data();
-        setPoints(d.loyaltyPoints || 0);
+    let unsub = () => {};
+
+    const setupStream = async () => {
+      let targetCollection = 'customers';
+      try {
+        const custSnap = await getDoc(doc(db, 'customers', user.uid));
+        if (!custSnap.exists()) {
+          const userSnap = await getDoc(doc(db, 'users', user.uid));
+          if (userSnap.exists()) {
+            targetCollection = 'users';
+          }
+        }
+      } catch (_e) {
+        targetCollection = 'customers';
       }
-    }, () => setPoints(0));
+
+      const userDocRef = doc(db, targetCollection, user.uid);
+      unsub = onSnapshot(userDocRef, (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          setPoints(d.loyaltyPoints || 0);
+        }
+      }, () => setPoints(0));
+    };
+
+    setupStream();
     return () => unsub();
   }, [user?.uid]);
 

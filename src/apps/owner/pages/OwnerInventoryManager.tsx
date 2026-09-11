@@ -1216,10 +1216,22 @@ export const OwnerInventoryManager: React.FC = () => {
             </div>
           </Card>
 
-          {filteredIngredients.length === 0 ? (
+          {ingredients.length === 0 ? (
+            <Card className="p-12 text-center border-slate-850 bg-slate-900/10">
+              <Package className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-textPearl">No inventory items yet</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                Add your ingredients to start tracking real-time stock levels, reorder alerts, and recipe costs.
+              </p>
+              <Button onClick={handleOpenAddIngredient} className="mt-4 mx-auto flex items-center space-x-1.5" size="sm">
+                <Plus className="w-4 h-4" />
+                <span>Add Ingredient</span>
+              </Button>
+            </Card>
+          ) : filteredIngredients.length === 0 ? (
             <Card className="p-8 text-center border border-dashed border-slate-850 rounded-2xl bg-slate-900/10">
               <AlertTriangle className="w-10 h-10 text-slate-700 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-450">No stock records found.</p>
+              <p className="text-sm font-semibold text-slate-450">No stock records match filters.</p>
             </Card>
           ) : (
             <Card className="p-0 overflow-hidden border-slate-850">

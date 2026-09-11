@@ -477,16 +477,16 @@ export const OwnerOverview: React.FC = () => {
       };
     }
 
-    // 5. Default
+    // 5. Default: All systems normal
     return {
-      title: 'Supplier scheduling delay Risk',
-      type: 'Supplier Risk',
-      description: 'Vendor schedules indicate logistics bottlenecks. Sync backups.',
-      actionLabel: 'Open Inventory',
-      actionLink: '/dashboard/owner/inventory',
-      color: 'amber'
+      title: 'Operations Running Smoothly',
+      type: 'All Systems Normal',
+      description: 'No active bottlenecks or operational risks detected. Your kitchen, menu, and dining systems are clear.',
+      actionLabel: 'View Menu Catalog',
+      actionLink: '/dashboard/owner/menu',
+      color: 'emerald'
     };
-  }, [inventoryMetrics, staffMetrics, csatMetrics, todaySales, yesterdaySales, revenueChangePercent]);
+  }, [menuItems, inventoryMetrics, staffMetrics, csatMetrics, todaySales, yesterdaySales, revenueChangePercent]);
 
   // Dynamic greetings time checker
   useEffect(() => {
@@ -748,21 +748,14 @@ export const OwnerOverview: React.FC = () => {
 
   // Extract recommended strategies
   const recommendedStrategy = useMemo(() => {
-    return strategyPlans.find(plan => plan.status === 'recommended') || {
-      id: 'default-paneer-combo',
-      title: 'Basmati Rice & Paneer Lunch Deal',
-      objective: 'Stimulate check sizes during afternoon slots.',
-      reason: 'Midday traffic shows Paneer demand is up 28% on weekday lunches.',
-      expectedRoiPercent: 140,
-      expectedBenefit: 'Increase completed check average by 12%.'
-    };
+    return strategyPlans.find(plan => plan.status === 'recommended') || null;
   }, [strategyPlans]);
 
   // Compute automation rules success rate
   const automationSuccessPct = useMemo(() => {
     const completed = jobsHistory.filter(j => j.status === 'completed').length;
     const failed = jobsHistory.filter(j => j.status === 'failed').length;
-    if (completed + failed === 0) return '99.1';
+    if (completed + failed === 0) return '0.0';
     return ((completed / (completed + failed)) * 100).toFixed(1);
   }, [jobsHistory]);
 
@@ -889,7 +882,7 @@ export const OwnerOverview: React.FC = () => {
       const resRef = doc(db, 'restaurants', tenantId, 'reservations', selectedRes.id);
       let custResRef = null;
       if (selectedRes.customerId && selectedRes.customerId !== 'guest-uid') {
-        custResRef = doc(db, 'users', selectedRes.customerId, 'reservations', selectedRes.id);
+        custResRef = doc(db, 'customers', selectedRes.customerId, 'reservations', selectedRes.id);
       }
 
       if (resActionType === 'Accept') {
@@ -982,7 +975,7 @@ export const OwnerOverview: React.FC = () => {
       const resRef = doc(db, 'restaurants', tenantId, 'reservations', res.id);
       batch.update(resRef, { status: 'Arrived' });
       if (res.customerId && res.customerId !== 'guest-uid') {
-        const custResRef = doc(db, 'users', res.customerId, 'reservations', res.id);
+        const custResRef = doc(db, 'customers', res.customerId, 'reservations', res.id);
         batch.update(custResRef, { status: 'Arrived' });
       }
       await batch.commit();
@@ -1203,42 +1196,59 @@ export const OwnerOverview: React.FC = () => {
                 <Target className="w-5 h-5 text-amber-500" />
                 <h3 className="font-display font-bold text-sm text-textPearl">Today's Top Recommendation</h3>
               </div>
-              <div className="p-4 bg-slate-955/45 border border-slate-800/50 rounded-2xl space-y-3">
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-bold text-textPearl">{recommendedStrategy.title}</span>
-                  <span className="text-[10px] font-extrabold text-emerald-450 px-2 py-0.5 bg-emerald-500/10 rounded-full shrink-0">
-                    +{recommendedStrategy.expectedRoiPercent}% ROI
-                  </span>
+              {recommendedStrategy ? (
+                <div className="p-4 bg-slate-955/45 border border-slate-800/50 rounded-2xl space-y-3">
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs font-bold text-textPearl">{recommendedStrategy.title}</span>
+                    <span className="text-[10px] font-extrabold text-emerald-450 px-2 py-0.5 bg-emerald-500/10 rounded-full shrink-0">
+                      +{recommendedStrategy.expectedRoiPercent}% ROI
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-mutedAsh leading-relaxed font-semibold">
+                    <strong className="text-slate-400">Reasoning:</strong> {recommendedStrategy.reason}
+                  </p>
+                  <div className="flex justify-between items-center border-t border-slate-850/50 pt-2.5 text-[10px] font-bold text-slate-500">
+                    <span>Impact: {recommendedStrategy.expectedBenefit}</span>
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleAcceptRecommendation(recommendedStrategy)}
+                      className="bg-amber-500 text-slate-950 font-black hover:bg-amber-600 rounded-lg text-[9px] px-2.5 py-1"
+                    >
+                      Accept & Activate
+                    </Button>
+                  </div>
                 </div>
-                <p className="text-[11px] text-mutedAsh leading-relaxed font-semibold">
-                  <strong className="text-slate-400">Reasoning:</strong> {recommendedStrategy.reason}
-                </p>
-                <div className="flex justify-between items-center border-t border-slate-850/50 pt-2.5 text-[10px] font-bold text-slate-500">
-                  <span>Impact: {recommendedStrategy.expectedBenefit}</span>
-                  <Button 
-                    size="sm" 
-                    onClick={() => handleAcceptRecommendation(recommendedStrategy)}
-                    className="bg-amber-500 text-slate-950 font-black hover:bg-amber-600 rounded-lg text-[9px] px-2.5 py-1"
-                  >
-                    Accept & Activate
-                  </Button>
+              ) : (
+                <div className="p-4 border border-dashed border-slate-850/60 rounded-2xl text-center space-y-1 bg-slate-950/20">
+                  <p className="text-xs font-semibold text-slate-400">No strategy recommendations yet</p>
+                  <p className="text-[11px] text-slate-500">Growth recommendations will automatically appear as sales and dining patterns emerge.</p>
                 </div>
-              </div>
+              )}
             </Card>
           )}
 
-          {/* Today's Biggest Risk */}
+          {/* Today's Operational Status / Biggest Risk */}
           <Card className="p-5 border-slate-850 bg-slate-900/40 space-y-4">
             <div className="flex items-center space-x-2">
-              <AlertTriangle className="w-5 h-5 text-rose-500" />
-              <h3 className="font-display font-bold text-sm text-textPearl">Today's Biggest Risk</h3>
+              <AlertTriangle className={`w-5 h-5 ${biggestRisk.color === 'emerald' ? 'text-emerald-400' : biggestRisk.color === 'red' ? 'text-rose-500' : 'text-amber-500'}`} />
+              <h3 className="font-display font-bold text-sm text-textPearl">Today's Operational Status</h3>
             </div>
-            <div className={`p-4 bg-rose-500/5 border ${biggestRisk.color === 'red' ? 'border-rose-500/20' : 'border-amber-500/20'} rounded-2xl space-y-3`}>
+            <div className={`p-4 ${
+              biggestRisk.color === 'emerald' ? 'bg-emerald-500/5 border-emerald-500/20' :
+              biggestRisk.color === 'red' ? 'bg-rose-500/5 border-rose-500/20' :
+              'bg-amber-500/5 border-amber-500/20'
+            } border rounded-2xl space-y-3`}>
               <div className="flex justify-between items-center">
-                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${biggestRisk.color === 'red' ? 'bg-rose-500/15 text-rose-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                  biggestRisk.color === 'emerald' ? 'bg-emerald-500/15 text-emerald-400' :
+                  biggestRisk.color === 'red' ? 'bg-rose-500/15 text-rose-400' :
+                  'bg-amber-500/15 text-amber-400'
+                }`}>
                   {biggestRisk.type}
                 </span>
-                <span className="text-[9px] font-bold text-slate-500">Immediate Action Recommended</span>
+                <span className="text-[9px] font-bold text-slate-500">
+                  {biggestRisk.color === 'emerald' ? 'All Clear' : 'Immediate Action Recommended'}
+                </span>
               </div>
               <h4 className="text-xs font-bold text-textPearl">{biggestRisk.title}</h4>
               <p className="text-[11px] text-mutedAsh leading-relaxed font-semibold">

@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
-import { Coffee, Calendar, User, Bell, Check, QrCode, X, Camera, ShieldAlert, ShoppingBag, Utensils, Compass, MapPin, Search } from 'lucide-react';
-import { collection, query, onSnapshot } from 'firebase/firestore';
+import { Coffee, Calendar, User, Bell, Check, QrCode, X, Camera, ShieldAlert, ShoppingBag, Utensils, Compass, MapPin, Search, ChevronDown } from 'lucide-react';
+import { collection, query, onSnapshot, getDoc, doc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import toast from 'react-hot-toast';
 
@@ -26,7 +26,42 @@ export const CustomerLayout: React.FC = () => {
   
   const notificationRef = useRef<HTMLDivElement>(null);
 
-  // Real customer notifications from Firestore
+  // Dynamic dining city state
+  const [currentCityLabel, setCurrentCityLabel] = useState(() => {
+    try {
+      const saved = localStorage.getItem('diner_location');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.city && parsed.city !== 'Bengaluru') {
+          return `${parsed.city}${parsed.state ? ', ' + (parsed.state === 'Telangana' ? 'TS' : parsed.state.slice(0, 2).toUpperCase()) : ''}`;
+        }
+      }
+    } catch (_) {}
+    return 'Hyderabad, TS';
+  });
+
+  useEffect(() => {
+    const updateLocation = () => {
+      try {
+        const saved = localStorage.getItem('diner_location');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.city) {
+            setCurrentCityLabel(`${parsed.city}${parsed.state ? ', ' + (parsed.state === 'Telangana' ? 'TS' : parsed.state.slice(0, 2).toUpperCase()) : ''}`);
+          }
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener('diner_location_changed', updateLocation);
+    window.addEventListener('storage', updateLocation);
+    return () => {
+      window.removeEventListener('diner_location_changed', updateLocation);
+      window.removeEventListener('storage', updateLocation);
+    };
+  }, []);
+
+  // Real customer notifications from Firestore (customers/{uid} with fallback)
   const [notifications, setNotifications] = useState<INotification[]>([]);
 
   useEffect(() => {
@@ -35,30 +70,49 @@ export const CustomerLayout: React.FC = () => {
       return;
     }
 
-    try {
-      const notifRef = collection(db, 'users', user.uid, 'notifications');
-      const unsub = onSnapshot(query(notifRef), (snap) => {
-        const notifList: INotification[] = [];
-        snap.forEach(d => {
-          const data = d.data();
-          notifList.push({
-            id: d.id,
-            category: data.category || 'Notification',
-            title: data.title || 'Alert',
-            desc: data.desc || data.description || '',
-            timestamp: data.timestamp || 'Just now',
-            read: !!data.read
+    let unsub = () => {};
+
+    const setupNotifications = async () => {
+      let targetCollection = 'customers';
+      try {
+        const custSnap = await getDoc(doc(db, 'customers', user.uid));
+        if (!custSnap.exists()) {
+          const userSnap = await getDoc(doc(db, 'users', user.uid));
+          if (userSnap.exists()) {
+            targetCollection = 'users';
+          }
+        }
+      } catch (_e) {
+        targetCollection = 'customers';
+      }
+
+      try {
+        const notifRef = collection(db, targetCollection, user.uid, 'notifications');
+        unsub = onSnapshot(query(notifRef), (snap) => {
+          const notifList: INotification[] = [];
+          snap.forEach(d => {
+            const data = d.data();
+            notifList.push({
+              id: d.id,
+              category: data.category || 'Notification',
+              title: data.title || 'Alert',
+              desc: data.desc || data.description || '',
+              timestamp: data.timestamp || 'Just now',
+              read: !!data.read
+            });
           });
+          setNotifications(notifList);
+        }, (err) => {
+          console.error('Failed to subscribe to customer notifications:', err);
+          setNotifications([]);
         });
-        setNotifications(notifList);
-      }, (err) => {
-        console.error('Failed to subscribe to customer notifications:', err);
+      } catch (e) {
         setNotifications([]);
-      });
-      return () => unsub();
-    } catch (e) {
-      setNotifications([]);
-    }
+      }
+    };
+
+    setupNotifications();
+    return () => unsub();
   }, [user?.uid]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -120,60 +174,73 @@ export const CustomerLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#FFFCF9] flex flex-col font-sans antialiased relative select-none">
+    <div className="min-h-screen w-full bg-[#FCFAF7] flex flex-col font-sans antialiased relative select-none">
       
       {/* Ambient warm background glow */}
-      <div className="absolute top-0 left-1/4 w-[500px] h-[300px] rounded-full bg-[#FFF8F2] blur-[100px] pointer-events-none z-0" />
+      <div className="absolute top-0 left-1/4 w-[500px] h-[300px] rounded-full bg-[#F3E8DF]/60 blur-[100px] pointer-events-none z-0" />
 
       {/* TOP APP BAR */}
-      <header className="bg-[#FFFCF9]/90 border-b border-[#EEE7E1] sticky top-0 z-40 backdrop-blur-md px-4 py-3 shrink-0 flex items-center justify-between md:px-8 relative z-10 shadow-xs">
+      <header className="bg-[#FCFAF7]/95 border-b border-[#F3E8DF] sticky top-0 z-40 backdrop-blur-md px-4 py-3 shrink-0 flex items-center justify-between md:px-8 relative z-10 shadow-xs">
         
         {/* LEFT: Branding & Logo & Desktop Navigation */}
         <div className="flex items-center space-x-6 shrink-0">
           <div className="flex items-center space-x-2.5 cursor-pointer" onClick={() => navigate('/customer/home')}>
-            <div className="w-9 h-9 bg-[#E85D3F] rounded-xl flex items-center justify-center shadow-md shadow-[#E85D3F]/20">
+            <div className="w-9 h-9 bg-[#C85A3F] rounded-xl flex items-center justify-center shadow-md shadow-[#C85A3F]/20">
               <span className="text-white font-display font-extrabold text-xl">R</span>
             </div>
             <div>
-              <h1 className="text-sm font-display font-extrabold text-[#242424] tracking-tight">Restaurant<span className="text-[#E85D3F]">OS</span></h1>
+              <h1 className="text-sm font-display font-extrabold text-[#202124] tracking-tight">Restaurant<span className="text-[#C85A3F]">OS</span></h1>
             </div>
           </div>
 
-          {/* Location Context Pill */}
-          <div className="hidden xl:flex items-center space-x-1.5 bg-[#FFF8F2] border border-[#EEE7E1] px-3.5 py-1.5 rounded-full text-xs text-[#242424] font-medium shadow-xs">
-            <MapPin className="w-3.5 h-3.5 text-[#E85D3F]" />
-            <span className="font-bold text-[#242424]">Bengaluru, KA</span>
-          </div>
+          {/* Location Context Pill - Primary Location Selector */}
+          <button 
+            type="button"
+            onClick={() => {
+              if (location.pathname !== '/customer/home') {
+                navigate('/customer/home');
+                setTimeout(() => window.dispatchEvent(new Event('open_location_modal')), 100);
+              } else {
+                window.dispatchEvent(new Event('open_location_modal'));
+              }
+            }}
+            className="flex items-center space-x-1.5 bg-[#F3E8DF] border border-[#E5DCD5] px-3.5 py-1.5 rounded-full text-xs text-[#202124] font-medium shadow-xs cursor-pointer hover:border-[#C85A3F]/50 hover:bg-[#F3E8DF]/80 transition-all group"
+            title="Click to choose dining location"
+          >
+            <MapPin className="w-3.5 h-3.5 text-[#C85A3F] shrink-0" />
+            <span className="font-bold text-[#202124] group-hover:text-[#C85A3F] transition-colors">{currentCityLabel}</span>
+            <ChevronDown className="w-3 h-3 text-[#756B64] group-hover:text-[#C85A3F] transition-colors shrink-0" />
+          </button>
 
           {/* Desktop Navigation links */}
           <nav className="hidden md:flex items-center space-x-1">
             <NavLink
               to="/customer/home"
-              className={({ isActive }) => `px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${isActive ? 'text-[#E85D3F] bg-[#FFF8F2] shadow-xs' : 'text-[#6B6B6B] hover:text-[#242424]'}`}
+              className={({ isActive }) => `px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${isActive ? 'text-[#C85A3F] bg-[#F3E8DF] shadow-xs' : 'text-[#756B64] hover:text-[#202124]'}`}
             >
               Home
             </NavLink>
             <NavLink
               to="/customer/explore"
-              className={({ isActive }) => `px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${isActive ? 'text-[#E85D3F] bg-[#FFF8F2] shadow-xs' : 'text-[#6B6B6B] hover:text-[#242424]'}`}
+              className={({ isActive }) => `px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${isActive ? 'text-[#C85A3F] bg-[#F3E8DF] shadow-xs' : 'text-[#756B64] hover:text-[#202124]'}`}
             >
               Explore
             </NavLink>
             <NavLink
               to="/customer/orders"
-              className={({ isActive }) => `px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${isActive ? 'text-[#E85D3F] bg-[#FFF8F2] shadow-xs' : 'text-[#6B6B6B] hover:text-[#242424]'}`}
+              className={({ isActive }) => `px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${isActive ? 'text-[#C85A3F] bg-[#F3E8DF] shadow-xs' : 'text-[#756B64] hover:text-[#202124]'}`}
             >
               My Orders
             </NavLink>
             <NavLink
               to="/customer/booking"
-              className={({ isActive }) => `px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${isActive ? 'text-[#E85D3F] bg-[#FFF8F2] shadow-xs' : 'text-[#6B6B6B] hover:text-[#242424]'}`}
+              className={({ isActive }) => `px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${isActive ? 'text-[#C85A3F] bg-[#F3E8DF] shadow-xs' : 'text-[#756B64] hover:text-[#202124]'}`}
             >
               Book Table
             </NavLink>
             <NavLink
               to="/customer/profile"
-              className={({ isActive }) => `px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${isActive ? 'text-[#E85D3F] bg-[#FFF8F2] shadow-xs' : 'text-[#6B6B6B] hover:text-[#242424]'}`}
+              className={({ isActive }) => `px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${isActive ? 'text-[#C85A3F] bg-[#F3E8DF] shadow-xs' : 'text-[#756B64] hover:text-[#202124]'}`}
             >
               Profile
             </NavLink>
@@ -186,7 +253,7 @@ export const CustomerLayout: React.FC = () => {
           {/* Desktop QR Scan button */}
           <button
             onClick={() => setIsQrScannerOpen(true)}
-            className="hidden md:flex px-4 py-2 bg-[#E85D3F] hover:bg-[#D04B2F] text-white font-extrabold text-xs rounded-full transition-all shadow-md shadow-[#E85D3F]/20 items-center gap-1.5 cursor-pointer"
+            className="hidden md:flex px-4 py-2 bg-[#C85A3F] hover:bg-[#A94332] text-white font-extrabold text-xs rounded-full transition-all shadow-md shadow-[#C85A3F]/20 items-center gap-1.5 cursor-pointer"
           >
             <QrCode className="w-3.5 h-3.5" />
             <span>QR Scan</span>
@@ -196,47 +263,47 @@ export const CustomerLayout: React.FC = () => {
           <div className="relative" ref={notificationRef}>
             <button 
               onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-              className={`p-2.5 rounded-full text-[#6B6B6B] hover:text-[#242424] transition-all border ${
+              className={`p-2.5 rounded-full text-[#756B64] hover:text-[#202124] transition-all border ${
                 isNotificationOpen 
-                  ? 'bg-[#FFF8F2] border-[#E85D3F] text-[#E85D3F]' 
-                  : 'bg-white border-[#EEE7E1] hover:border-[#E85D3F]/40'
+                  ? 'bg-[#F3E8DF] border-[#C85A3F] text-[#C85A3F]' 
+                  : 'bg-white border-[#E5DCD5] hover:border-[#C85A3F]/40'
               }`}
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#E85D3F] rounded-full animate-pulse" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#C85A3F] rounded-full animate-pulse" />
               )}
             </button>
 
             {/* Notification dropdown panel */}
             {isNotificationOpen && (
-              <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white border border-[#EEE7E1] rounded-2xl shadow-xl z-50 text-left overflow-hidden">
-                <div className="p-3.5 border-b border-[#EEE7E1] bg-[#FFF8F2] flex items-center justify-between">
+              <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white border border-[#E5DCD5] rounded-2xl shadow-xl z-50 text-left overflow-hidden">
+                <div className="p-3.5 border-b border-[#F3E8DF] bg-[#F3E8DF]/50 flex items-center justify-between">
                   <div>
-                    <h4 className="text-xs font-extrabold text-[#242424]">Notifications</h4>
-                    <span className="text-[9px] text-[#6B6B6B] font-semibold">{unreadCount} unread logs</span>
+                    <h4 className="text-xs font-extrabold text-[#202124]">Notifications</h4>
+                    <span className="text-[9px] text-[#756B64] font-semibold">{unreadCount} unread logs</span>
                   </div>
                   {notifications.length > 0 && (
                     <button 
                       onClick={markAllRead}
-                      className="text-[9px] text-[#E85D3F] font-bold hover:underline"
+                      className="text-[9px] text-[#C85A3F] font-bold hover:underline"
                     >
                       Clear All
                     </button>
                   )}
                 </div>
 
-                <div className="max-h-72 overflow-y-auto divide-y divide-[#EEE7E1]">
+                <div className="max-h-72 overflow-y-auto divide-y divide-[#F3E8DF]">
                   {notifications.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-[#6B6B6B] font-medium">
+                    <div className="p-6 text-center text-xs text-[#756B64] font-medium">
                       No notifications yet.
                     </div>
                   ) : (
                     notifications.map(n => (
-                      <div key={n.id} className="p-3.5 hover:bg-[#FFF8F2]/60 transition-colors">
-                        <h5 className="text-xs font-bold text-[#242424]">{n.title}</h5>
-                        <p className="text-[10.5px] text-[#6B6B6B] mt-0.5">{n.desc}</p>
-                        <span className="text-[8.5px] text-[#999999] mt-1 block">
+                      <div key={n.id} className="p-3.5 hover:bg-[#F3E8DF]/40 transition-colors">
+                        <h5 className="text-xs font-bold text-[#202124]">{n.title}</h5>
+                        <p className="text-[10.5px] text-[#756B64] mt-0.5">{n.desc}</p>
+                        <span className="text-[8.5px] text-[#756B64]/70 mt-1 block">
                           {n.timestamp}
                         </span>
                       </div>
@@ -252,8 +319,8 @@ export const CustomerLayout: React.FC = () => {
             onClick={() => navigate('/customer/profile')}
             className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-extrabold transition-all border ${
               location.pathname === '/customer/profile'
-                ? 'bg-[#E85D3F] text-white border-[#E85D3F]'
-                : 'bg-[#FFF8F2] text-[#E85D3F] border-[#EEE7E1] hover:border-[#E85D3F]/40'
+                ? 'bg-[#C85A3F] text-white border-[#C85A3F]'
+                : 'bg-[#F3E8DF] text-[#C85A3F] border-[#E5DCD5] hover:border-[#C85A3F]/40'
             }`}
           >
             {(user?.displayName || user?.email || 'GC').substring(0, 2).toUpperCase()}
@@ -262,17 +329,17 @@ export const CustomerLayout: React.FC = () => {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 md:px-8 relative bg-[#FFFCF9] w-full max-w-7xl mx-auto z-10">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 md:px-8 relative bg-[#FCFAF7] w-full max-w-7xl mx-auto z-10">
         <Outlet />
       </main>
 
       {/* MOBILE BOTTOM NAVIGATION BAR (md:hidden) */}
-      <div className="md:hidden h-16 bg-[#FFF8F2]/95 border-t border-[#EEE7E1] backdrop-blur-md flex items-center justify-between px-4 z-40 shrink-0 relative">
+      <div className="md:hidden h-16 bg-[#FCFAF7]/95 border-t border-[#F3E8DF] backdrop-blur-md flex items-center justify-between px-4 z-40 shrink-0 relative">
         
         {/* HOME */}
         <NavLink
           to="/customer/home"
-          className={({ isActive }) => `flex flex-col items-center justify-center w-11 h-12 transition-all ${isActive ? 'text-[#E85D3F]' : 'text-[#6B6B6B] hover:text-[#242424]'}`}
+          className={({ isActive }) => `flex flex-col items-center justify-center w-11 h-12 transition-all ${isActive ? 'text-[#C85A3F]' : 'text-[#756B64] hover:text-[#202124]'}`}
         >
           <Coffee className="w-4.5 h-4.5 mb-0.5" />
           <span className="text-[8.5px] font-extrabold font-sans">Home</span>
@@ -281,7 +348,7 @@ export const CustomerLayout: React.FC = () => {
         {/* EXPLORE */}
         <NavLink
           to="/customer/explore"
-          className={({ isActive }) => `flex flex-col items-center justify-center w-11 h-12 transition-all ${isActive ? 'text-[#E85D3F]' : 'text-[#6B6B6B] hover:text-[#242424]'}`}
+          className={({ isActive }) => `flex flex-col items-center justify-center w-11 h-12 transition-all ${isActive ? 'text-[#C85A3F]' : 'text-[#756B64] hover:text-[#202124]'}`}
         >
           <Compass className="w-4.5 h-4.5 mb-0.5" />
           <span className="text-[8.5px] font-extrabold font-sans">Explore</span>
@@ -291,17 +358,17 @@ export const CustomerLayout: React.FC = () => {
         <div className="relative -mt-5">
           <button
             onClick={() => setIsQrScannerOpen(true)}
-            className="w-12 h-12 bg-[#E85D3F] hover:bg-[#D04B2F] text-white rounded-full shadow-lg shadow-[#E85D3F]/30 flex items-center justify-center border-4 border-[#FFFCF9] transition-transform active:scale-95 duration-200 z-50 relative cursor-pointer"
+            className="w-12 h-12 bg-[#C85A3F] hover:bg-[#A94332] text-white rounded-full shadow-lg shadow-[#C85A3F]/30 flex items-center justify-center border-4 border-[#FCFAF7] transition-transform active:scale-95 duration-200 z-50 relative cursor-pointer"
           >
             <QrCode className="w-5 h-5" />
           </button>
-          <span className="text-[8px] font-extrabold text-[#E85D3F] block text-center mt-0.5">QR Scan</span>
+          <span className="text-[8px] font-extrabold text-[#C85A3F] block text-center mt-0.5">QR Scan</span>
         </div>
 
         {/* ORDERS */}
         <NavLink
           to="/customer/orders"
-          className={({ isActive }) => `flex flex-col items-center justify-center w-11 h-12 transition-all ${isActive ? 'text-[#E85D3F]' : 'text-[#6B6B6B] hover:text-[#242424]'}`}
+          className={({ isActive }) => `flex flex-col items-center justify-center w-11 h-12 transition-all ${isActive ? 'text-[#C85A3F]' : 'text-[#756B64] hover:text-[#202124]'}`}
         >
           <Utensils className="w-4.5 h-4.5 mb-0.5" />
           <span className="text-[8.5px] font-extrabold font-sans">Orders</span>
@@ -310,7 +377,7 @@ export const CustomerLayout: React.FC = () => {
         {/* PROFILE */}
         <NavLink
           to="/customer/profile"
-          className={({ isActive }) => `flex flex-col items-center justify-center w-11 h-12 transition-all ${isActive ? 'text-[#E85D3F]' : 'text-[#6B6B6B] hover:text-[#242424]'}`}
+          className={({ isActive }) => `flex flex-col items-center justify-center w-11 h-12 transition-all ${isActive ? 'text-[#C85A3F]' : 'text-[#756B64] hover:text-[#202124]'}`}
         >
           <User className="w-4.5 h-4.5 mb-0.5" />
           <span className="text-[8.5px] font-extrabold font-sans">Profile</span>

@@ -163,15 +163,19 @@ export const signUpCustomer = async (
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   const user = userCredential.user;
 
-  // Create user profile in Firestore
-  const userRef = doc(db, 'users', user.uid);
-  await setDoc(userRef, {
+  // Create customer profile in customers/{uid}
+  const customerRef = doc(db, 'customers', user.uid);
+  await setDoc(customerRef, {
     uid: user.uid,
     fullName,
+    displayName: fullName,
     email,
     role: 'customer' as TUserRole,
     tenantId: null,
     phoneNumber: phoneNumber || '',
+    walletBalance: 0,
+    loyaltyPoints: 0,
+    status: 'active',
     createdAt: new Date().toISOString()
   });
 

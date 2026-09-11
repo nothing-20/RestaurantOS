@@ -19,3 +19,24 @@ export interface ISatisfactionRating {
   isPositive: boolean;
   isComplaint: boolean;
 }
+
+export interface ICustomerProfile {
+  uid: string;
+  email: string;
+  fullName?: string;
+  displayName?: string;
+  phoneNumber?: string;
+  photoURL?: string | null;
+  role: 'customer';
+  status: 'active' | 'inactive';
+  tenantId?: string | null;
+  walletBalance?: number;
+  loyaltyPoints?: number;
+  dietaryPrefs?: string[];
+  allergens?: string[];
+  addresses?: any[];
+  preferences?: Record<string, any>;
+  createdAt: string;
+  updatedAt?: string;
+}
+

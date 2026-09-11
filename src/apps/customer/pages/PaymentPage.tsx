@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { doc, updateDoc, addDoc, collection, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, addDoc, collection, increment } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import Card from '../../../components/ui/Card/Card';
@@ -64,18 +64,31 @@ export const PaymentPage: React.FC = () => {
           });
         }
 
-        // 3. Update customer details in profile
+        // 3. Update customer details in profile (customers/{uid} with fallback)
         if (user?.uid) {
-          await addDoc(collection(db, 'users', user.uid, 'diningHistory'), {
+          let targetCol = 'customers';
+          try {
+            const custSnap = await getDoc(doc(db, 'customers', user.uid));
+            if (!custSnap.exists()) {
+              const userSnap = await getDoc(doc(db, 'users', user.uid));
+              if (userSnap.exists()) {
+                targetCol = 'users';
+              }
+            }
+          } catch (_e) {
+            targetCol = 'customers';
+          }
+
+          await addDoc(collection(db, targetCol, user.uid, 'diningHistory'), {
             restaurantId: tenantId,
             restaurantName: 'Gourmet Bistro',
             orderId: orderId || `ORD-MOCK-${Date.now().toString().substring(8)}`,
             total: orderTotalVal,
             date: new Date().toISOString(),
             diners: splitCount
-          });
+          }).catch(err => console.warn('Failed to add dining history:', err));
 
-          const userDocRef = doc(db, 'users', user.uid);
+          const userDocRef = doc(db, targetCol, user.uid);
           const pointsEarned = Math.round(orderTotalVal / 100) || 50;
           await updateDoc(userDocRef, {
             loyaltyPoints: increment(pointsEarned)

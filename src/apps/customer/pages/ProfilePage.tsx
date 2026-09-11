@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
-import { collection, getDocs, doc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import Card from '../../../components/ui/Card/Card';
 import Badge from '../../../components/ui/Badge/Badge';
@@ -117,47 +117,72 @@ export const ProfilePage: React.FC = () => {
   const [appPrivacy, setAppPrivacy] = useState(true);
 
   // Stream user document (Wallet, Loyalty, Profile Data) from Firestore
+  // Stream customer document (Wallet, Loyalty, Profile Data) from Firestore (customers/{uid} with fallback)
   useEffect(() => {
     if (!user?.uid) return;
 
-    const userDocRef = doc(db, 'users', user.uid);
-    const unsubUser = onSnapshot(userDocRef, (snap) => {
-      if (snap.exists()) {
-        const d = snap.data();
-        if (d.displayName) setDisplayName(d.displayName);
-        if (d.phoneNumber || d.phone) setPhoneNumber(d.phoneNumber || d.phone);
-        if (d.walletBalance !== undefined) setWalletBalance(d.walletBalance);
-        if (d.loyaltyPoints !== undefined) setLoyaltyPoints(d.loyaltyPoints);
-        if (d.dietaryPrefs) setDietaryPrefs(d.dietaryPrefs);
-        if (d.allergens) setAllergens(d.allergens);
+    let unsubUser = () => {};
+    let unsubAddr = () => {};
+    let unsubTx = () => {};
+    let unsubHist = () => {};
+
+    const setupCustomerStreams = async () => {
+      // 1. Determine profile path: check customers/{uid} first, fallback to users/{uid}
+      let profileCollection = 'customers';
+      try {
+        const custSnap = await getDoc(doc(db, 'customers', user.uid));
+        if (!custSnap.exists()) {
+          const userSnap = await getDoc(doc(db, 'users', user.uid));
+          if (userSnap.exists()) {
+            profileCollection = 'users';
+          }
+        }
+      } catch (_e) {
+        profileCollection = 'customers';
       }
-    }, (err) => {
-      console.error('Error fetching user profile:', err);
-    });
 
-    // Stream addresses
-    const addrRef = collection(db, 'users', user.uid, 'addresses');
-    const unsubAddr = onSnapshot(addrRef, (snap) => {
-      const list: IAddress[] = [];
-      snap.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() } as IAddress));
-      setAddresses(list);
-    }, () => setAddresses([]));
+      const userDocRef = doc(db, profileCollection, user.uid);
+      unsubUser = onSnapshot(userDocRef, (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d.displayName) setDisplayName(d.displayName);
+          else if (d.fullName) setDisplayName(d.fullName);
+          if (d.phoneNumber || d.phone) setPhoneNumber(d.phoneNumber || d.phone);
+          if (d.walletBalance !== undefined) setWalletBalance(d.walletBalance);
+          if (d.loyaltyPoints !== undefined) setLoyaltyPoints(d.loyaltyPoints);
+          if (d.dietaryPrefs) setDietaryPrefs(d.dietaryPrefs);
+          if (d.allergens) setAllergens(d.allergens);
+        }
+      }, (err) => {
+        console.error('Error fetching customer profile:', err);
+      });
 
-    // Stream transactions
-    const txRef = collection(db, 'users', user.uid, 'transactions');
-    const unsubTx = onSnapshot(txRef, (snap) => {
-      const list: ITransaction[] = [];
-      snap.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() } as ITransaction));
-      setTransactions(list);
-    }, () => setTransactions([]));
+      // Stream addresses (from customers/{uid}/addresses with fallback)
+      const addrRef = collection(db, profileCollection, user.uid, 'addresses');
+      unsubAddr = onSnapshot(addrRef, (snap) => {
+        const list: IAddress[] = [];
+        snap.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() } as IAddress));
+        setAddresses(list);
+      }, () => setAddresses([]));
 
-    // Stream dining history
-    const histRef = collection(db, 'users', user.uid, 'diningHistory');
-    const unsubHist = onSnapshot(histRef, (snap) => {
-      const list: any[] = [];
-      snap.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
-      setDiningHistory(list);
-    }, () => setDiningHistory([]));
+      // Stream transactions
+      const txRef = collection(db, profileCollection, user.uid, 'transactions');
+      unsubTx = onSnapshot(txRef, (snap) => {
+        const list: ITransaction[] = [];
+        snap.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() } as ITransaction));
+        setTransactions(list);
+      }, () => setTransactions([]));
+
+      // Stream dining history
+      const histRef = collection(db, profileCollection, user.uid, 'diningHistory');
+      unsubHist = onSnapshot(histRef, (snap) => {
+        const list: any[] = [];
+        snap.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
+        setDiningHistory(list);
+      }, () => setDiningHistory([]));
+    };
+
+    setupCustomerStreams();
 
     return () => {
       unsubUser();
@@ -172,20 +197,37 @@ export const ProfilePage: React.FC = () => {
     if (!user?.uid) return;
     
     setIsReservationsLoading(true);
-    const colRef = collection(db, 'users', user.uid, 'reservations');
-    const unsubscribe = onSnapshot(colRef, (snap) => {
-      const list: IReservation[] = [];
-      snap.forEach(d => {
-        list.push({ id: d.id, ...d.data() } as IReservation);
+    let unsubscribe = () => {};
+
+    const setupReservationStream = async () => {
+      let targetCollection = 'customers';
+      try {
+        const custSnap = await getDoc(doc(db, 'customers', user.uid));
+        if (!custSnap.exists()) {
+          const userSnap = await getDoc(doc(db, 'users', user.uid));
+          if (userSnap.exists()) {
+            targetCollection = 'users';
+          }
+        }
+      } catch (_e) {}
+
+      const colRef = collection(db, targetCollection, user.uid, 'reservations');
+      unsubscribe = onSnapshot(colRef, (snap) => {
+        const list: IReservation[] = [];
+        snap.forEach(d => {
+          list.push({ id: d.id, ...d.data() } as IReservation);
+        });
+        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setReservations(list);
+        setIsReservationsLoading(false);
+      }, (error) => {
+        console.error('Error streaming customer reservations:', error);
+        setReservations([]);
+        setIsReservationsLoading(false);
       });
-      list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setReservations(list);
-      setIsReservationsLoading(false);
-    }, (error) => {
-      console.error('Error streaming reservations:', error);
-      setReservations([]);
-      setIsReservationsLoading(false);
-    });
+    };
+
+    setupReservationStream();
 
     return () => unsubscribe();
   }, [user?.uid]);
@@ -209,9 +251,37 @@ export const ProfilePage: React.FC = () => {
     }
   }, [activeSection]);
 
-  const handleSavePersonalInfo = (e: React.FormEvent) => {
+  const handleSavePersonalInfo = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success('Personal profile details synced successfully.');
+    if (user?.uid) {
+      try {
+        await setDoc(doc(db, 'customers', user.uid), {
+          displayName,
+          fullName: displayName,
+          phoneNumber,
+          phone: phoneNumber,
+          dietaryPrefs,
+          allergens,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        toast.success('Personal profile details synced successfully.');
+      } catch (err: any) {
+        console.error('Error saving personal info to customers/{uid}:', err);
+        try {
+          await setDoc(doc(db, 'users', user.uid), {
+            displayName,
+            fullName: displayName,
+            phoneNumber,
+            dietaryPrefs,
+            allergens,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+          toast.success('Personal profile details synced successfully.');
+        } catch (_fallbackErr) {
+          toast.error('Failed to sync profile details.');
+        }
+      }
+    }
     handleSectionChange('menu');
   };
 
@@ -237,7 +307,8 @@ export const ProfilePage: React.FC = () => {
   const handleCancelBooking = async (resId: string, restId: string) => {
     try {
       if (user?.uid) {
-        await deleteDoc(doc(db, 'users', user.uid, 'reservations', resId));
+        await deleteDoc(doc(db, 'customers', user.uid, 'reservations', resId)).catch(() => {});
+        await deleteDoc(doc(db, 'users', user.uid, 'reservations', resId)).catch(() => {});
       }
       await deleteDoc(doc(db, 'restaurants', restId, 'reservations', resId));
       setReservations(reservations.filter(r => r.id !== resId));

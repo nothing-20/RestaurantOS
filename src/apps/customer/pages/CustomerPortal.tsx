@@ -151,8 +151,8 @@ export const CustomerPortal: React.FC = () => {
         if (tenantSnap.exists()) {
           const tenantData = tenantSnap.data();
           setRestaurantName(tenantData.restaurantName || tenantData.name || 'Gourmet Bistro');
-          setCoverImage(tenantData.coverImage || '');
-          setLogoUrl(tenantData.logoUrl || '');
+          setCoverImage(tenantData.coverImage || tenantData.coverImageUrl || '');
+          setLogoUrl(tenantData.logoUrl || tenantData.logo || '');
           setBrandingColors({
             primary: tenantData.primaryColor,
             secondary: tenantData.secondaryColor
@@ -536,13 +536,19 @@ export const CustomerPortal: React.FC = () => {
                 onClick={() => handleSelectItem(item)}
               >
                 {/* 1. Food Image + Preparation Time Badge */}
-                <div className="w-full h-40 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 relative shrink-0">
-                  <img 
-                    src={item.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'} 
-                    alt={item.name} 
-                    className="w-full h-full object-cover" 
-                    loading="lazy"
-                  />
+                <div className="w-full h-40 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 relative shrink-0 flex items-center justify-center">
+                  {(item.imageUrl || item.image) ? (
+                    <img 
+                      src={item.imageUrl || item.image} 
+                      alt={item.name} 
+                      className="w-full h-full object-cover" 
+                      loading="lazy" 
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-500">
+                      <span className="text-[10px] font-semibold text-slate-400">Freshly Prepared</span>
+                    </div>
+                  )}
                   {/* Preparation Time Badge overlaid absolute */}
                   <div className="absolute bottom-2.5 right-2.5 bg-slate-950/80 backdrop-blur-md text-[10px] text-slate-350 font-bold px-2 py-0.5 rounded-lg border border-slate-800/40 flex items-center space-x-1">
                     <Clock className="w-3 h-3 text-slate-400" />

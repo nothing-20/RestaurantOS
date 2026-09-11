@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import Card from '../../../components/ui/Card/Card';
 import Badge from '../../../components/ui/Badge/Badge';
@@ -19,18 +19,27 @@ export const ReservationsHistory: React.FC = () => {
         return;
       }
       try {
-        const snap = await getDocs(collection(db, 'users', user.uid, 'reservations'));
+        let targetCol = 'customers';
+        try {
+          const custSnap = await getDoc(doc(db, 'customers', user.uid));
+          if (!custSnap.exists()) {
+            const userSnap = await getDoc(doc(db, 'users', user.uid));
+            if (userSnap.exists()) {
+              targetCol = 'users';
+            }
+          }
+        } catch (_e) {
+          targetCol = 'customers';
+        }
+
+        const snap = await getDocs(collection(db, targetCol, user.uid, 'reservations'));
         const list: any[] = [];
         snap.forEach(d => {
           list.push({ id: d.id, ...d.data() });
         });
-        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         
-        if (list.length === 0) {
-          setReservations([]);
-        } else {
-          setReservations(list);
-        }
+        setReservations(list);
       } catch (e) {
         console.error(e);
         setReservations([]);

@@ -62,7 +62,7 @@ export class FirestoreService<T extends Record<string, any>> {
   }
 
   private isTenantSubcollection(): boolean {
-    const rootCollections = ['tenants', 'users', 'supportTickets', 'featureFlags', 'systemSettings', 'auditLogs'];
+    const rootCollections = ['tenants', 'users', 'customers', 'supportTickets', 'featureFlags', 'systemSettings', 'auditLogs'];
     return !rootCollections.includes(this.collectionName.split('/')[0]);
   }
 
@@ -248,6 +248,7 @@ export class FirestoreService<T extends Record<string, any>> {
 export const restaurantsService = new FirestoreService('restaurants');
 export const branchesService = new FirestoreService('branches');
 export const usersService = new FirestoreService('users');
+export const customersService = new FirestoreService('customers');
 export const employeesService = new FirestoreService('employees');
 export const rolesService = new FirestoreService('roles');
 export const permissionsService = new FirestoreService('permissions');
