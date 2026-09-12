@@ -39,9 +39,10 @@ const HYDERABAD_AREAS = [
 ];
 
 function extractAreaFromAddress(street: string, fallbackCity: string): string {
-  if (!street) return fallbackCity;
+  if (!street || typeof street !== 'string') return fallbackCity;
   for (const area of HYDERABAD_AREAS) {
     if (new RegExp(`\\b${area.replace(/\s+/g, '\\s+')}\\b`, 'i').test(street)) {
+      if (area.toLowerCase() === 'rtc x roads') return 'RTC X Road';
       return area;
     }
   }
@@ -53,6 +54,43 @@ function extractAreaFromAddress(street: string, fallbackCity: string): string {
     }
   }
   return fallbackCity;
+}
+
+function formatCuisines(cuisineInput?: string | string[] | null): string {
+  if (!cuisineInput) return '';
+  let parts: string[] = [];
+  if (Array.isArray(cuisineInput)) {
+    parts = cuisineInput.map(p => String(p).trim()).filter(Boolean);
+  } else if (typeof cuisineInput === 'string') {
+    parts = cuisineInput
+      .split(/[/,]/)
+      .map(p => p.trim())
+      .filter(Boolean);
+  }
+  if (parts.length === 0) return '';
+  return parts.slice(0, 3).join(' · ');
+}
+
+function formatLocalityCity(area?: string | null, city?: string | null): string {
+  const rawCity = (city || 'Hyderabad').trim();
+  const c = rawCity.split(',')[0].trim() || 'Hyderabad';
+  if (!area || area === 'All Areas' || area.toLowerCase() === c.toLowerCase()) {
+    return c;
+  }
+  // Remove trailing city name if already present in area to prevent duplicates
+  const cleanArea = area.replace(new RegExp(`,?\\s*${c}$`, 'i'), '').trim();
+  if (!cleanArea || cleanArea.toLowerCase() === c.toLowerCase()) {
+    return c;
+  }
+  return `${cleanArea}, ${c}`;
+}
+
+function formatReviewsCount(count?: number | null): string | null {
+  if (!count || typeof count !== 'number' || count <= 0) return null;
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k reviews`;
+  }
+  return `${count} review${count === 1 ? '' : 's'}`;
 }
 
 const CUISINE_DISHES: Record<string, string[]> = {
@@ -262,9 +300,9 @@ export const CustomerHome: React.FC = () => {
           cuisine: data.cuisine || 'Multi-Cuisine',
           rating: typeof data.rating === 'number' ? data.rating : null,
           reviewsCount: typeof data.reviewsCount === 'number' ? data.reviewsCount : null,
-          priceRange: data.priceRange || '₹₹',
-          vegOptions: data.vegOptions !== undefined ? data.vegOptions : true,
-          nonVegOptions: data.nonVegOptions !== undefined ? data.nonVegOptions : true,
+          priceRange: data.priceRange || null,
+          vegOptions: data.vegOptions !== undefined ? Boolean(data.vegOptions) : (data.isVegetarian ? true : null),
+          nonVegOptions: data.nonVegOptions !== undefined ? Boolean(data.nonVegOptions) : null,
           openNow: data.status === 'active' || data.openNow !== false,
           isFeatured: Boolean(data.isFeatured),
           isTrending: Boolean(data.isTrending),
@@ -644,100 +682,260 @@ export const CustomerHome: React.FC = () => {
     toast.success('Filters cleared.');
   };
 
-  // Reusable mini horizontal card component
-  const MiniHorizontalCard = ({ r }: { r: any }) => (
-    <Card 
-      key={r.id} 
-      className="group bg-white border border-[#E5DCD5] hover:border-[#C85A3F]/50 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md transition-all relative shrink-0 w-60 scroll-snap-align-start select-none"
-    >
-      <div className="h-28 w-full overflow-hidden relative bg-gradient-to-br from-[#202124] to-[#2B2D31] flex items-center justify-center">
-        {r.image ? (
-          <img src={r.image} alt={r.name} loading="lazy" className="h-full w-full object-cover group-hover:scale-103 transition-transform duration-300" />
-        ) : (
-          <div className="flex flex-col items-center justify-center text-center p-2 select-none">
-            <div className="w-9 h-9 rounded-xl bg-[#F3E8DF] border border-[#E5DCD5] flex items-center justify-center text-[#C85A3F] font-extrabold text-xs mb-1 shadow-sm">
-              {r.name ? r.name.charAt(0).toUpperCase() : 'R'}
+  // Reusable mini horizontal card component (for featured/trending carousels)
+  const MiniHorizontalCard = ({ r }: { r: any }) => {
+    const [imgError, setImgError] = useState(false);
+    const imageUrl = r.image || r.coverImageUrl || r.coverImage || r.logoUrl || r.logo;
+    const cuisines = formatCuisines(r.cuisine);
+    const locality = formatLocalityCity(r.area, r.city);
+
+    return (
+      <div 
+        key={r.id} 
+        onClick={() => navigate(`/customer/restaurant/${r.id}`)}
+        className="group bg-white border border-[#E5DCD5] hover:border-[#C85A3F]/50 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md transition-all duration-200 relative shrink-0 w-60 scroll-snap-align-start select-none cursor-pointer"
+      >
+        <div className="h-28 w-full overflow-hidden relative bg-gradient-to-br from-[#F3E8DF] to-[#E5DCD5] flex items-center justify-center">
+          {imageUrl && !imgError ? (
+            <img 
+              src={imageUrl} 
+              alt={r.name} 
+              loading="lazy" 
+              onError={() => setImgError(true)}
+              className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" 
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center p-2 select-none">
+              <div className="w-9 h-9 rounded-xl bg-white border border-[#E5DCD5] flex items-center justify-center text-[#C85A3F] font-extrabold text-xs mb-1 shadow-2xs">
+                {r.name ? r.name.charAt(0).toUpperCase() : <Utensils className="w-4 h-4 text-[#C85A3F]" />}
+              </div>
+              <span className="text-[10px] font-extrabold text-[#202124] truncate max-w-[140px]">{r.name}</span>
             </div>
-            <span className="text-[10px] font-extrabold text-white truncate max-w-[140px]">{r.name}</span>
-          </div>
-        )}
-        
-        {/* Favorite Icon */}
-        <button 
-          onClick={(e) => toggleFavourite(r.id, e)}
-          className="absolute top-2 left-2 p-1.5 bg-white/90 hover:bg-white border border-[#E5DCD5] rounded-full text-[#756B64] hover:text-[#C85A3F] transition-colors shadow-xs"
-        >
-          <Heart className={`w-3.5 h-3.5 ${favourites.includes(r.id) ? 'fill-[#C85A3F] text-[#C85A3F]' : ''}`} />
-        </button>
-
-        {/* Rating Badge */}
-        {r.rating && (
-          <span className="absolute top-2 right-2 bg-white/90 border border-[#E5DCD5] backdrop-blur-md px-2 py-0.5 rounded-full text-[9px] font-extrabold text-[#202124] flex items-center gap-0.5 shadow-xs">
-            <Star className="w-2.5 h-2.5 text-[#E5A93C] fill-current" /> {r.rating}
-          </span>
-        )}
-      </div>
-
-      <div className="p-3.5 space-y-2 text-left">
-        <div>
-          <h4 
-            onClick={() => navigate(`/customer/restaurant/${r.id}`)}
-            className="text-xs font-extrabold text-[#202124] group-hover:text-[#C85A3F] transition-colors cursor-pointer truncate"
-          >
-            {r.name}
-          </h4>
+          )}
           
-          <div className="flex items-center space-x-1.5 text-[9px] text-[#756B64] font-semibold mt-0.5 truncate">
-            <span>{r.cuisine}</span>
-            {r.area && (
-              <>
-                <span>•</span>
-                <span>{r.area}</span>
-              </>
+          {/* Favorite Icon */}
+          <button 
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFavourite(r.id, e);
+            }}
+            className="absolute top-2 left-2 p-1.5 bg-white/90 hover:bg-white border border-[#E5DCD5] rounded-full text-[#756B64] hover:text-[#C85A3F] transition-colors shadow-2xs cursor-pointer z-10"
+            aria-label={favourites.includes(r.id) ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Heart className={`w-3.5 h-3.5 ${favourites.includes(r.id) ? 'fill-[#C85A3F] text-[#C85A3F]' : ''}`} />
+          </button>
+
+          {/* Rating Badge */}
+          {r.rating !== null && r.rating !== undefined && r.rating > 0 && (
+            <span className="absolute top-2 right-2 bg-white/95 border border-[#E5DCD5] backdrop-blur-xs px-2 py-0.5 rounded-md text-[9px] font-extrabold text-[#202124] flex items-center gap-0.5 shadow-2xs z-10">
+              <Star className="w-2.5 h-2.5 text-[#E5A93C] fill-[#E5A93C]" /> {r.rating.toFixed(1)}
+            </span>
+          )}
+        </div>
+
+        <div className="p-3.5 space-y-2 text-left flex flex-col flex-1 justify-between">
+          <div className="space-y-1">
+            <h4 
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/customer/restaurant/${r.id}`);
+              }}
+              className="text-xs font-extrabold text-[#202124] group-hover:text-[#C85A3F] transition-colors cursor-pointer line-clamp-1"
+              title={r.name}
+            >
+              {r.name}
+            </h4>
+            
+            {cuisines && (
+              <p className="text-[10px] text-[#756B64] font-semibold truncate">
+                {cuisines}
+              </p>
+            )}
+
+            <div className="flex items-center text-[10px] text-[#756B64] font-medium truncate pt-0.5">
+              <MapPin className="w-2.5 h-2.5 text-[#C85A3F] shrink-0 mr-1" /> 
+              <span className="truncate">{locality}</span>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-[#F3E8DF]">
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/customer/restaurant/${r.id}`);
+              }}
+              className="w-full py-1.5 bg-[#FCFAF7] hover:bg-[#C85A3F] border border-[#E5DCD5] hover:border-[#C85A3F] text-[10px] font-extrabold text-[#202124] hover:text-white rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer group/btn shadow-2xs"
+            >
+              <span>View Restaurant</span>
+              <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-0.5 transition-transform" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Compact Premium Consumer Card Component for Home Listing
+  const CompactRestaurantCard = ({ 
+    r, 
+    isFavourite, 
+    onToggleFavourite, 
+    onNavigate 
+  }: { 
+    r: any; 
+    isFavourite: boolean; 
+    onToggleFavourite: (id: string, e: React.MouseEvent) => void; 
+    onNavigate: (id: string) => void; 
+  }) => {
+    const [imgError, setImgError] = useState(false);
+    const imageUrl = r.image || r.coverImageUrl || r.coverImage || r.logoUrl || r.logo;
+    const cuisines = formatCuisines(r.cuisine);
+    const locality = formatLocalityCity(r.area, r.city);
+    const hasVeg = r.vegOptions === true || (typeof r.cuisine === 'string' && /vegetarian|pure veg/i.test(r.cuisine));
+
+    return (
+      <div 
+        onClick={() => onNavigate(r.id)}
+        className="group bg-white border border-[#E5DCD5] hover:border-[#C85A3F]/50 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md transition-all duration-300 relative select-none h-full cursor-pointer"
+      >
+        {/* 1. Cover Image (~16:9 compact ratio, 35-40% height) */}
+        <div className="relative w-full aspect-[16/9] overflow-hidden bg-gradient-to-br from-[#F3E8DF] to-[#E5DCD5] flex items-center justify-center">
+          {imageUrl && !imgError ? (
+            <img 
+              src={imageUrl} 
+              alt={r.name} 
+              loading="lazy" 
+              onError={() => setImgError(true)}
+              className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out" 
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center p-3 select-none">
+              <div className="w-10 h-10 rounded-xl bg-white border border-[#E5DCD5] flex items-center justify-center text-[#C85A3F] font-extrabold text-sm mb-1 shadow-2xs">
+                {r.name ? r.name.charAt(0).toUpperCase() : <Utensils className="w-4 h-4 text-[#C85A3F]" />}
+              </div>
+              <span className="text-xs font-extrabold text-[#202124] truncate max-w-[160px]">{r.name}</span>
+            </div>
+          )}
+
+          {/* Heart / Favorite Button (top-left) */}
+          <button 
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavourite(r.id, e);
+            }}
+            className="absolute top-2.5 left-2.5 p-1.5 bg-white/90 hover:bg-white border border-[#E5DCD5] rounded-full text-[#756B64] hover:text-[#C85A3F] transition-colors shadow-2xs cursor-pointer z-10"
+            aria-label={isFavourite ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Heart className={`w-3.5 h-3.5 ${isFavourite ? 'fill-[#C85A3F] text-[#C85A3F]' : ''}`} />
+          </button>
+
+          {/* Open / Closed Status Badge (top-right) */}
+          <div className="absolute top-2.5 right-2.5 z-10">
+            {r.openNow ? (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide bg-[#2E8B57] text-white shadow-2xs">
+                Open Now
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide bg-[#756B64] text-white shadow-2xs">
+                Closed
+              </span>
             )}
           </div>
+
+          {/* Compact Rating + Review count badge (bottom-right on image) */}
+          {r.rating !== null && r.rating !== undefined && r.rating > 0 && (
+            <div className="absolute bottom-2.5 right-2.5 z-10 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-md border border-[#E5DCD5] shadow-2xs flex items-center gap-1 text-[10px] font-extrabold text-[#202124]">
+              <Star className="w-3 h-3 text-[#E5A93C] fill-[#E5A93C]" />
+              <span>{r.rating.toFixed(1)}</span>
+              {formatReviewsCount(r.reviewsCount) && (
+                <span className="text-[#756B64] font-normal">
+                  · {formatReviewsCount(r.reviewsCount)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Location / Area info */}
-        <div className="flex justify-between items-center text-[9px] text-[#756B64] pt-1.5 border-t border-[#F3E8DF]">
-          <span className="flex items-center gap-0.5 font-medium truncate max-w-[140px]" title={r.street || r.area}>
-            <MapPin className="w-2.5 h-2.5 text-[#C85A3F] shrink-0" /> 
-            {r.distance !== null && r.distance !== undefined ? `${r.distance.toFixed(1)} mi` : (r.area || r.city)}
-          </span>
-          <span className="text-[#2E8B57] font-bold">{r.currencySymbol}</span>
-        </div>
+        {/* 2. Compact Card Content */}
+        <div className="p-3.5 flex flex-col flex-1 justify-between gap-3 text-left">
+          <div className="space-y-1.5">
+            {/* Restaurant Name (1-2 lines, readable) */}
+            <h4 
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate(r.id);
+              }}
+              className="text-sm font-extrabold text-[#202124] group-hover:text-[#C85A3F] transition-colors cursor-pointer line-clamp-2 leading-snug"
+              title={r.name}
+            >
+              {r.name}
+            </h4>
 
-        <div className="grid grid-cols-2 gap-1.5 mt-1">
-          <button 
-            onClick={() => navigate(`/customer/restaurant/${r.id}/menu`)}
-            className="py-1.5 bg-[#F3E8DF]/60 border border-[#E5DCD5] hover:border-[#C85A3F]/50 text-[9.5px] font-extrabold text-[#202124] rounded-xl transition-all text-center cursor-pointer hover:bg-[#F3E8DF]"
-          >
-            Menu
-          </button>
-          <button 
-            onClick={() => navigate(`/customer/booking?tenantId=${r.id}`)}
-            className="py-1.5 bg-[#C85A3F] hover:bg-[#A94332] text-[9.5px] font-extrabold text-white rounded-xl transition-all text-center shadow-xs cursor-pointer"
-          >
-            Book Table
-          </button>
+            {/* Top 2-3 Cuisines */}
+            {cuisines && (
+              <p className="text-xs text-[#756B64] font-medium truncate" title={cuisines}>
+                {cuisines}
+              </p>
+            )}
+
+            {/* Locality + City (No full street address) */}
+            <div className="flex items-center text-xs text-[#756B64] font-medium truncate pt-0.5">
+              <MapPin className="w-3.5 h-3.5 text-[#C85A3F] shrink-0 mr-1" />
+              <span className="truncate">{locality}</span>
+            </div>
+
+            {/* Optional Badges: Price range & Veg indicator if available in real data */}
+            {(r.priceRange || hasVeg) && (
+              <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                {r.priceRange && (
+                  <span className="text-[10px] font-bold text-[#756B64] px-1.5 py-0.5 rounded bg-[#F3E8DF]/70 border border-[#E5DCD5]">
+                    {r.priceRange}
+                  </span>
+                )}
+                {hasVeg && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#2E8B57] bg-[#2E8B57]/10 px-1.5 py-0.5 rounded">
+                    <span>🌱</span>
+                    <span>Veg Options</span>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 3. Single Primary Action: View Restaurant */}
+          <div className="pt-2 border-t border-[#F3E8DF]">
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate(r.id);
+              }}
+              className="w-full py-2 px-3 bg-[#FCFAF7] hover:bg-[#C85A3F] border border-[#E5DCD5] hover:border-[#C85A3F] text-xs font-extrabold text-[#202124] hover:text-white rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs group/btn"
+            >
+              <span>View Restaurant</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
+            </button>
+          </div>
         </div>
       </div>
-    </Card>
-  );
+    );
+  };
 
-  // Skeleton loading card
+  // Compact Skeleton loading card
   const SkeletonCard = () => (
     <div className="bg-white border border-[#E5DCD5] rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs animate-pulse">
-      <div className="h-36 w-full bg-[#F3E8DF]/70" />
-      <div className="p-4 space-y-3">
+      <div className="w-full aspect-[16/9] bg-[#F3E8DF]/70" />
+      <div className="p-3.5 space-y-3">
         <div className="space-y-2">
           <div className="h-4 bg-[#F3E8DF] rounded w-3/4" />
           <div className="h-3 bg-[#F3E8DF]/60 rounded w-1/2" />
         </div>
         <div className="h-3 bg-[#F3E8DF]/40 rounded w-2/3" />
-        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#F3E8DF]">
+        <div className="pt-2 border-t border-[#F3E8DF]">
           <div className="h-8 bg-[#F3E8DF]/60 rounded-xl" />
-          <div className="h-8 bg-[#F3E8DF] rounded-xl" />
         </div>
       </div>
     </div>
@@ -759,8 +957,8 @@ export const CustomerHome: React.FC = () => {
         </div>
 
         {/* Cards Skeleton Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {[1, 2, 3, 4, 5, 6].map(i => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
             <SkeletonCard key={i} />
           ))}
         </div>
@@ -971,19 +1169,28 @@ export const CustomerHome: React.FC = () => {
 
       {/* 7. ALL RESTAURANTS SECTION */}
       <div className="space-y-4 text-left select-none pt-1" id="all-dining-venues-header">
-        <div className="flex justify-between items-center pr-1">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pr-1 pb-1">
           <div>
-            <h3 className="text-base font-extrabold uppercase tracking-wider text-[#202124]">{sectionTitle}</h3>
-            <p className="text-xs text-[#756B64] font-semibold mt-0.5">{sectionSubtitle}</p>
+            <h3 className="text-lg font-extrabold text-[#202124] tracking-tight">{sectionTitle}</h3>
+            <p className="text-xs text-[#756B64] font-medium mt-0.5">{sectionSubtitle}</p>
           </div>
-          {(filterCuisine !== 'All' || filterPrice !== 'All' || filterOutdoor || filterRooftop || filterLiveMusic || showOpenNow || showTopRated || showNearbyOnly || showVegOnly || showNonVegOnly || showOffersOnly || activeExperience !== 'All') && (
-            <button 
-              onClick={handleResetFilters}
-              className="text-xs text-[#C85A3F] hover:underline font-extrabold cursor-pointer"
+          <div className="flex items-center gap-3">
+            {(filterCuisine !== 'All' || filterPrice !== 'All' || filterOutdoor || filterRooftop || filterLiveMusic || showOpenNow || showTopRated || showNearbyOnly || showVegOnly || showNonVegOnly || showOffersOnly || activeExperience !== 'All') && (
+              <button 
+                onClick={handleResetFilters}
+                className="text-xs text-[#C85A3F] hover:underline font-extrabold cursor-pointer"
+              >
+                Clear Filters
+              </button>
+            )}
+            <button
+              onClick={() => navigate('/customer/explore')}
+              className="inline-flex items-center gap-1 text-xs font-extrabold text-[#C85A3F] hover:text-[#A94332] hover:underline cursor-pointer shrink-0 transition-colors"
             >
-              Clear Filters
+              <span>See all restaurants</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
-          )}
+          </div>
         </div>
 
         {filteredRestaurants.length === 0 ? (
@@ -1015,118 +1222,15 @@ export const CustomerHome: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
             {filteredRestaurants.map(r => (
-              <Card 
-                key={r.id}
-                className="group bg-white border border-[#E5DCD5] hover:border-[#C85A3F]/50 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md transition-all relative select-none"
-              >
-                <div className="h-36 w-full overflow-hidden relative bg-gradient-to-br from-[#202124] to-[#2B2D31] flex items-center justify-center">
-                  {(r.image || r.coverImage || r.logo) ? (
-                    <img 
-                      src={r.image || r.coverImage || r.logo} 
-                      alt={r.name} 
-                      loading="lazy" 
-                      className="h-full w-full object-cover group-hover:scale-103 transition-transform duration-300" 
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-center p-3 select-none">
-                      <div className="w-10 h-10 rounded-xl bg-[#F3E8DF] border border-[#E5DCD5] flex items-center justify-center text-[#C85A3F] font-extrabold text-sm mb-1 shadow-sm">
-                        {r.name ? r.name.charAt(0).toUpperCase() : 'R'}
-                      </div>
-                      <span className="text-[11px] font-extrabold text-white truncate max-w-[150px]">{r.name}</span>
-                    </div>
-                  )}
-                  
-                  {/* Favourites Button */}
-                  <button 
-                    onClick={(e) => toggleFavourite(r.id, e)}
-                    className="absolute top-2.5 left-2.5 p-1.5 bg-white/90 hover:bg-white border border-[#E5DCD5] rounded-full text-[#756B64] hover:text-[#C85A3F] transition-colors shadow-xs cursor-pointer"
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${favourites.includes(r.id) ? 'fill-[#C85A3F] text-[#C85A3F]' : ''}`} />
-                  </button>
-
-                  {/* Rating Badge - only show if real rating exists */}
-                  {r.rating !== null && r.rating !== undefined && r.rating > 0 && (
-                    <span className="absolute top-2.5 right-2.5 bg-white/90 border border-[#E5DCD5] backdrop-blur-md px-2 py-0.5 rounded-full text-[9px] font-extrabold text-[#202124] flex items-center gap-0.5 shadow-xs">
-                      <Star className="w-2.5 h-2.5 text-[#E5A93C] fill-current" /> {r.rating} {r.reviewsCount ? `(${r.reviewsCount})` : ''}
-                    </span>
-                  )}
-
-                  {/* Operational Status */}
-                  <span className="absolute bottom-2.5 left-2.5">
-                    {r.openNow ? (
-                      <Badge variant="success" className="text-[8px] uppercase tracking-wider py-0.5 px-2 border-0 font-extrabold bg-[#2E8B57] text-white shadow-xs">Open Now</Badge>
-                    ) : (
-                      <Badge variant="muted" className="text-[8px] uppercase tracking-wider py-0.5 px-2 border-0 font-extrabold bg-[#756B64] text-white">Closed</Badge>
-                    )}
-                  </span>
-                </div>
-
-                <div className="p-4 space-y-3">
-                  <div className="space-y-1 text-left">
-                    <div className="flex justify-between items-start gap-2">
-                      <h4 
-                        onClick={() => navigate(`/customer/restaurant/${r.id}`)}
-                        className="text-sm font-extrabold text-[#202124] group-hover:text-[#C85A3F] transition-colors cursor-pointer truncate"
-                      >
-                        {r.name}
-                      </h4>
-                    </div>
-                    
-                    <div className="flex items-center space-x-1.5 text-xs text-[#756B64] font-semibold">
-                      <span>{r.cuisine || 'Dining'}</span>
-                      {r.priceRange && (
-                        <>
-                          <span>•</span>
-                          <span>{r.priceRange}</span>
-                        </>
-                      )}
-                      {(r.area || r.city) && (
-                        <>
-                          <span>•</span>
-                          <span className="truncate max-w-[120px]">{r.area || r.city}</span>
-                        </>
-                      )}
-                    </div>
-
-                    {r.street && (
-                      <p className="text-[11px] text-[#756B64]/80 truncate font-medium">
-                        {r.street}
-                      </p>
-                    )}
-
-                    {r.googleMapsUrl && (
-                      <div className="pt-0.5">
-                        <a 
-                          href={r.googleMapsUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center text-[10px] text-[#756B64] hover:text-[#C85A3F] hover:underline font-bold transition-colors"
-                        >
-                          <MapPin className="w-3 h-3 mr-0.5 text-[#C85A3F]" /> View on Maps
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#F3E8DF]">
-                    <button 
-                      onClick={() => navigate(`/customer/restaurant/${r.id}`)}
-                      className="py-2 bg-[#F3E8DF]/60 border border-[#E5DCD5] hover:border-[#C85A3F]/50 text-xs font-extrabold text-[#202124] rounded-xl transition-all text-center cursor-pointer hover:bg-[#F3E8DF]"
-                    >
-                      View Restaurant
-                    </button>
-                    <button 
-                      onClick={() => navigate(`/customer/booking?tenantId=${r.id}`)}
-                      className="py-2 bg-[#C85A3F] hover:bg-[#A94332] text-xs font-extrabold text-white rounded-xl transition-all text-center shadow-xs cursor-pointer"
-                    >
-                      Book Table
-                    </button>
-                  </div>
-                </div>
-              </Card>
+              <CompactRestaurantCard 
+                key={r.id} 
+                r={r} 
+                isFavourite={favourites.includes(r.id)}
+                onToggleFavourite={toggleFavourite}
+                onNavigate={(tenantId) => navigate(`/customer/restaurant/${tenantId}`)}
+              />
             ))}
           </div>
         )}
