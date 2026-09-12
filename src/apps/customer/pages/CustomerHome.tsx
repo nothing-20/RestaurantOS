@@ -204,6 +204,35 @@ export const CustomerHome: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Active Live Order detection for immediate tracking from Home
+  const [activeOrderBanner, setActiveOrderBanner] = useState<any>(null);
+
+  useEffect(() => {
+    const checkActiveOrder = () => {
+      try {
+        const raw = localStorage.getItem('restaurantos_customer_orders');
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list) && list.length > 0) {
+            const active = list.find((o: any) => {
+              const s = (o.status || 'NEW').toUpperCase();
+              return !['COMPLETED', 'CANCELLED', 'DELIVERED', 'SERVED'].includes(s);
+            });
+            if (active && active.tenantId && active.orderId) {
+              setActiveOrderBanner(active);
+              return;
+            }
+          }
+        }
+      } catch (_) {}
+      setActiveOrderBanner(null);
+    };
+
+    checkActiveOrder();
+    window.addEventListener('storage', checkActiveOrder);
+    return () => window.removeEventListener('storage', checkActiveOrder);
+  }, []);
+
   // Debounced search trigger
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -1003,6 +1032,39 @@ export const CustomerHome: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* ACTIVE ORDER BANNER (Real-time tracking link) */}
+      {activeOrderBanner && (
+        <div 
+          onClick={() => navigate(`/customer/restaurant/${activeOrderBanner.tenantId}/order/${activeOrderBanner.orderId}`)}
+          className="p-4 bg-gradient-to-r from-[#FFF8F2] via-white to-[#FFF8F2] border border-[#C85A3F]/40 hover:border-[#C85A3F] rounded-2xl flex items-center justify-between shadow-xs hover:shadow-md transition-all cursor-pointer group select-none"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#C85A3F] text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Utensils className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-[#F3E8DF] text-[#C85A3F]">
+                  Active Order #{activeOrderBanner.orderId}
+                </span>
+                <span className="text-[11px] font-bold text-[#2E8B57] flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#2E8B57] animate-ping" />
+                  <span>In Kitchen</span>
+                </span>
+              </div>
+              <p className="text-xs font-bold text-[#202124] mt-0.5">
+                {activeOrderBanner.restaurantName ? `Preparing at ${activeOrderBanner.restaurantName}` : 'Your order is being prepared!'}
+                {activeOrderBanner.tableNumber ? ` · Table ${activeOrderBanner.tableNumber}` : ''}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-xs font-extrabold text-[#C85A3F] group-hover:translate-x-1 transition-transform">
+            <span>Track Live</span>
+            <ChevronRight className="w-4 h-4" />
+          </div>
+        </div>
+      )}
 
       {/* 2. CONTEXTUAL LOCATION BAR (Unified with Header) */}
       <div className="px-4 py-3 bg-white border border-[#E5DCD5] rounded-2xl flex items-center justify-between shadow-xs">

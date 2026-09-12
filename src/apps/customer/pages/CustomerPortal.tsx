@@ -87,6 +87,7 @@ export const CustomerPortal: React.FC = () => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isOrderSuccess, setIsOrderSuccess] = useState(false);
+  const [lastPlacedOrderId, setLastPlacedOrderId] = useState<string>('');
   
   // Checkout Input States
   const [customerName, setCustomerName] = useState('');
@@ -368,6 +369,50 @@ export const CustomerPortal: React.FC = () => {
       await setDoc(docRef, orderPayload);
 
       console.log('[STEP 5] Firestore write successful');
+
+      // Persist order reference to customer profile if authenticated
+      if (user?.uid) {
+        try {
+          await setDoc(doc(db, 'customers', user.uid, 'orders', orderId), {
+            id: orderId,
+            orderId,
+            tenantId,
+            restaurantName: restaurantName || tenantId,
+            tableNumber: tableNumber || 'Walk-in',
+            total: cartTotalVal,
+            status: 'NEW',
+            itemsCount: cartItems.length,
+            createdAt: orderPayload.createdAt,
+            updatedAt: orderPayload.updatedAt
+          });
+        } catch (custErr) {
+          console.warn('[CustomerPortal] Could not save order to customer collection:', custErr);
+        }
+      }
+
+      // Persist recent order in localStorage
+      try {
+        const existingRecentStr = localStorage.getItem('restaurantos_customer_orders') || '[]';
+        const existingRecent = JSON.parse(existingRecentStr);
+        const updatedRecent = [
+          {
+            orderId,
+            tenantId,
+            restaurantName: restaurantName || tenantId,
+            tableNumber: tableNumber || 'Walk-in',
+            total: cartTotalVal,
+            status: 'NEW',
+            itemsCount: cartItems.length,
+            createdAt: orderPayload.createdAt
+          },
+          ...existingRecent.filter((o: any) => o.orderId !== orderId)
+        ].slice(0, 20);
+        localStorage.setItem('restaurantos_customer_orders', JSON.stringify(updatedRecent));
+      } catch (storageErr) {
+        console.warn('[CustomerPortal] Failed to update localStorage orders:', storageErr);
+      }
+
+      setLastPlacedOrderId(orderId);
 
       // Update table status — non-blocking
       try {
@@ -880,12 +925,26 @@ export const CustomerPortal: React.FC = () => {
               Your order has been sent to the kitchen.
             </p>
           </div>
-          <Button 
-            onClick={() => setIsOrderSuccess(false)}
-            className="w-full"
-          >
-            Browse More Dishes
-          </Button>
+          <div className="space-y-2 pt-2">
+            <Button 
+              onClick={() => {
+                setIsOrderSuccess(false);
+                if (tenantId && lastPlacedOrderId) {
+                  navigate(`/customer/restaurant/${tenantId}/order/${lastPlacedOrderId}`);
+                }
+              }}
+              className="w-full bg-[#C85A3F] hover:bg-[#A94332] text-white"
+            >
+              Track Live Status →
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => setIsOrderSuccess(false)}
+              className="w-full"
+            >
+              Browse More Dishes
+            </Button>
+          </div>
         </div>
       </Modal>
 

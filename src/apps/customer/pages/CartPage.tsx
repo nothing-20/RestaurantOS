@@ -295,6 +295,48 @@ export const CartPage: React.FC = () => {
       // Write order directly to restaurants/{tenantId}/orders/{orderId}
       await setDoc(doc(db, 'restaurants', tenantId, 'orders', orderId), orderPayload);
 
+      // Persist order reference to customer profile if authenticated
+      if (user?.uid) {
+        try {
+          await setDoc(doc(db, 'customers', user.uid, 'orders', orderId), {
+            id: orderId,
+            orderId,
+            tenantId,
+            restaurantName: restaurantName || restaurantData?.name || tenantId,
+            tableNumber: tableNumber || 'Walk-in',
+            total: grandTotal,
+            status: 'NEW',
+            itemsCount: cartItems.length,
+            createdAt: orderPayload.createdAt,
+            updatedAt: orderPayload.updatedAt
+          });
+        } catch (custOrderErr) {
+          console.warn('[CartPage] Failed to save customer profile order ref:', custOrderErr);
+        }
+      }
+
+      // Persist recent order index in localStorage for guest resilience across tabs/pages
+      try {
+        const existingRecentStr = localStorage.getItem('restaurantos_customer_orders') || '[]';
+        const existingRecent = JSON.parse(existingRecentStr);
+        const updatedRecent = [
+          {
+            orderId,
+            tenantId,
+            restaurantName: restaurantName || restaurantData?.name || tenantId,
+            tableNumber: tableNumber || 'Walk-in',
+            total: grandTotal,
+            status: 'NEW',
+            itemsCount: cartItems.length,
+            createdAt: orderPayload.createdAt
+          },
+          ...existingRecent.filter((o: any) => o.orderId !== orderId)
+        ].slice(0, 20);
+        localStorage.setItem('restaurantos_customer_orders', JSON.stringify(updatedRecent));
+      } catch (storageErr) {
+        console.warn('[CartPage] Failed to update local recent orders index:', storageErr);
+      }
+
       // Non-blocking update to table status if known
       if (session?.tableId && tenantId) {
         try {

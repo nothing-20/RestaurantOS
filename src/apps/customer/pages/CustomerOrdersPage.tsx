@@ -1,293 +1,742 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
-import { formatPrice } from '../../../shared/utils/format';
-
-import Card from '../../../components/ui/Card/Card';
-import Badge from '../../../components/ui/Badge/Badge';
-import Button from '../../../components/ui/Button/Button';
-import LoadingSpinner from '../../../components/ui/LoadingSpinner/LoadingSpinner';
-
+import { useCurrency } from '../../../context/CurrencyContext';
 import { 
   Utensils, Clock, ChevronRight, ShoppingBag, 
-  CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Calendar
+  CheckCircle2, ArrowRight, RefreshCw, Calendar,
+  MapPin, Search, Sparkles, ExternalLink, RotateCcw,
+  Receipt, ShieldCheck, Heart
 } from 'lucide-react';
+
+interface OrderItem {
+  itemId?: string;
+  name: string;
+  count?: number;
+  quantity?: number;
+  pricePerUnit?: number;
+  price?: number;
+  notes?: string;
+  isVeg?: boolean;
+  image?: string;
+}
+
+interface CustomerOrder {
+  id: string;
+  orderId?: string;
+  tenantId?: string;
+  restaurantId?: string;
+  restaurantName?: string;
+  tableNumber?: string;
+  tableId?: string;
+  items?: OrderItem[];
+  subtotal?: number;
+  tax?: number;
+  serviceCharge?: number;
+  discount?: number;
+  tip?: number;
+  total?: number;
+  totalAmount?: number;
+  status?: string;
+  paymentStatus?: string;
+  specialInstructions?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export const CustomerOrdersPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { formatPrice } = useCurrency();
 
-  const [activeOrders, setActiveOrders] = useState<any[]>([]);
-  const [pastOrders, setPastOrders] = useState<any[]>([]);
+  // Unified orders storage map keyed by orderId/id
+  const [ordersMap, setOrdersMap] = useState<Record<string, CustomerOrder>>({});
+  const [restaurantMeta, setRestaurantMeta] = useState<Record<string, { name: string; locality?: string; logo?: string }>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'all' | 'active' | 'past'>('all');
+  const [searchFilter, setSearchFilter] = useState('');
 
-  // Fetch active session orders and customer order history from Firestore
+  // 1. Unified Multi-Source Real-Time Subscriptions
   useEffect(() => {
     setIsLoading(true);
+    const unsubs: Array<() => void> = [];
 
+    // Helper to merge newly fetched orders into state
+    const mergeOrders = (incoming: CustomerOrder[]) => {
+      setOrdersMap(prev => {
+        const next = { ...prev };
+        incoming.forEach(order => {
+          const key = order.orderId || order.id;
+          if (key) {
+            next[key] = {
+              ...(next[key] || {}),
+              ...order
+            };
+          }
+        });
+        return next;
+      });
+    };
+
+    // Source A: Active Table Session in sessionStorage / localStorage
     const savedSessionStr = sessionStorage.getItem('restaurantos_dining_session') || localStorage.getItem('restaurantos_dining_session');
     let sessionTenantId = '';
-    let sessionId = '';
     if (savedSessionStr) {
       try {
         const parsed = JSON.parse(savedSessionStr);
         sessionTenantId = parsed.restaurantId || parsed.tenantId || '';
-        sessionId = parsed.sessionId || '';
       } catch (e) {
         console.error('Failed to parse cached session', e);
       }
     }
 
-    if (!sessionTenantId && !user?.uid) {
-      setActiveOrders([]);
-      setPastOrders([]);
-      setIsLoading(false);
-      return;
-    }
-
-    const targetTenant = sessionTenantId;
-    if (!targetTenant) {
-      // Query user orders from customer's orders collection (with fallback) if no active tenant session
-      let unsubUserOrders = () => {};
-
-      const setupOrdersStream = async () => {
-        let targetCol = 'customers';
-        try {
-          const custSnap = await getDoc(doc(db, 'customers', user!.uid));
-          if (!custSnap.exists()) {
-            const userSnap = await getDoc(doc(db, 'users', user!.uid));
-            if (userSnap.exists()) {
-              targetCol = 'users';
-            }
-          }
-        } catch (_e) {
-          targetCol = 'customers';
-        }
-
-        const userOrdersRef = collection(db, targetCol, user!.uid, 'orders');
-        unsubUserOrders = onSnapshot(userOrdersRef, (snap) => {
-          const active: any[] = [];
-          const past: any[] = [];
+    if (sessionTenantId) {
+      try {
+        const ordersRef = collection(db, 'restaurants', sessionTenantId, 'orders');
+        const qOrders = user?.uid ? query(ordersRef, where('customerId', '==', user.uid)) : ordersRef;
+        const unsubSession = onSnapshot(qOrders, (snap) => {
+          const fetched: CustomerOrder[] = [];
           snap.forEach(d => {
-            const data = d.data();
-            const orderObj = { id: d.id, ...data };
-            const statusUpper = (data.status || 'NEW').toUpperCase();
-            if (['COMPLETED', 'CANCELLED'].includes(statusUpper)) {
-              past.push(orderObj);
-            } else {
-              active.push(orderObj);
-            }
+            const data = d.data() as CustomerOrder;
+            fetched.push({ ...data, id: d.id, tenantId: sessionTenantId });
           });
-          active.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-          past.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-          setActiveOrders(active);
-          setPastOrders(past);
+          mergeOrders(fetched);
           setIsLoading(false);
         }, (err) => {
-          console.error('Failed to fetch customer user orders:', err);
-          setActiveOrders([]);
-          setPastOrders([]);
+          console.warn('[OrdersPage] Session tenant orders stream warning:', err);
           setIsLoading(false);
         });
-      };
-
-      setupOrdersStream();
-      return () => unsubUserOrders();
+        unsubs.push(unsubSession);
+      } catch (e) {
+        console.warn('[OrdersPage] Could not listen to session tenant orders:', e);
+      }
     }
 
-    // Real-time listener for tenant orders filtered by customerId
-    const ordersRef = collection(db, 'restaurants', targetTenant, 'orders');
-    const qOrders = user?.uid ? query(ordersRef, where('customerId', '==', user.uid)) : ordersRef;
-    const unsub = onSnapshot(qOrders, (snap) => {
-      const active: any[] = [];
-      const past: any[] = [];
+    // Source B: Authenticated User Orders collection (customers/{uid}/orders)
+    if (user?.uid) {
+      try {
+        const userOrdersRef = collection(db, 'customers', user.uid, 'orders');
+        const unsubUser = onSnapshot(userOrdersRef, (snap) => {
+          const fetched: CustomerOrder[] = [];
+          snap.forEach(d => {
+            const data = d.data() as CustomerOrder;
+            fetched.push({ ...data, id: d.id });
+          });
+          mergeOrders(fetched);
+          setIsLoading(false);
+        }, (err) => {
+          console.warn('[OrdersPage] User orders stream warning:', err);
+          setIsLoading(false);
+        });
+        unsubs.push(unsubUser);
+      } catch (e) {
+        console.warn('[OrdersPage] Could not listen to user orders collection:', e);
+      }
+    }
 
-      snap.forEach(d => {
-        const data = d.data();
-        const orderObj = { id: d.id, ...data };
-        const statusUpper = (data.status || 'NEW').toUpperCase();
+    // Source C: Stored recent orders in localStorage (Resilience for guests & cross-page navigation)
+    try {
+      const localOrdersStr = localStorage.getItem('restaurantos_customer_orders');
+      if (localOrdersStr) {
+        const parsedList = JSON.parse(localOrdersStr);
+        if (Array.isArray(parsedList) && parsedList.length > 0) {
+          // Pre-populate with cached snapshots
+          mergeOrders(parsedList.map(item => ({
+            id: item.orderId,
+            orderId: item.orderId,
+            tenantId: item.tenantId,
+            restaurantName: item.restaurantName,
+            tableNumber: item.tableNumber,
+            total: item.total,
+            status: item.status || 'NEW',
+            createdAt: item.createdAt
+          })));
 
-        if (['COMPLETED', 'CANCELLED'].includes(statusUpper)) {
-          past.push(orderObj);
-        } else {
-          active.push(orderObj);
+          // Attach individual real-time listeners to the actual restaurant orders
+          parsedList.slice(0, 10).forEach(item => {
+            if (item.tenantId && item.orderId) {
+              const orderDocRef = doc(db, 'restaurants', item.tenantId, 'orders', item.orderId);
+              const unsubDoc = onSnapshot(orderDocRef, (snap) => {
+                if (snap.exists()) {
+                  const data = snap.data() as CustomerOrder;
+                  mergeOrders([{
+                    ...data,
+                    id: snap.id,
+                    orderId: snap.id,
+                    tenantId: item.tenantId
+                  }]);
+                }
+              }, (err) => {
+                console.warn(`[OrdersPage] Document stream warning for ${item.orderId}:`, err);
+              });
+              unsubs.push(unsubDoc);
+            }
+          });
         }
-      });
+      }
+    } catch (storageErr) {
+      console.warn('[OrdersPage] Failed reading local storage orders:', storageErr);
+    }
 
-      // Sort newest orders first
-      active.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-      past.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-
-      setActiveOrders(active);
-      setPastOrders(past);
+    // Fallback timer to disable loading spinner even if no data exists
+    const timer = setTimeout(() => {
       setIsLoading(false);
-    }, (err) => {
-      console.error('Failed to fetch tenant orders:', err);
-      setActiveOrders([]);
-      setPastOrders([]);
-      setIsLoading(false);
-    });
+    }, 1200);
 
-    return () => unsub();
+    return () => {
+      clearTimeout(timer);
+      unsubs.forEach(fn => fn());
+    };
   }, [user]);
 
-  const getStatusBadge = (status: string) => {
-    switch (status?.toUpperCase()) {
-      case 'NEW':
-      case 'PLACED':
-        return <Badge variant="warning">Order Received</Badge>;
-      case 'ACCEPTED':
-      case 'CONFIRMED':
-        return <Badge variant="primary">Accepted</Badge>;
-      case 'PREPARING':
-        return <Badge variant="warning">Preparing</Badge>;
-      case 'READY':
-        return <Badge variant="success">Ready</Badge>;
-      case 'DELIVERED':
-      case 'SERVED':
-      case 'COMPLETED':
-        return <Badge variant="success">Served</Badge>;
-      case 'CANCELLED':
-        return <Badge variant="danger">Cancelled</Badge>;
-      default:
-        return <Badge variant="primary">{status}</Badge>;
+  // 2. Fetch missing restaurant names/metadata for orders
+  useEffect(() => {
+    const tenantsToFetch = new Set<string>();
+    Object.values(ordersMap).forEach(order => {
+      const t = order.tenantId || order.restaurantId;
+      if (t && !restaurantMeta[t] && !order.restaurantName) {
+        tenantsToFetch.add(t);
+      }
+    });
+
+    if (tenantsToFetch.size === 0) return;
+
+    tenantsToFetch.forEach(async (tenantId) => {
+      try {
+        const snap = await getDoc(doc(db, 'restaurants', tenantId));
+        if (snap.exists()) {
+          const data = snap.data();
+          setRestaurantMeta(prev => ({
+            ...prev,
+            [tenantId]: {
+              name: data.name || tenantId,
+              locality: data.area || data.address || data.city || '',
+              logo: data.logoUrl || data.coverImage || ''
+            }
+          }));
+        }
+      } catch (err) {
+        console.warn(`[OrdersPage] Could not fetch meta for ${tenantId}:`, err);
+      }
+    });
+  }, [ordersMap, restaurantMeta]);
+
+  // 3. Process and Categorize Orders
+  const allOrdersList = useMemo(() => {
+    const list = Object.values(ordersMap);
+    return list.sort((a, b) => {
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
+  }, [ordersMap]);
+
+  const activeOrders = useMemo(() => {
+    return allOrdersList.filter(o => {
+      const statusUpper = (o.status || 'NEW').toUpperCase();
+      return !['COMPLETED', 'CANCELLED', 'DELIVERED', 'SERVED'].includes(statusUpper);
+    });
+  }, [allOrdersList]);
+
+  const pastOrders = useMemo(() => {
+    return allOrdersList.filter(o => {
+      const statusUpper = (o.status || 'NEW').toUpperCase();
+      return ['COMPLETED', 'CANCELLED', 'DELIVERED', 'SERVED'].includes(statusUpper);
+    });
+  }, [allOrdersList]);
+
+  // Filtered list based on active tab and search filter
+  const displayedOrders = useMemo(() => {
+    let list = allOrdersList;
+    if (activeTab === 'active') list = activeOrders;
+    if (activeTab === 'past') list = pastOrders;
+
+    if (searchFilter.trim()) {
+      const q = searchFilter.toLowerCase().trim();
+      list = list.filter(o => {
+        const orderIdMatch = (o.orderId || o.id || '').toLowerCase().includes(q);
+        const nameMatch = (o.restaurantName || restaurantMeta[o.tenantId || '']?.name || '').toLowerCase().includes(q);
+        const itemsMatch = o.items?.some(it => (it.name || '').toLowerCase().includes(q));
+        return orderIdMatch || nameMatch || itemsMatch;
+      });
+    }
+
+    return list;
+  }, [allOrdersList, activeOrders, pastOrders, activeTab, searchFilter, restaurantMeta]);
+
+  // Helpers
+  const formatOrderTime = (isoString?: string) => {
+    if (!isoString) return 'Recent order';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return 'Recent order';
     }
   };
 
-  if (isLoading) {
+  const getStatusDisplay = (status?: string) => {
+    const s = (status || 'NEW').toUpperCase();
+    switch (s) {
+      case 'NEW':
+      case 'PLACED':
+        return {
+          label: 'Order Received',
+          bg: 'bg-amber-50 text-amber-800 border-amber-200',
+          dot: 'bg-amber-500',
+          pulse: true
+        };
+      case 'ACCEPTED':
+      case 'CONFIRMED':
+        return {
+          label: 'Confirmed',
+          bg: 'bg-blue-50 text-blue-800 border-blue-200',
+          dot: 'bg-blue-500',
+          pulse: false
+        };
+      case 'PREPARING':
+      case 'KITCHEN':
+        return {
+          label: 'In Kitchen Preparing',
+          bg: 'bg-[#F3E8DF] text-[#C85A3F] border-[#E5DCD5]',
+          dot: 'bg-[#C85A3F]',
+          pulse: true
+        };
+      case 'READY':
+      case 'READY_TO_SERVE':
+        return {
+          label: 'Ready to Serve',
+          bg: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+          dot: 'bg-emerald-500',
+          pulse: true
+        };
+      case 'SERVED':
+      case 'DELIVERED':
+      case 'COMPLETED':
+        return {
+          label: 'Completed',
+          bg: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+          dot: 'bg-[#2E8B57]',
+          pulse: false
+        };
+      case 'CANCELLED':
+        return {
+          label: 'Cancelled',
+          bg: 'bg-rose-50 text-rose-800 border-rose-200',
+          dot: 'bg-rose-500',
+          pulse: false
+        };
+      default:
+        return {
+          label: status || 'Processing',
+          bg: 'bg-stone-50 text-stone-800 border-stone-200',
+          dot: 'bg-stone-500',
+          pulse: false
+        };
+    }
+  };
+
+  if (isLoading && allOrdersList.length === 0) {
     return (
-      <div className="py-20 text-center select-none">
-        <LoadingSpinner label="Retrieving your orders history..." />
+      <div className="max-w-4xl mx-auto space-y-6 text-left select-none pb-16 py-6 animate-pulse">
+        <div className="space-y-2">
+          <div className="h-8 w-44 bg-[#F3E8DF] rounded-xl" />
+          <div className="h-4 w-72 bg-[#F3E8DF]/60 rounded-lg" />
+        </div>
+        <div className="h-12 bg-white border border-[#E5DCD5] rounded-2xl" />
+        <div className="space-y-4 pt-2">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-44 bg-white border border-[#E5DCD5] rounded-3xl p-6" />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 text-left select-none pb-16">
+    <div className="max-w-4xl mx-auto space-y-6 text-left select-none pb-20 pt-2">
       
-      {/* HEADER */}
-      <div className="space-y-1">
-        <h1 className="text-2xl font-display font-extrabold text-[#242424]">Your Orders</h1>
-        <p className="text-xs text-[#6B6B6B] font-medium">Track active kitchen orders and view dining receipt history.</p>
-      </div>
-
-      {/* ACTIVE ORDERS SECTION */}
-      <div className="space-y-3">
-        <div className="flex justify-between items-center pr-1">
-          <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#E85D3F] flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            <span>Active Orders ({activeOrders.length})</span>
-          </h2>
+      {/* 1. PAGE HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#F3E8DF] text-[#C85A3F] border border-[#E5DCD5]">
+            <Utensils className="w-3 h-3" />
+            <span>Dining Journey</span>
+          </div>
+          <h1 className="text-2xl md:text-3xl font-display font-extrabold text-[#202124] tracking-tight">
+            My Orders
+          </h1>
+          <p className="text-xs md:text-sm text-[#756B64] font-medium">
+            Track active kitchen preparations and view dining receipt logs.
+          </p>
         </div>
 
-        {activeOrders.length === 0 ? (
-          <div className="p-10 text-center bg-white border border-[#EEE7E1] rounded-3xl space-y-3 shadow-xs">
-            <div className="w-12 h-12 bg-[#FFF8F2] border border-[#EEE7E1] rounded-2xl flex items-center justify-center text-[#E85D3F] mx-auto">
-              <Utensils className="w-6 h-6" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-sm font-extrabold text-[#242424]">Your next delicious order is waiting.</h3>
-              <p className="text-xs text-[#6B6B6B]">Discover restaurants near you and place your first order!</p>
-            </div>
-            <button
-              onClick={() => navigate('/customer/home')}
-              className="px-5 py-2.5 bg-[#E85D3F] hover:bg-[#D04B2F] text-white text-xs font-extrabold rounded-xl transition-all shadow-md shadow-[#E85D3F]/20 cursor-pointer"
-            >
-              Explore Restaurants
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {activeOrders.map(order => (
-              <Card
-                key={order.id}
-                className="p-5 bg-white border border-[#EEE7E1] hover:border-[#E85D3F]/40 rounded-3xl space-y-4 shadow-xs hover:shadow-md transition-all"
-              >
-                <div className="flex justify-between items-start pb-3 border-b border-[#EEE7E1]">
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] text-[#6B6B6B] font-bold uppercase tracking-wider block">Order ID</span>
-                    <span className="text-xs font-extrabold text-[#242424]">#{order.orderId || order.id}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {getStatusBadge(order.status)}
-                    <span className="text-[10px] bg-[#FFF8F2] border border-[#EEE7E1] px-2.5 py-1 rounded-full text-[#242424] font-bold">
-                      Table #{order.tableNumber || order.tableId?.replace('TBL-', '') || '01'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Items Summary */}
-                <div className="space-y-1.5 text-xs">
-                  {order.items?.map((item: any, idx: number) => (
-                    <div key={idx} className="flex justify-between text-[#242424] font-semibold">
-                      <span>{item.name} x{item.count || item.quantity || 1}</span>
-                      <span className="font-mono text-[#6B6B6B]">{formatPrice(item.pricePerUnit * (item.count || 1))}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex justify-between items-center pt-3 border-t border-[#EEE7E1] text-xs">
-                  <div>
-                    <span className="text-[9px] text-[#6B6B6B] font-bold uppercase block">Total Amount</span>
-                    <strong className="text-base text-[#E85D3F] font-extrabold">{formatPrice(order.total || order.totalAmount || 0)}</strong>
-                  </div>
-                  <Button
-                    onClick={() => navigate(`/customer/restaurant/${order.tenantId || 'l-ambroisie'}/order/${order.orderId || order.id}`)}
-                    className="bg-[#E85D3F] hover:bg-[#D04B2F] text-white text-xs font-extrabold py-2.5 px-4 rounded-xl flex items-center gap-1 shadow-md shadow-[#E85D3F]/20 cursor-pointer"
-                  >
-                    <span>Track Live Status</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
+        {/* Live sync status pill */}
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-[#E5DCD5] text-[11px] font-extrabold text-[#756B64] shadow-xs self-start sm:self-auto">
+          <span className="w-2 h-2 rounded-full bg-[#2E8B57] animate-pulse" />
+          <span>Real-time Live Sync</span>
+        </div>
       </div>
 
-      {/* PAST ORDERS HISTORY SECTION */}
-      <div className="space-y-3 pt-4">
-        <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#6B6B6B] flex items-center gap-1.5">
-          <Calendar className="w-3.5 h-3.5 text-[#E85D3F]" />
-          <span>Past Orders ({pastOrders.length})</span>
-        </h2>
+      {/* 2. FILTER TABS & SEARCH BAR */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-2 border border-[#E5DCD5] rounded-2xl shadow-xs">
+        {/* Navigation Tabs */}
+        <div className="flex items-center space-x-1.5 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('all')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'all'
+                ? 'bg-[#C85A3F] text-white shadow-xs'
+                : 'text-[#756B64] hover:bg-[#F3E8DF]/60 hover:text-[#202124]'
+            }`}
+          >
+            All Orders ({allOrdersList.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('active')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'active'
+                ? 'bg-[#C85A3F] text-white shadow-xs'
+                : 'text-[#756B64] hover:bg-[#F3E8DF]/60 hover:text-[#202124]'
+            }`}
+          >
+            <span>Active</span>
+            {activeOrders.length > 0 && (
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                activeTab === 'active' ? 'bg-white text-[#C85A3F]' : 'bg-[#F3E8DF] text-[#C85A3F]'
+              }`}>
+                {activeOrders.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('past')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'past'
+                ? 'bg-[#C85A3F] text-white shadow-xs'
+                : 'text-[#756B64] hover:bg-[#F3E8DF]/60 hover:text-[#202124]'
+            }`}
+          >
+            Past History ({pastOrders.length})
+          </button>
+        </div>
 
-        {pastOrders.length === 0 ? (
-          <div className="p-8 text-center bg-white border border-[#EEE7E1] rounded-3xl text-xs text-[#6B6B6B] shadow-xs">
-            No completed order logs found.
+        {/* Search inside orders */}
+        <div className="relative min-w-[220px]">
+          <Search className="w-3.5 h-3.5 text-[#756B64] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            placeholder="Search dish or restaurant..."
+            className="w-full pl-8 pr-3 py-1.5 bg-[#FCFAF7] border border-[#E5DCD5] focus:border-[#C85A3F] rounded-xl text-xs text-[#202124] placeholder-[#756B64]/70 outline-none transition-colors"
+          />
+        </div>
+      </div>
+
+      {/* 3. ACTIVE ORDERS SPOTLIGHT (If tab is 'all' or 'active') */}
+      {activeOrders.length > 0 && activeTab === 'all' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#C85A3F] flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#C85A3F] animate-ping" />
+              <span>In-Kitchen Live Orders ({activeOrders.length})</span>
+            </h2>
+            <span className="text-[11px] text-[#756B64] font-medium">Click order to track live kitchen status</span>
+          </div>
+
+          <div className="space-y-4">
+            {activeOrders.map(order => {
+              const targetTenant = order.tenantId || order.restaurantId || 'bawarchi-restaurant';
+              const targetOrderId = order.orderId || order.id;
+              const rName = order.restaurantName || restaurantMeta[targetTenant]?.name || targetTenant.replace(/-/g, ' ');
+              const statusInfo = getStatusDisplay(order.status);
+              const tableNum = order.tableNumber || order.tableId?.replace('TBL-', '') || 'Dine-in';
+
+              return (
+                <div
+                  key={targetOrderId}
+                  onClick={() => navigate(`/customer/restaurant/${targetTenant}/order/${targetOrderId}`)}
+                  className="p-5 md:p-6 bg-gradient-to-r from-[#FFF8F2] via-white to-[#FFF8F2] border-2 border-[#C85A3F]/30 hover:border-[#C85A3F] rounded-3xl space-y-4 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                >
+                  {/* Top Bar */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3.5 border-b border-[#E5DCD5]">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-extrabold text-[#202124] capitalize group-hover:text-[#C85A3F] transition-colors">
+                          {rName}
+                        </h3>
+                        <span className="text-[11px] font-bold px-2 py-0.5 bg-[#F3E8DF] text-[#C85A3F] rounded-full border border-[#E5DCD5]">
+                          Table #{tableNum}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#756B64] font-medium flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-[#C85A3F]" />
+                        <span>Order #{targetOrderId} · {formatOrderTime(order.createdAt)}</span>
+                      </p>
+                    </div>
+
+                    {/* Status badge */}
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold border ${statusInfo.bg} self-start sm:self-auto`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot} ${statusInfo.pulse ? 'animate-ping' : ''}`} />
+                      <span>{statusInfo.label}</span>
+                    </div>
+                  </div>
+
+                  {/* Items Preview */}
+                  <div className="space-y-1.5">
+                    {order.items && order.items.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {order.items.slice(0, 4).map((it, idx) => (
+                          <div key={idx} className="flex items-center justify-between py-1 px-2.5 bg-white/80 border border-[#E5DCD5] rounded-xl font-medium text-[#202124]">
+                            <span className="truncate max-w-[200px] font-bold">
+                              {it.name} <span className="text-[#756B64] font-normal">x{it.count || it.quantity || 1}</span>
+                            </span>
+                            <span className="font-mono text-[11px] text-[#756B64] shrink-0">
+                              {formatPrice((it.pricePerUnit || it.price || 0) * (it.count || it.quantity || 1))}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#756B64] italic">Dishes routed to kitchen prep queue</p>
+                    )}
+                    {order.items && order.items.length > 4 && (
+                      <span className="text-[11px] text-[#C85A3F] font-bold block pt-0.5">
+                        +{order.items.length - 4} more dish{order.items.length - 4 === 1 ? '' : 'es'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Footer & CTA */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#E5DCD5]">
+                    <div>
+                      <span className="text-[9px] text-[#756B64] font-extrabold uppercase tracking-wider block">Total Bill</span>
+                      <strong className="text-lg font-extrabold text-[#202124]">
+                        {formatPrice(order.total || order.totalAmount || 0)}
+                      </strong>
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/customer/restaurant/${targetTenant}/order/${targetOrderId}`);
+                      }}
+                      className="px-5 py-2.5 bg-[#C85A3F] hover:bg-[#A94332] text-white text-xs font-extrabold rounded-xl transition-all shadow-md shadow-[#C85A3F]/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Utensils className="w-3.5 h-3.5" />
+                      <span>Track Live Status</span>
+                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 4. ORDERS LIST (Based on Tab) */}
+      <div className="space-y-4">
+        {activeTab !== 'all' && (
+          <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#756B64] flex items-center gap-1.5 px-1">
+            <Calendar className="w-3.5 h-3.5 text-[#C85A3F]" />
+            <span>
+              {activeTab === 'active' ? `Active Orders (${activeOrders.length})` : `Past Orders History (${pastOrders.length})`}
+            </span>
+          </h2>
+        )}
+
+        {displayedOrders.length === 0 ? (
+          <div className="p-12 text-center bg-white border border-[#E5DCD5] rounded-3xl space-y-4 shadow-xs">
+            <div className="w-14 h-14 bg-[#F3E8DF] border border-[#E5DCD5] rounded-2xl flex items-center justify-center text-[#C85A3F] mx-auto shadow-2xs">
+              <ShoppingBag className="w-7 h-7" />
+            </div>
+            <div className="space-y-1 max-w-sm mx-auto">
+              <h3 className="text-base font-extrabold text-[#202124]">
+                {searchFilter ? 'No orders match your search' : 'No orders found'}
+              </h3>
+              <p className="text-xs text-[#756B64] leading-relaxed">
+                {searchFilter 
+                  ? 'Try searching with a different dish or restaurant keyword.'
+                  : 'Your delicious food orders and dining history will appear right here.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              {searchFilter ? (
+                <button
+                  onClick={() => setSearchFilter('')}
+                  className="px-4 py-2 bg-[#F3E8DF] text-[#C85A3F] text-xs font-extrabold rounded-xl hover:bg-[#E5DCD5] transition-colors cursor-pointer"
+                >
+                  Clear Search Filter
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => navigate('/customer/explore')}
+                    className="px-5 py-2.5 bg-[#C85A3F] hover:bg-[#A94332] text-white text-xs font-extrabold rounded-xl transition-all shadow-md shadow-[#C85A3F]/20 cursor-pointer"
+                  >
+                    Explore Restaurants
+                  </button>
+                  <button
+                    onClick={() => navigate('/customer/home')}
+                    className="px-5 py-2.5 bg-white border border-[#E5DCD5] hover:border-[#C85A3F] text-[#202124] text-xs font-extrabold rounded-xl transition-all cursor-pointer"
+                  >
+                    Return Home
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
-            {pastOrders.map(order => (
-              <Card key={order.id} className="p-4 bg-white border border-[#EEE7E1] hover:border-[#E85D3F]/40 rounded-2xl flex items-center justify-between shadow-xs transition-all">
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-extrabold text-[#242424]">Order #{order.orderId || order.id}</span>
-                    {getStatusBadge(order.status)}
+            {/* If tab is 'all', only show past orders in this sub-list since active are spotlighted above */}
+            {(activeTab === 'all' ? pastOrders : displayedOrders).map(order => {
+              const targetTenant = order.tenantId || order.restaurantId || 'bawarchi-restaurant';
+              const targetOrderId = order.orderId || order.id;
+              const rName = order.restaurantName || restaurantMeta[targetTenant]?.name || targetTenant.replace(/-/g, ' ');
+              const statusInfo = getStatusDisplay(order.status);
+              const tableNum = order.tableNumber || order.tableId?.replace('TBL-', '') || 'Dine-in';
+              const isOrderActive = !['COMPLETED', 'CANCELLED', 'DELIVERED', 'SERVED'].includes((order.status || 'NEW').toUpperCase());
+
+              return (
+                <div
+                  key={targetOrderId}
+                  onClick={() => navigate(`/customer/restaurant/${targetTenant}/order/${targetOrderId}`)}
+                  className="p-4 sm:p-5 bg-white border border-[#E5DCD5] hover:border-[#C85A3F]/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs hover:shadow-sm transition-all cursor-pointer group"
+                >
+                  {/* Left: Info & Items summary */}
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-sm font-extrabold text-[#202124] capitalize group-hover:text-[#C85A3F] transition-colors truncate">
+                        {rName}
+                      </h4>
+                      <span className="text-[10px] bg-[#FCFAF7] border border-[#E5DCD5] px-2 py-0.5 rounded-full text-[#756B64] font-bold">
+                        Table #{tableNum}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusInfo.bg}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot}`} />
+                        <span>{statusInfo.label}</span>
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-[#756B64] font-medium flex items-center space-x-2">
+                      <span>Order #{targetOrderId}</span>
+                      <span>•</span>
+                      <span>{formatOrderTime(order.createdAt)}</span>
+                      {order.items && order.items.length > 0 && (
+                        <>
+                          <span>•</span>
+                          <span>{order.items.length} item{order.items.length === 1 ? '' : 's'}</span>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Dish names preview */}
+                    {order.items && order.items.length > 0 && (
+                      <p className="text-xs text-[#756B64] truncate max-w-lg font-normal">
+                        {order.items.map(it => `${it.name} (x${it.count || it.quantity || 1})`).join(', ')}
+                      </p>
+                    )}
                   </div>
-                  <div className="text-[10.5px] text-[#6B6B6B] font-medium flex items-center space-x-2">
-                    <span>Table #{order.tableNumber || '01'}</span>
-                    <span>•</span>
-                    <span>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'Recent'}</span>
-                    <span>•</span>
-                    <span>{order.items?.length || 0} items</span>
+
+                  {/* Right: Price and Action Buttons */}
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#E5DCD5]">
+                    <span className="text-sm sm:text-base font-extrabold text-[#202124]">
+                      {formatPrice(order.total || order.totalAmount || 0)}
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                      {isOrderActive ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/customer/restaurant/${targetTenant}/order/${targetOrderId}`);
+                          }}
+                          className="px-3 py-1.5 bg-[#C85A3F] hover:bg-[#A94332] text-white text-[11px] font-extrabold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1"
+                        >
+                          <span>Track Live</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/customer/restaurant/${targetTenant}/order/${targetOrderId}`);
+                            }}
+                            className="px-3 py-1.5 bg-[#FCFAF7] border border-[#E5DCD5] hover:border-[#C85A3F]/50 text-[#202124] text-[11px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <Receipt className="w-3 h-3 text-[#756B64]" />
+                            <span>Receipt</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/customer/restaurant/${targetTenant}/menu`);
+                            }}
+                            className="px-3 py-1.5 bg-[#FFF8F2] border border-[#E5DCD5] hover:border-[#C85A3F]/40 text-[#C85A3F] text-[11px] font-extrabold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <RotateCcw className="w-3 h-3 text-[#C85A3F]" />
+                            <span>Order Again</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="text-right space-y-1">
-                  <span className="text-sm font-extrabold text-[#242424] block">{formatPrice(order.total || order.totalAmount || 0)}</span>
-                  <button
-                    onClick={() => navigate(`/customer/restaurant/${order.tenantId || 'l-ambroisie'}/menu`)}
-                    className="text-xs bg-[#FFF8F2] border border-[#EEE7E1] hover:border-[#E85D3F]/40 text-[#E85D3F] px-3 py-1 rounded-xl font-extrabold transition-all cursor-pointer"
-                  >
-                    Order Again
-                  </button>
-                </div>
-              </Card>
-            ))}
+              );
+            })}
           </div>
         )}
+      </div>
+
+      {/* 5. BOTTOM REASSURANCE STRIP */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 border-t border-[#E5DCD5]">
+        <div className="p-4 bg-white border border-[#E5DCD5] rounded-2xl flex items-start gap-3 shadow-2xs">
+          <div className="w-8 h-8 rounded-xl bg-[#F3E8DF] flex items-center justify-center shrink-0 text-[#C85A3F]">
+            <Utensils className="w-4 h-4" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-[#202124]">Fresh Preparation</h4>
+            <p className="text-[11px] text-[#756B64] mt-0.5 leading-relaxed">
+              Every dish prepared to order using quality kitchen ingredients.
+            </p>
+          </div>
+        </div>
+
+        <div className="p-4 bg-white border border-[#E5DCD5] rounded-2xl flex items-start gap-3 shadow-2xs">
+          <div className="w-8 h-8 rounded-xl bg-[#F3E8DF] flex items-center justify-center shrink-0 text-[#C85A3F]">
+            <RefreshCw className="w-4 h-4" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-[#202124]">Real-time Updates</h4>
+            <p className="text-[11px] text-[#756B64] mt-0.5 leading-relaxed">
+              Direct live sync between your phone and the kitchen display.
+            </p>
+          </div>
+        </div>
+
+        <div className="p-4 bg-white border border-[#E5DCD5] rounded-2xl flex items-start gap-3 shadow-2xs">
+          <div className="w-8 h-8 rounded-xl bg-[#F3E8DF] flex items-center justify-center shrink-0 text-[#C85A3F]">
+            <ShieldCheck className="w-4 h-4" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-[#202124]">Contactless & Safe</h4>
+            <p className="text-[11px] text-[#756B64] mt-0.5 leading-relaxed">
+              Seamless digital ordering with transparent digital billing receipts.
+            </p>
+          </div>
+        </div>
       </div>
 
     </div>

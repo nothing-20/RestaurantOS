@@ -10,7 +10,8 @@ import Input from '../../../components/ui/Input/Input';
 import { 
   User, Settings, Check, Award, Heart, Bell, ChevronRight, 
   ChevronLeft, MapPin, Calendar, Clock, CreditCard, Wallet, 
-  ShieldAlert, BookOpen, LogOut, ArrowRight, Star, Plus, Trash2, Navigation
+  ShieldAlert, BookOpen, LogOut, ArrowRight, Star, Plus, Trash2, Navigation,
+  ShoppingBag, Utensils
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../../../context/CurrencyContext';
@@ -443,6 +444,12 @@ export const ProfilePage: React.FC = () => {
             )}
 
             <MenuRow 
+              icon={ShoppingBag} 
+              title="My Orders" 
+              desc="Track active kitchen orders and view dining receipt history" 
+              onClick={() => navigate('/customer/orders')}
+            />
+            <MenuRow 
               icon={User} 
               title="Personal Information" 
               desc="Update name, mobile number, dietary profile filters" 
@@ -480,9 +487,9 @@ export const ProfilePage: React.FC = () => {
             />
             <MenuRow 
               icon={BookOpen} 
-              title="Dining History" 
-              desc="Logs of past checks, dates, and checkout details" 
-              onClick={() => handleSectionChange('history')}
+              title="Dining History & Past Orders" 
+              desc="Logs of past checks, dates, and live order tracking" 
+              onClick={() => navigate('/customer/orders')}
             />
             <MenuRow 
               icon={CreditCard} 
