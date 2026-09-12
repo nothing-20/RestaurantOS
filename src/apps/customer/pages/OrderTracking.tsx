@@ -1,57 +1,101 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, onSnapshot, getDoc, setDoc, collection, query, where, getDocs, addDoc, updateDoc, increment } from 'firebase/firestore';
+import { 
+  doc, onSnapshot, getDoc, setDoc, collection, query, 
+  where, getDocs, addDoc, updateDoc, increment 
+} from 'firebase/firestore';
 import { db } from '../../../config/firebase';
-import { formatPrice } from '../../../shared/utils/format';
+import { useCurrency } from '../../../context/CurrencyContext';
+import { useAuth } from '../../../context/AuthContext';
 import { customerService } from '../../../shared/services/customerService';
-
-// UI Kit components
-import Card from '../../../shared/ui/cards/Card';
-import Button from '../../../shared/ui/buttons/Button';
-import Badge from '../../../shared/ui/badges/Badge';
-import Modal from '../../../shared/ui/dialogs/Modal';
-import LoadingSpinner from '../../../shared/ui/loading/LoadingSpinner';
+import { getMenuItemPath } from '../../../shared/firebase/collections';
+import CustomerHeader from '../../../shared/ui/navigation/CustomerHeader';
 
 // Icons
 import { 
   Check, 
   ArrowLeft, 
+  ArrowRight,
   AlertTriangle, 
   Clock, 
   Bell, 
   DollarSign, 
-  CheckCircle, 
-  ThumbsUp, 
+  CheckCircle2, 
   Star, 
-  Coffee,
-  Sparkles,
-  Utensils,
-  ChevronRight,
-  Heart,
-  Plus,
-  Compass,
-  AlertCircle,
-  HelpCircle,
-  TrendingUp
+  Sparkles, 
+  Utensils, 
+  Heart, 
+  Plus, 
+  AlertCircle, 
+  Copy,
+  CheckCheck,
+  Package,
+  Store,
+  MapPin,
+  FileText,
+  ShieldCheck,
+  RefreshCw,
+  LifeBuoy
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useAuth } from '../../../context/AuthContext';
+
+// Safe Image Thumbnail Component with Graceful Fallback
+const ItemThumbnail: React.FC<{ src?: string; alt: string }> = ({ src, alt }) => {
+  const [hasError, setHasError] = useState(false);
+
+  if (!src || hasError) {
+    return (
+      <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-[#F3E8DF] border border-[#E5DCD5] flex items-center justify-center shrink-0 text-[#C85A3F]/70">
+        <Utensils className="w-5 h-5 text-[#C85A3F]" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setHasError(true)}
+      className="w-12 h-12 md:w-14 md:h-14 rounded-xl object-cover shrink-0 border border-[#E5DCD5]"
+    />
+  );
+};
+
+// Dietary Indicator Badge
+const DietaryBadge: React.FC<{ isVeg?: boolean }> = ({ isVeg }) => {
+  if (isVeg === undefined) return null;
+  return isVeg ? (
+    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm border border-[#2E8B57] p-0.5" title="Vegetarian">
+      <span className="w-2 h-2 rounded-full bg-[#2E8B57]" />
+    </span>
+  ) : (
+    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm border border-[#A94332] p-0.5" title="Non-Vegetarian">
+      <span className="w-2 h-2 rounded-full bg-[#A94332]" />
+    </span>
+  );
+};
 
 export const OrderTracking: React.FC = () => {
   const { tenantId, orderId } = useParams<{ tenantId: string; orderId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { formatPrice, formatCurrency } = useCurrency();
 
   // Core Data States
   const [order, setOrder] = useState<any | null>(null);
-  const [sessionOrders, setSessionOrders] = useState<any[]>([]);
+  const [restaurantData, setRestaurantData] = useState<any | null>(null);
+  const [restaurantName, setRestaurantName] = useState('Restaurant');
+  const [restaurantImage, setRestaurantImage] = useState<string>('');
+  const [restaurantLocality, setRestaurantLocality] = useState<string>('');
   const [waiterRequests, setWaiterRequests] = useState<any[]>([]);
-  const [restaurantName, setRestaurantName] = useState('Gourmet Bistro');
-  const [isLoading, setIsLoading] = useState(true);
+  const [menuLookup, setMenuLookup] = useState<Record<string, any>>({});
   const [session, setSession] = useState<any>(null);
 
-  // Time / Timers States
+  // Status & Timers
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  const [hasCopiedOrderId, setHasCopiedOrderId] = useState(false);
 
   // UI / Modal States
   const [isRequestAlertOpen, setIsRequestAlertOpen] = useState(false);
@@ -73,12 +117,12 @@ export const OrderTracking: React.FC = () => {
   const [repeatCustomer, setRepeatCustomer] = useState(true);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
-  // Timeline Steps
+  // Status Timeline Steps
   const trackingSteps = [
-    { key: 'NEW', label: 'Order Received', desc: 'Your ticket is on the kitchen queue.' },
+    { key: 'NEW', label: 'Order Received', desc: 'Your ticket is in the kitchen queue.' },
     { key: 'ACCEPTED', label: 'Accepted', desc: 'The kitchen has accepted your order.' },
     { key: 'PREPARING', label: 'Preparing', desc: 'The chef is cooking your dishes.' },
-    { key: 'READY', label: 'Ready', desc: 'Food is plated and ready for pickup/serving.' },
+    { key: 'READY', label: 'Ready', desc: 'Food is plated and ready for serving.' },
     { key: 'DELIVERED', label: 'Delivered', desc: 'Delivered to your table. Enjoy!' },
     { key: 'COMPLETED', label: 'Completed', desc: 'Your dining experience is complete.' }
   ];
@@ -96,44 +140,72 @@ export const OrderTracking: React.FC = () => {
     }
   };
 
-  // 1. Fetch dining session from sessionStorage & resolve details
+  // 1. Fetch dining session from sessionStorage / localStorage
   useEffect(() => {
     const savedSessionStr = sessionStorage.getItem('restaurantos_dining_session') || localStorage.getItem('restaurantos_dining_session');
     if (savedSessionStr) {
       try {
         setSession(JSON.parse(savedSessionStr));
       } catch (e) {
-        console.error('Failed to parse cached session', e);
+        console.error('[OrderTracking] Failed to parse cached session', e);
       }
     }
   }, []);
 
-  // 2. Real-time Listeners for Active Order & Session Orders
+  // 2. Real-time Listeners for Order & Waiter Requests, plus Tenant & Menu Info
   useEffect(() => {
     if (!tenantId || !orderId) return;
 
-    // Fetch Restaurant Name
+    setIsLoading(true);
+    setLoadError(null);
+
+    // Fetch Restaurant Details & Menu lookup
     const fetchRestaurantInfo = async () => {
       try {
-        const tenantRef = doc(db, 'tenants', tenantId);
-        const tenantSnap = await getDoc(tenantRef);
-        if (tenantSnap.exists()) {
-          setRestaurantName(tenantSnap.data().restaurantName || tenantSnap.data().name || 'Gourmet Bistro');
+        let tenantDoc = await getDoc(doc(db, 'tenants', tenantId));
+        if (!tenantDoc.exists()) {
+          tenantDoc = await getDoc(doc(db, 'restaurants', tenantId));
+        }
+
+        if (tenantDoc.exists()) {
+          const tData = tenantDoc.data();
+          setRestaurantData(tData);
+          setRestaurantName(tData.restaurantName || tData.name || tData.title || 'Restaurant');
+          setRestaurantImage(tData.coverImageUrl || tData.coverImage || tData.bannerImage || tData.logoUrl || tData.logo || '');
+
+          // Locality formatting
+          const city = typeof tData.address === 'object' && tData.address?.city ? tData.address.city : (tData.city || '');
+          const street = typeof tData.address === 'string' ? tData.address : (tData.address?.street || tData.street || '');
+          const area = (typeof tData.address === 'object' && tData.address?.area) || tData.area || '';
+          const locationStr = [area || street, city].filter(Boolean).join(', ');
+          setRestaurantLocality(locationStr || 'Hyderabad, India');
+        }
+
+        // Fetch menu collection once for image & dietary lookup
+        try {
+          const itemsSnap = await getDocs(collection(db, getMenuItemPath(tenantId)));
+          const lookup: Record<string, any> = {};
+          itemsSnap.forEach(d => {
+            lookup[d.id] = d.data();
+          });
+          setMenuLookup(lookup);
+        } catch (menuErr) {
+          console.warn('[OrderTracking] Menu items lookup warning:', menuErr);
         }
       } catch (e) {
-        console.error(e);
+        console.error('[OrderTracking] Error fetching restaurant info:', e);
       }
     };
     fetchRestaurantInfo();
 
-    // Subscribe to Target Order doc
+    // Subscribe to Target Order doc in real-time
     const orderDocRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
     const unsubOrder = onSnapshot(orderDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const orderData = docSnap.data();
         setOrder({ id: docSnap.id, ...orderData });
         
-        // Calculate elapsed minutes initially
+        // Calculate initial elapsed minutes
         if (orderData.createdAt) {
           const diffMs = Date.now() - new Date(orderData.createdAt).getTime();
           setElapsedMinutes(Math.floor(diffMs / 60000));
@@ -144,12 +216,12 @@ export const OrderTracking: React.FC = () => {
           setPaymentCompleted(true);
         }
       } else {
-        toast.error('Active order tracking not found.');
+        setOrder(null);
       }
       setIsLoading(false);
     }, (err) => {
-      console.error(err);
-      toast.error('Failed to connect to real-time order tracking.');
+      console.error('[OrderTracking] Order subscription error:', err);
+      setLoadError('Failed to connect to real-time order tracking.');
       setIsLoading(false);
     });
 
@@ -161,7 +233,6 @@ export const OrderTracking: React.FC = () => {
         const data = docSnap.data();
         list.push({ id: docSnap.id, ...data });
       });
-      // Sort newest requests first
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setWaiterRequests(list);
     });
@@ -172,26 +243,7 @@ export const OrderTracking: React.FC = () => {
     };
   }, [tenantId, orderId]);
 
-  // 3. Fetch past orders in the same dining session
-  useEffect(() => {
-    if (!tenantId || !session?.sessionId) return;
-
-    const ordersColRef = collection(db, 'restaurants', tenantId, 'orders');
-    const q = query(ordersColRef, where('sessionId', '==', session.sessionId));
-    
-    const unsubSessionOrders = onSnapshot(q, (snap) => {
-      const list: any[] = [];
-      snap.forEach(docSnap => {
-        list.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setSessionOrders(list);
-    });
-
-    return () => unsubSessionOrders();
-  }, [tenantId, session]);
-
-  // 4. Elapsed Timer increment interval
+  // 3. Elapsed Timer increment interval
   useEffect(() => {
     if (!order?.createdAt) return;
 
@@ -203,7 +255,16 @@ export const OrderTracking: React.FC = () => {
     return () => clearInterval(timer);
   }, [order?.createdAt]);
 
-  // 5. Submit Waiter / Dining alerts
+  // Copy Order ID to clipboard
+  const handleCopyOrderId = () => {
+    if (!orderId) return;
+    navigator.clipboard.writeText(orderId);
+    setHasCopiedOrderId(true);
+    toast.success('Order ID copied to clipboard');
+    setTimeout(() => setHasCopiedOrderId(false), 2000);
+  };
+
+  // 4. Submit Waiter / Dining alerts
   const handleCallWaiter = async (requestType: string) => {
     if (!tenantId || !order) return;
     setIsSubmittingRequest(true);
@@ -214,7 +275,7 @@ export const OrderTracking: React.FC = () => {
 
       const requestPayload = {
         id: requestId,
-        tableNumber: order.tableNumber || '3',
+        tableNumber: order.tableNumber || 'Walk-in',
         requestType,
         status: 'Pending',
         createdAt: new Date().toISOString(),
@@ -240,17 +301,16 @@ export const OrderTracking: React.FC = () => {
     }
   };
 
-  // 6. Submit Bill Request alert and update table status in Firestore
+  // 5. Submit Bill Request alert and update table status in Firestore
   const handleRequestBill = async () => {
     if (!tenantId || !orderId || !order) return;
     setIsSubmittingRequest(true);
 
     try {
-      // Create request in waiterRequests
       const requestId = `REQ-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
       await setDoc(doc(db, 'restaurants', tenantId, 'waiterRequests', requestId), {
         id: requestId,
-        tableNumber: order.tableNumber,
+        tableNumber: order.tableNumber || 'Walk-in',
         requestType: 'Bill Request',
         status: 'Pending',
         createdAt: new Date().toISOString(),
@@ -260,19 +320,22 @@ export const OrderTracking: React.FC = () => {
       // Update Order billRequestedAt
       const orderRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
       await updateDoc(orderRef, {
-        billRequestedAt: new Date().toISOString(),
-        status: 'COMPLETED' // shift order into finalized billing view
+        billRequestedAt: new Date().toISOString()
       });
 
       // Update Table Status to 'bill_requested'
-      const tableId = session?.tableId || `TBL-${order.tableNumber}`;
-      const tableRef = doc(db, 'restaurants', tenantId, 'tables', tableId);
-      await updateDoc(tableRef, {
-        status: 'bill_requested'
-      });
+      const tableId = session?.tableId || (order.tableNumber ? `TBL-${order.tableNumber}` : '');
+      if (tableId) {
+        try {
+          const tableRef = doc(db, 'restaurants', tenantId, 'tables', tableId);
+          await updateDoc(tableRef, {
+            status: 'bill_requested'
+          });
+        } catch (_) {}
+      }
 
       // Log event
-      await customerService.logCustomerEvent(tenantId, 'Bill Requested', `Customer requested final bill for Table ${order.tableNumber}`, {
+      await customerService.logCustomerEvent(tenantId, 'Bill Requested', `Customer requested bill for Table ${order.tableNumber}`, {
         tableNumber: order.tableNumber,
         orderId
       });
@@ -286,7 +349,7 @@ export const OrderTracking: React.FC = () => {
     }
   };
 
-  // 7. Simulated payment checkout flow (UPI / CARD / WALLET)
+  // 6. Simulated payment checkout flow (UPI / CARD / WALLET)
   const handleProcessPayment = async () => {
     if (!tenantId || !orderId || !order) return;
     if (!selectedPaymentMethod) {
@@ -296,12 +359,11 @@ export const OrderTracking: React.FC = () => {
 
     setIsProcessingPayment(true);
     
-    // Simulate transaction delay
     setTimeout(async () => {
       try {
         const orderRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
         
-        // Update Firestore order to Paid!
+        // Update Firestore order to Paid
         await updateDoc(orderRef, {
           paymentStatus: 'paid',
           paidAt: new Date().toISOString(),
@@ -316,20 +378,21 @@ export const OrderTracking: React.FC = () => {
 
         // Release the physical table layout slot
         if (order.tableId) {
-          const tableRef = doc(db, 'restaurants', tenantId, 'tables', order.tableId);
-          await updateDoc(tableRef, {
-            status: 'empty',
-            activeOrderId: '',
-            seatingTime: '',
-            guestsCount: 0,
-            assignedWaiterId: '',
-            assignedWaiterName: '',
-            updatedAt: new Date().toISOString()
-          });
+          try {
+            const tableRef = doc(db, 'restaurants', tenantId, 'tables', order.tableId);
+            await updateDoc(tableRef, {
+              status: 'empty',
+              activeOrderId: '',
+              seatingTime: '',
+              guestsCount: 0,
+              assignedWaiterId: '',
+              assignedWaiterName: '',
+              updatedAt: new Date().toISOString()
+            });
+          } catch (_) {}
         }
 
         // Add records to customer profile database
-        // Add records to customer profile database (customers/{uid} with fallback)
         if (user?.uid) {
           let targetCol = 'customers';
           try {
@@ -347,7 +410,7 @@ export const OrderTracking: React.FC = () => {
           // Append dining history record
           await addDoc(collection(db, targetCol, user.uid, 'diningHistory'), {
             restaurantId: tenantId,
-            restaurantName: restaurantName || 'Gourmet Bistro',
+            restaurantName: restaurantName || 'Restaurant',
             orderId,
             total: order.total,
             date: new Date().toISOString(),
@@ -356,7 +419,7 @@ export const OrderTracking: React.FC = () => {
 
           // Increment loyalty points
           const userDocRef = doc(db, targetCol, user.uid);
-          const pointsEarned = Math.round((order.total || 0) / 100) || 50; // default 50 if total is 0
+          const pointsEarned = Math.round((order.total || 0) / 100) || 50;
           await updateDoc(userDocRef, {
             loyaltyPoints: increment(pointsEarned)
           }).catch(err => console.warn('Failed to increment loyalty points:', err));
@@ -369,19 +432,19 @@ export const OrderTracking: React.FC = () => {
           total: order.total
         });
 
-        toast.success('Payment simulated successfully!');
+        toast.success('Payment settled successfully!');
         setPaymentCompleted(true);
         setIsPaymentModalOpen(false);
       } catch (e) {
         console.error(e);
-        toast.error('Simulated transaction failed.');
+        toast.error('Transaction simulation failed.');
       } finally {
         setIsProcessingPayment(false);
       }
-    }, 3000);
+    }, 2000);
   };
 
-  // 8. Submit Ratings and Feedback review
+  // 7. Submit Ratings and Feedback review
   const handleSubmitFeedback = async () => {
     if (!tenantId || !orderId || !order) return;
 
@@ -397,11 +460,11 @@ export const OrderTracking: React.FC = () => {
         ambience: ambienceRating,
         repeatCustomer,
         notes: comments.trim() || 'No comments',
-        submittedBy: 'Anonymous Guest',
-        submittedByName: 'Table Guest',
+        submittedBy: user?.displayName || 'Table Guest',
+        submittedByName: user?.displayName || 'Table Guest',
         submittedAt: new Date().toISOString(),
         orderId,
-        tableNumber: order.tableNumber,
+        tableNumber: order.tableNumber || 'Walk-in',
         tenantId,
         isPositive,
         isComplaint
@@ -421,28 +484,31 @@ export const OrderTracking: React.FC = () => {
           resolutionStatus: 'Pending',
           resolutionNotes: '',
           submittedAt: new Date().toISOString(),
-          submittedByName: 'Anonymous Table Guest',
+          submittedByName: user?.displayName || 'Table Guest',
           submittedBy: 'customer',
-          tableNumber: order.tableNumber,
+          tableNumber: order.tableNumber || 'Walk-in',
           rating: ratingCategory,
           satisfactionRatingId: ratingRef.id
         });
       }
 
       // Restore table status in Firestore to Available / empty
-      const tableId = session?.tableId || `TBL-${order.tableNumber}`;
-      const tableRef = doc(db, 'restaurants', tenantId, 'tables', tableId);
-      await updateDoc(tableRef, {
-        status: 'Available',
-        guestsCount: 0,
-        activeOrderId: ''
-      });
+      const tableId = session?.tableId || (order.tableNumber ? `TBL-${order.tableNumber}` : '');
+      if (tableId) {
+        try {
+          const tableRef = doc(db, 'restaurants', tenantId, 'tables', tableId);
+          await updateDoc(tableRef, {
+            status: 'Available',
+            guestsCount: 0,
+            activeOrderId: ''
+          });
+        } catch (_) {}
+      }
 
       // Clear local dining session cache
       sessionStorage.removeItem('restaurantos_dining_session');
       localStorage.removeItem('restaurantos_dining_session');
 
-      // Log event
       await customerService.logCustomerEvent(tenantId, 'Feedback Submitted', `Customer submitted satisfaction rating: ${ratingCategory}`, {
         rating: ratingCategory,
         orderId
@@ -456,481 +522,822 @@ export const OrderTracking: React.FC = () => {
     }
   };
 
-  // Render Loading spinner
+  // Loading skeleton state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-955 bg-slate-950 flex flex-col items-center justify-center p-6 text-center select-none">
-        <LoadingSpinner label="Syncing live table statistics..." />
-      </div>
-    );
-  }
-
-  // Render Thank you Exit screen
-  if (feedbackSubmitted) {
-    return (
-      <div className="min-h-screen bg-slate-955 bg-slate-950 flex items-center justify-center p-6 text-center select-none antialiased">
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-[15%] left-[-10%] w-[450px] h-[450px] rounded-full bg-primary/10 blur-[130px]" />
-        </div>
-
-        <div className="max-w-md w-full glass-panel rounded-3xl p-8 border-slate-800/40 relative z-10 space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto shadow-2xl">
-            <Heart className="w-8 h-8 animate-pulse fill-current" />
-          </div>
-
-          <div className="space-y-2">
-            <h2 className="text-2xl font-display font-extrabold text-textPearl">Thank You for Dining!</h2>
-            <p className="text-xs text-mutedAsh leading-relaxed px-4">
-              Your feedback helps us refine our recipes and operations. Have a wonderful rest of your day!
-            </p>
-          </div>
-
-          <div className="pt-2">
-            <Button
-              className="w-full text-xs font-bold py-3.5 bg-gradient-to-r from-primary to-amber-600 hover:from-primary-hover hover:to-amber-700 text-background"
-              onClick={() => navigate('/customer')}
-            >
-              Finish & Exit Portal
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Render Feedback Form loop when Order payment status shifts to 'paid'
-  if (paymentCompleted) {
-    return (
-      <div className="min-h-screen bg-slate-955 bg-slate-950 flex items-center justify-center p-6 text-center select-none antialiased">
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-[10%] right-[-10%] w-[400px] h-[400px] rounded-full bg-primary/5 blur-[120px]" />
-        </div>
-
-        <div className="max-w-md w-full glass-panel rounded-3xl p-6 border-slate-800/40 relative z-10 space-y-5 text-left">
-          <div className="text-center space-y-1.5 pb-2 border-b border-slate-850">
-            <h2 className="text-xl font-display font-extrabold text-textPearl">Dining Experience Feedback</h2>
-            <p className="text-xs text-slate-500 font-semibold">How was your meal today?</p>
-          </div>
-
-          {/* Satisfaction Overall Category select */}
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Overall Experience</label>
-            <div className="grid grid-cols-5 gap-1 text-center">
-              {[
-                { key: 'Excellent', label: '😍' },
-                { key: 'Good', label: '😊' },
-                { key: 'Neutral', label: '😐' },
-                { key: 'Needs Attention', label: '🙁' },
-                { key: 'Complaint', label: '😡' }
-              ].map(opt => (
-                <button
-                  key={opt.key}
-                  onClick={() => setRatingCategory(opt.key as any)}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center transition-all ${
-                    ratingCategory === opt.key 
-                      ? 'bg-primary/10 border-primary text-primary' 
-                      : 'bg-slate-900 border-slate-850 text-slate-500'
-                  }`}
-                >
-                  <span className="text-xl">{opt.label}</span>
-                  <span className="text-[8px] font-bold mt-1 block truncate w-full">{opt.key.split(' ')[0]}</span>
-                </button>
-              ))}
+      <div className="min-h-screen bg-[#FCFAF7] text-left">
+        <CustomerHeader />
+        <div className="max-w-[1240px] mx-auto px-4 md:px-8 py-8 space-y-8 animate-pulse">
+          <div className="h-5 w-36 bg-[#F3E8DF] rounded-md" />
+          <div className="flex items-center space-x-4">
+            <div className="w-16 h-16 rounded-2xl bg-[#F3E8DF]" />
+            <div className="space-y-2">
+              <div className="h-8 w-64 bg-[#F3E8DF] rounded-lg" />
+              <div className="h-4 w-48 bg-[#F3E8DF] rounded-md" />
             </div>
           </div>
-
-          {/* Rating stars grid */}
-          <div className="grid grid-cols-2 gap-3.5 pt-2">
-            {[
-              { label: '🍔 Food Quality', val: foodRating, set: setFoodRating },
-              { label: '⚡ Service Speed', val: serviceRating, set: setServiceRating },
-              { label: '✨ Cleanliness', val: cleanlinessRating, set: setCleanlinessRating },
-              { label: '🎵 Ambience', val: ambienceRating, set: setAmbienceRating }
-            ].map(cat => (
-              <div key={cat.label} className="space-y-1">
-                <label className="text-[9.5px] font-bold text-slate-500 block uppercase">{cat.label}</label>
-                <div className="flex items-center space-x-1">
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <button
-                      key={star}
-                      onClick={() => cat.set(star)}
-                      className="text-slate-600 hover:text-amber-500 transition-colors"
-                    >
-                      <Star className={`w-4 h-4 ${star <= cat.val ? 'text-amber-500 fill-current' : ''}`} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <div className="lg:col-span-8 bg-white border border-[#E5DCD5] rounded-2xl p-6 space-y-4">
+              <div className="h-6 w-48 bg-[#F3E8DF] rounded-md" />
+              <div className="h-64 bg-[#FCFAF7] rounded-xl border border-[#E5DCD5]" />
+            </div>
+            <div className="lg:col-span-4 bg-white border border-[#E5DCD5] rounded-2xl p-6 space-y-4">
+              <div className="h-6 w-40 bg-[#F3E8DF] rounded-md" />
+              <div className="h-48 bg-[#FCFAF7] rounded-xl border border-[#E5DCD5]" />
+            </div>
           </div>
-
-          {/* Custom notes comments box */}
-          <div className="space-y-1 pt-2">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Additional comments</label>
-            <textarea
-              placeholder="Tell us what we did great or how we can improve..."
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-850 focus:border-primary rounded-xl p-3 text-xs font-semibold text-textPearl outline-none"
-              rows={2}
-            />
-          </div>
-
-          {/* Repeat Customer checkbox */}
-          <div className="flex items-center space-x-2.5 pt-1.5">
-            <input
-              type="checkbox"
-              id="repeatCustomer"
-              checked={repeatCustomer}
-              onChange={(e) => setRepeatCustomer(e.target.checked)}
-              className="w-4 h-4 bg-slate-900 border border-slate-850 rounded focus:ring-0 accent-primary"
-            />
-            <label htmlFor="repeatCustomer" className="text-xs font-semibold text-slate-400 cursor-pointer">
-              I would visit this restaurant again!
-            </label>
-          </div>
-
-          <Button
-            className="w-full text-xs font-bold py-3 bg-gradient-to-r from-primary to-amber-600 hover:from-primary-hover hover:to-amber-700 text-background"
-            onClick={handleSubmitFeedback}
-          >
-            Submit Feedback Review
-          </Button>
         </div>
       </div>
     );
   }
 
-  // Unified Dashboard Views variables
+  // Error state with retry
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-[#FCFAF7] text-left">
+        <CustomerHeader />
+        <div className="max-w-[1240px] mx-auto px-4 py-16 text-center">
+          <div className="max-w-md mx-auto bg-white border border-[#E5DCD5] rounded-3xl p-8 space-y-4 shadow-sm">
+            <div className="w-14 h-14 rounded-full bg-rose-50 text-[#A94332] flex items-center justify-center mx-auto">
+              <AlertCircle className="w-7 h-7" />
+            </div>
+            <h2 className="text-lg font-extrabold text-[#202124]">Unable to load your order</h2>
+            <p className="text-xs text-[#756B64]">{loadError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#C85A3F] hover:bg-[#A94332] text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Order Not Found state
+  if (!order) {
+    return (
+      <div className="min-h-screen bg-[#FCFAF7] text-left">
+        <CustomerHeader />
+        <div className="max-w-[1240px] mx-auto px-4 py-16 text-center">
+          <div className="max-w-md mx-auto bg-white border border-[#E5DCD5] rounded-3xl p-8 space-y-5 shadow-sm">
+            <div className="w-14 h-14 rounded-full bg-[#F3E8DF] text-[#C85A3F] flex items-center justify-center mx-auto">
+              <Package className="w-7 h-7" />
+            </div>
+            <div className="space-y-1.5">
+              <h2 className="text-xl font-extrabold text-[#202124]">Order Not Found</h2>
+              <p className="text-xs text-[#756B64] leading-relaxed">
+                This order may have been cancelled, completed long ago, or the link may be invalid.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate(tenantId ? `/customer/restaurant/${tenantId}` : '/customer/explore')}
+              className="inline-flex items-center gap-1.5 px-6 py-3 bg-[#C85A3F] hover:bg-[#A94332] text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Restaurant</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Thank You Exit Screen after Feedback Submission
+  if (feedbackSubmitted) {
+    return (
+      <div className="min-h-screen bg-[#FCFAF7] text-left">
+        <CustomerHeader />
+        <div className="max-w-md mx-auto px-4 py-16 text-center">
+          <div className="bg-white border border-[#E5DCD5] rounded-3xl p-8 space-y-6 shadow-sm">
+            <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200 text-[#2E8B57] flex items-center justify-center mx-auto">
+              <Heart className="w-8 h-8 fill-current animate-pulse" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-display font-extrabold text-[#202124]">Thank You for Dining!</h2>
+              <p className="text-xs text-[#756B64] leading-relaxed">
+                Your feedback helps us continually refine our recipes and dining experience. Have a wonderful rest of your day!
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/customer/home')}
+              className="w-full text-xs font-bold py-3.5 bg-[#C85A3F] hover:bg-[#A94332] text-white rounded-xl shadow-md transition-all cursor-pointer"
+            >
+              Finish & Return Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Dining Experience Feedback Loop (Triggered after bill is settled)
+  if (paymentCompleted) {
+    return (
+      <div className="min-h-screen bg-[#FCFAF7] text-left">
+        <CustomerHeader />
+        <div className="max-w-lg mx-auto px-4 py-12">
+          <div className="bg-white border border-[#E5DCD5] rounded-3xl p-6 md:p-8 space-y-6 shadow-sm">
+            <div className="text-center space-y-1.5 pb-4 border-b border-[#E5DCD5]">
+              <h2 className="text-2xl font-display font-extrabold text-[#202124]">Dining Experience Feedback</h2>
+              <p className="text-xs text-[#756B64]">How was your meal at {restaurantName}?</p>
+            </div>
+
+            {/* Overall Experience select */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-extrabold uppercase tracking-wider text-[#756B64] block">
+                Overall Experience
+              </label>
+              <div className="grid grid-cols-5 gap-1.5 text-center">
+                {[
+                  { key: 'Excellent', label: '😍' },
+                  { key: 'Good', label: '😊' },
+                  { key: 'Neutral', label: '😐' },
+                  { key: 'Needs Attention', label: '🙁' },
+                  { key: 'Complaint', label: '😡' }
+                ].map(opt => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setRatingCategory(opt.key as any)}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer ${
+                      ratingCategory === opt.key 
+                        ? 'bg-[#F3E8DF] border-[#C85A3F] text-[#C85A3F] shadow-xs' 
+                        : 'bg-white border-[#E5DCD5] text-[#756B64] hover:bg-[#FCFAF7]'
+                    }`}
+                  >
+                    <span className="text-2xl">{opt.label}</span>
+                    <span className="text-[9px] font-bold mt-1 block truncate w-full">{opt.key.split(' ')[0]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Rating Stars Grid */}
+            <div className="grid grid-cols-2 gap-4 pt-1">
+              {[
+                { label: 'Food Quality', val: foodRating, set: setFoodRating },
+                { label: 'Service Speed', val: serviceRating, set: setServiceRating },
+                { label: 'Cleanliness', val: cleanlinessRating, set: setCleanlinessRating },
+                { label: 'Ambience', val: ambienceRating, set: setAmbienceRating }
+              ].map(cat => (
+                <div key={cat.label} className="space-y-1">
+                  <label className="text-[10px] font-bold text-[#756B64] block uppercase">{cat.label}</label>
+                  <div className="flex items-center space-x-1">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => cat.set(star)}
+                        className="text-[#E5DCD5] hover:text-amber-500 transition-colors cursor-pointer"
+                      >
+                        <Star className={`w-4 h-4 ${star <= cat.val ? 'text-amber-500 fill-current' : ''}`} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Comments Box */}
+            <div className="space-y-1.5 pt-1">
+              <label className="text-[11px] font-extrabold uppercase tracking-wider text-[#756B64] block">
+                Additional Comments
+              </label>
+              <textarea
+                placeholder="Tell us what you loved or how we can improve..."
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
+                className="w-full bg-white border border-[#E5DCD5] focus:border-[#C85A3F] focus:ring-1 focus:ring-[#C85A3F] rounded-xl p-3 text-xs text-[#202124] placeholder-[#756B64]/60 outline-none h-20 resize-none transition-all"
+              />
+            </div>
+
+            {/* Repeat Customer Checkbox */}
+            <div className="flex items-center space-x-2.5">
+              <input
+                type="checkbox"
+                id="repeatCustomer"
+                checked={repeatCustomer}
+                onChange={(e) => setRepeatCustomer(e.target.checked)}
+                className="w-4 h-4 accent-[#C85A3F] cursor-pointer"
+              />
+              <label htmlFor="repeatCustomer" className="text-xs font-semibold text-[#756B64] cursor-pointer">
+                I would gladly visit {restaurantName} again!
+              </label>
+            </div>
+
+            <button
+              onClick={handleSubmitFeedback}
+              className="w-full text-xs font-extrabold py-3.5 bg-[#C85A3F] hover:bg-[#A94332] text-white rounded-xl shadow-md shadow-[#C85A3F]/20 transition-all cursor-pointer"
+            >
+              Submit Feedback Review
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Active step and state computations
   const activeIndex = getStepIndex(order.status);
   const isCancelled = order.status === 'CANCELLED';
 
-  // Live bill subtotal, tax (GST 5%), service charge (5%), total calculations
+  // Historical Bill computations from Firestore order snapshot
   const orderSubtotal = order.subtotal || 0;
   const orderTax = order.tax || 0;
   const orderServiceCharge = order.serviceCharge || 0;
-  const orderTotal = order.total || 0;
+  const orderDiscount = order.discount || 0;
+  const orderTip = order.tip || 0;
+  const orderTotal = order.total || order.totalAmount || 0;
 
-  // Waiter requests made from active table
+  // Active table assistance requests
   const activeTableRequests = waiterRequests.filter(r => r.tableNumber === order.tableNumber);
 
+  // Placed At Formatted Timestamp
+  const placedAtFormatted = order.createdAt ? new Date(order.createdAt).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit'
+  }) : 'Just now';
+
+  // Estimated preparation time calculation
+  const estimatedTimeText = restaurantData?.avgPrepTime 
+    ? `${restaurantData.avgPrepTime}–${restaurantData.avgPrepTime + 10} minutes`
+    : '20–30 minutes';
+
   return (
-    <div className="min-h-screen bg-slate-950 pb-20 text-left relative overflow-hidden select-none antialiased">
-      {/* Dynamic ambient backdrop glow */}
-      <div className="absolute top-[-10%] left-[-15%] w-[600px] h-[600px] rounded-full bg-primary/5 blur-[150px] pointer-events-none" />
+    <div className="min-h-screen bg-[#FCFAF7] text-left select-none pb-16">
+      
+      {/* 1. TOP CUSTOMER NAVIGATION */}
+      <CustomerHeader />
 
-      {/* TOP HEADER */}
-      <header className="bg-slate-900/40 border-b border-slate-850/60 sticky top-0 z-30 backdrop-blur-md">
-        <div className="max-w-xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => navigate(`/customer/restaurant/${tenantId}/menu`)}
-              className="p-2 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-400 hover:text-textPearl rounded-xl transition-all"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <div>
-              <h1 className="text-sm font-display font-extrabold text-textPearl leading-tight">{restaurantName}</h1>
-              <span className="text-[10px] text-primary font-bold uppercase tracking-wider">Table #{order.tableNumber || '3'}</span>
-            </div>
-          </div>
-          <Badge variant={isCancelled ? 'danger' : activeIndex >= 4 ? 'success' : 'warning'}>
-            {isCancelled ? 'Cancelled' : activeIndex === 5 ? 'Completed' : activeIndex === 4 ? 'Delivered' : 'In Prep'}
-          </Badge>
-        </div>
-      </header>
-
-      {/* MAIN CONTAINER */}
-      <main className="max-w-xl mx-auto px-6 py-6 space-y-6 relative z-10">
+      <div className="max-w-[1240px] mx-auto px-4 md:px-8 py-6 space-y-6">
         
-        {/* SECTION 1: TIMELINE TRACKING STEPPER */}
-        <Card className="p-6 border-slate-850 bg-slate-900/20 rounded-3xl space-y-5">
-          <div className="flex justify-between items-center pb-3 border-b border-slate-850/60">
-            <div>
-              <span className="text-[9px] text-slate-500 font-bold uppercase block tracking-wider">Order ID</span>
-              <strong className="text-xs font-mono text-textPearl uppercase">{orderId}</strong>
-            </div>
-            
-            <div className="text-right">
-              <span className="text-[9px] text-slate-500 font-bold uppercase block tracking-wider">Elapsed Time</span>
-              <strong className="text-xs text-primary flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                <span>{elapsedMinutes} mins</span>
-              </strong>
+        {/* Navigation Breadcrumb */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate(tenantId ? `/customer/restaurant/${tenantId}` : -1 as any)}
+            className="inline-flex items-center space-x-2 text-xs font-bold text-[#756B64] hover:text-[#C85A3F] transition-colors cursor-pointer group py-1"
+          >
+            <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+            <span>Back to Restaurant</span>
+          </button>
+
+          <span className="hidden sm:block text-xs font-serif italic text-[#C85A3F]/80">
+            Real-Time Dining Updates
+          </span>
+        </div>
+
+        {/* 2. RESTAURANT CONTEXT HEADER */}
+        <div className="bg-white border border-[#E5DCD5] rounded-2xl p-5 md:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center space-x-4">
+            {/* Restaurant Cover / Logo image */}
+            {restaurantImage ? (
+              <img
+                src={restaurantImage}
+                alt={restaurantName}
+                className="w-14 h-14 md:w-16 md:h-16 rounded-2xl object-cover border border-[#E5DCD5] shadow-xs shrink-0"
+              />
+            ) : (
+              <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-[#F3E8DF] border border-[#E5DCD5] flex items-center justify-center shrink-0 text-[#C85A3F]">
+                <Store className="w-7 h-7" />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <h1 className="text-2xl md:text-3xl font-display font-extrabold text-[#202124] tracking-tight">
+                {restaurantName}
+              </h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#756B64]">
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-[#C85A3F]" />
+                  <span>{restaurantLocality}</span>
+                </span>
+                {order.tableNumber && (
+                  <>
+                    <span className="text-[#E5DCD5]">•</span>
+                    <span className="font-bold text-[#202124]">
+                      {order.tableNumber.toLowerCase().includes('walk') ? order.tableNumber : `Table #${order.tableNumber}`}
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          {isCancelled ? (
-            <div className="p-4 bg-red-500/10 border border-red-500/25 rounded-2xl flex items-center gap-3 text-red-400 text-xs font-semibold">
-              <AlertTriangle className="w-6 h-6" />
-              <span>This order has been cancelled by the kitchen. Please consult the waiter staff.</span>
-            </div>
-          ) : (
-            <div className="relative pl-6 border-l border-slate-850 space-y-6 ml-3 py-1">
-              {trackingSteps.map((step, idx) => {
-                const isCompleted = idx < activeIndex;
-                const isActive = idx === activeIndex;
-
-                return (
-                  <div key={step.key} className="relative flex items-start gap-4">
-                    <div className={`absolute -left-[35px] w-6 h-6 rounded-full flex items-center justify-center border text-[10px] font-bold transition-all ${
-                      isCompleted
-                        ? 'bg-emerald-500 border-emerald-500 text-slate-950 shadow-md'
-                        : isActive
-                          ? 'bg-primary border-primary text-background shadow-lg shadow-primary/25 animate-pulse'
-                          : 'bg-slate-900 border-slate-800 text-slate-500'
-                    }`}>
-                      {isCompleted ? <Check className="w-3.5 h-3.5" /> : idx + 1}
-                    </div>
-
-                    <div className="space-y-0.5">
-                      <h3 className={`text-xs font-bold transition-colors ${
-                        isActive ? 'text-primary' : isCompleted ? 'text-textPearl' : 'text-slate-550'
-                      }`}>
-                        {step.label}
-                      </h3>
-                      <p className={`text-[10px] transition-colors leading-relaxed ${
-                        isActive ? 'text-slate-350 font-semibold' : 'text-slate-500'
-                      }`}>
-                        {step.desc}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-
-        {/* SECTION 2: LIVE BILL RUNNING ACCOUNT */}
-        <Card className="p-6 border-slate-850 bg-slate-900/20 rounded-3xl space-y-4">
-          <div className="flex justify-between items-center pb-2 border-b border-slate-850/60">
-            <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider">Table Invoicing Summary</h3>
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-              Status: <span className={order.paymentStatus === 'paid' ? 'text-emerald-500' : 'text-amber-500'}>
-                {order.paymentStatus?.toUpperCase() || 'PENDING'}
+          {/* Status Badge Top Right */}
+          <div className="flex items-center space-x-2 shrink-0">
+            <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-extrabold border ${
+              isCancelled 
+                ? 'bg-rose-50 text-[#A94332] border-rose-200' 
+                : activeIndex >= 4 
+                  ? 'bg-emerald-50 text-[#2E8B57] border-emerald-200' 
+                  : 'bg-[#F3E8DF] text-[#C85A3F] border-[#E5DCD5]'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${
+                isCancelled ? 'bg-[#A94332]' : activeIndex >= 4 ? 'bg-[#2E8B57]' : 'bg-[#C85A3F] animate-pulse'
+              }`} />
+              <span>
+                {isCancelled ? 'Cancelled' : activeIndex === 5 ? 'Completed' : activeIndex === 4 ? 'Delivered' : 'In Preparation'}
               </span>
             </span>
           </div>
+        </div>
+
+        {/* 3. MAIN TWO-COLUMN DASHBOARD */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          <div className="space-y-3">
-            {order.items?.map((item: any, idx: number) => (
-              <div key={idx} className="flex justify-between items-start text-xs font-semibold">
-                <div className="space-y-0.5">
-                  <span className="text-slate-350">{item.name} x{item.count}</span>
-                  {item.notes ? (
-                    <p className="text-[9px] text-primary font-semibold">Notes: {item.notes}</p>
-                  ) : null}
+          {/* ======================================================== */}
+          {/* LEFT COLUMN: ORDER TRACKING TIMELINE & WHILE YOU WAIT   */}
+          {/* ======================================================== */}
+          <div className="lg:col-span-8 space-y-6">
+            
+            {/* Card 1: Live Status Timeline */}
+            <div className="bg-white border border-[#E5DCD5] rounded-2xl p-6 md:p-8 shadow-xs space-y-6">
+              
+              {/* Header Title */}
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <Package className="w-5 h-5 text-[#C85A3F]" />
+                  <h2 className="text-xl font-display font-extrabold text-[#202124]">
+                    Order Tracking
+                  </h2>
                 </div>
-                <span className="text-textPearl font-mono">{formatPrice(item.pricePerUnit * item.count)}</span>
+                <p className="text-xs text-[#756B64]">
+                  Track your delicious food in real-time
+                </p>
               </div>
-            ))}
-          </div>
 
-          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl text-xs font-semibold text-slate-400 space-y-2 pt-3">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span className="text-textPearl font-mono">{formatPrice(orderSubtotal)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>GST (5%)</span>
-              <span className="text-textPearl font-mono">{formatPrice(orderTax)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Service Charge (5%)</span>
-              <span className="text-textPearl font-mono">{formatPrice(orderServiceCharge)}</span>
-            </div>
-            <div className="flex justify-between text-textPearl font-extrabold text-sm pt-2.5 border-t border-slate-850/60">
-              <span>Grand Total</span>
-              <span className="text-primary font-mono">{formatPrice(orderTotal)}</span>
-            </div>
-          </div>
-
-          {/* Invoicing triggers */}
-          <div className="pt-2 flex gap-2">
-            {!order.billRequestedAt ? (
-              <Button
-                className="w-full text-xs font-bold py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-background"
-                onClick={handleRequestBill}
-              >
-                Request Bill
-              </Button>
-            ) : order.paymentStatus !== 'paid' ? (
-              <Button
-                className="w-full text-xs font-bold py-3 bg-gradient-to-r from-primary to-amber-600 hover:from-primary-hover hover:to-amber-700 text-background"
-                onClick={() => setIsPaymentModalOpen(true)}
-              >
-                Settle Payment
-              </Button>
-            ) : (
-              <Badge variant="success" className="w-full text-center py-2 text-xs font-bold">
-                Invoice Settled Successfully
-              </Badge>
-            )}
-          </div>
-        </Card>
-
-        {/* SECTION 3: Diner Assistance panel calls */}
-        <Card className="p-5 border-slate-850 bg-slate-900/20 rounded-3xl space-y-4">
-          <div className="flex justify-between items-center pb-2 border-b border-slate-850/60">
-            <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider">Service Assistance alert</h3>
-            <button
-              onClick={() => setIsRequestAlertOpen(true)}
-              className="text-[10px] text-primary hover:text-primary-hover font-bold uppercase tracking-wider flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Alert</span>
-            </button>
-          </div>
-
-          {activeTableRequests.length === 0 ? (
-            <p className="text-[10.5px] text-slate-500 font-bold uppercase py-2">No service alerts requested.</p>
-          ) : (
-            <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-              {activeTableRequests.slice(0, 3).map((req) => (
-                <div key={req.id} className="bg-slate-950/40 p-2.5 border border-slate-855 rounded-xl flex justify-between items-center text-xs">
-                  <div className="space-y-0.5">
-                    <span className="font-bold text-slate-300 block">{req.requestType}</span>
-                    <span className="text-[8.5px] text-slate-550 block font-semibold">
-                      {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+              {/* Order Meta Strip */}
+              <div className="bg-[#FCFAF7] border border-[#E5DCD5] rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] font-extrabold text-[#756B64] uppercase tracking-wider block">
+                    Order ID
+                  </span>
+                  <div className="flex items-center space-x-1.5 mt-0.5">
+                    <strong className="font-mono font-bold text-[#202124] text-xs md:text-sm uppercase">
+                      {orderId}
+                    </strong>
+                    <button
+                      type="button"
+                      onClick={handleCopyOrderId}
+                      className="text-[#756B64] hover:text-[#C85A3F] p-1 rounded transition-colors cursor-pointer"
+                      title="Copy Order ID"
+                      aria-label="Copy Order ID"
+                    >
+                      {hasCopiedOrderId ? (
+                        <CheckCheck className="w-3.5 h-3.5 text-[#2E8B57]" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
                   </div>
-                  <Badge variant={req.status === 'Completed' ? 'success' : 'warning'} className="scale-90 origin-right">
-                    {req.status}
-                  </Badge>
                 </div>
-              ))}
-            </div>
-          )}
-        </Card>
 
-        {/* SECTION 4: Past Orders History */}
-        {sessionOrders.length > 1 && (
-          <Card className="p-5 border-slate-850 bg-slate-900/20 rounded-3xl space-y-4">
-            <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider pb-2 border-b border-slate-850/60">
-              Session Order History
-            </h3>
-            <div className="space-y-3.5 divide-y divide-slate-850/40">
-              {sessionOrders.map((o) => {
-                if (o.orderId === orderId) return null; // skip current
-                return (
-                  <div key={o.id} className="flex justify-between items-center pt-3.5 first:pt-0 text-xs select-none">
-                    <div className="space-y-0.5">
-                      <span className="font-bold text-textPearl block">Order: {o.orderId}</span>
-                      <span className="text-[9.5px] text-slate-500 font-bold block uppercase tracking-wider">
-                        {o.items?.length || 0} items • {formatPrice(o.total)}
+                <div>
+                  <span className="text-[10px] font-extrabold text-[#756B64] uppercase tracking-wider block">
+                    Placed At
+                  </span>
+                  <strong className="font-bold text-[#202124] text-xs md:text-sm block mt-0.5">
+                    {placedAtFormatted}
+                  </strong>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-extrabold text-[#756B64] uppercase tracking-wider block">
+                    Elapsed Time
+                  </span>
+                  <div className="flex items-center space-x-1 text-[#C85A3F] font-bold text-xs md:text-sm mt-0.5">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>{elapsedMinutes} mins</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Cancelled Alert */}
+              {isCancelled ? (
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-[#A94332] text-xs font-semibold">
+                  <AlertTriangle className="w-6 h-6 shrink-0" />
+                  <span>This order has been cancelled by the restaurant. Please consult your server or manager.</span>
+                </div>
+              ) : (
+                /* Vertical Status Timeline */
+                <div className="relative pl-8 pt-2 pb-2 space-y-7 border-l-2 border-[#E5DCD5] ml-4">
+                  {trackingSteps.map((step, idx) => {
+                    const isCompleted = idx < activeIndex;
+                    const isActive = idx === activeIndex;
+
+                    return (
+                      <div key={step.key} className="relative">
+                        
+                        {/* Status Circle Pin */}
+                        <div className={`absolute -left-[45px] w-8 h-8 rounded-full flex items-center justify-center border-2 text-xs font-bold transition-all ${
+                          isCompleted
+                            ? 'bg-[#2E8B57] border-[#2E8B57] text-white shadow-xs'
+                            : isActive
+                              ? 'bg-[#C85A3F] border-[#C85A3F] text-white shadow-md shadow-[#C85A3F]/30 ring-4 ring-[#C85A3F]/15 animate-pulse'
+                              : 'bg-white border-[#E5DCD5] text-[#756B64]'
+                        }`}>
+                          {isCompleted ? <Check className="w-4 h-4 stroke-[3]" /> : idx + 1}
+                        </div>
+
+                        {/* Status Content Card */}
+                        <div className={`transition-all ${
+                          isActive 
+                            ? 'bg-[#F3E8DF]/60 border border-[#C85A3F]/30 rounded-xl p-3.5 shadow-xs' 
+                            : 'p-1'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <h3 className={`text-sm md:text-base font-extrabold ${
+                              isActive ? 'text-[#C85A3F]' : isCompleted ? 'text-[#202124]' : 'text-[#756B64]'
+                            }`}>
+                              {step.label}
+                            </h3>
+                            {isActive && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#C85A3F] text-white">
+                                Current Step
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-xs mt-0.5 ${
+                            isActive ? 'text-[#202124] font-medium' : 'text-[#756B64]'
+                          }`}>
+                            {step.desc}
+                          </p>
+                        </div>
+
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+            </div>
+
+            {/* Card 2: Contextual "While You Wait" Card */}
+            <div className="bg-white border border-[#E5DCD5] rounded-2xl p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <Sparkles className="w-4 h-4 text-[#C85A3F]" />
+                  <h3 className="text-sm md:text-base font-extrabold text-[#202124]">
+                    {activeIndex >= 5 ? 'Enjoyed your meal?' : 'While you wait...'}
+                  </h3>
+                </div>
+                <p className="text-xs text-[#756B64] leading-relaxed max-w-md">
+                  {activeIndex >= 5 
+                    ? `Thank you for dining at ${restaurantName}. We hope to serve you again soon!`
+                    : `Explore more delicious appetizers, beverages or desserts from ${restaurantName}.`
+                  }
+                </p>
+              </div>
+
+              <button
+                onClick={() => navigate(
+                  activeIndex >= 5 ? '/customer/explore' : `/customer/restaurant/${tenantId}/menu`
+                )}
+                className="inline-flex items-center justify-center space-x-1.5 px-5 py-3 bg-[#F3E8DF] hover:bg-[#E5DCD5] text-[#C85A3F] hover:text-[#A94332] font-bold text-xs rounded-xl transition-all cursor-pointer shrink-0"
+              >
+                <span>{activeIndex >= 5 ? 'Explore Restaurants' : 'View Menu'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+
+          </div>
+
+          {/* ======================================================== */}
+          {/* RIGHT COLUMN: STICKY ORDER SUMMARY & SERVICE ASSISTANCE  */}
+          {/* ======================================================== */}
+          <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-20">
+            
+            {/* Card 1: Order Summary */}
+            <div className="bg-white border border-[#E5DCD5] rounded-2xl p-6 shadow-sm space-y-5">
+              
+              <div className="flex items-center space-x-2 pb-3 border-b border-[#E5DCD5]">
+                <FileText className="w-4 h-4 text-[#C85A3F]" />
+                <h2 className="text-sm font-extrabold uppercase tracking-wider text-[#202124]">
+                  Order Summary
+                </h2>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-3 divide-y divide-[#E5DCD5]/60 max-h-64 overflow-y-auto pr-1">
+                {order.items?.map((item: any, idx: number) => {
+                  const lookup = menuLookup[item.itemId] || {};
+                  const thumb = item.image || item.imageUrl || lookup.imageUrl || lookup.image;
+                  const isVegItem = item.isVeg ?? item.veg ?? lookup.isVeg ?? lookup.veg;
+
+                  return (
+                    <div key={idx} className="flex items-center justify-between pt-3 first:pt-0 gap-3">
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <ItemThumbnail src={thumb} alt={item.name} />
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex items-center space-x-1.5">
+                            <DietaryBadge isVeg={isVegItem} />
+                            <h4 className="text-xs font-bold text-[#202124] truncate">
+                              {item.name}
+                            </h4>
+                          </div>
+                          <span className="text-[11px] font-semibold text-[#756B64] block">
+                            Qty: ×{item.count}
+                          </span>
+                          {item.notes && (
+                            <span className="text-[10px] text-[#C85A3F] font-medium block truncate max-w-[150px]">
+                              "{item.notes}"
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <span className="text-xs font-extrabold text-[#202124] shrink-0 font-mono">
+                        {formatPrice(item.pricePerUnit * item.count)}
                       </span>
                     </div>
-                    <Badge variant={o.status === 'CANCELLED' ? 'danger' : 'success'} className="scale-90">
-                      {o.status}
-                    </Badge>
+                  );
+                })}
+              </div>
+
+              {/* Price Calculations Breakdown (from historical order snapshot) */}
+              <div className="bg-[#FCFAF7] border border-[#E5DCD5] p-4 rounded-xl text-xs text-[#756B64] space-y-2">
+                <div className="flex justify-between">
+                  <span>Subtotal</span>
+                  <span className="font-bold text-[#202124]">{formatPrice(orderSubtotal)}</span>
+                </div>
+
+                {orderDiscount > 0 && (
+                  <div className="flex justify-between text-[#2E8B57] font-semibold">
+                    <span>Discount</span>
+                    <span>-{formatPrice(orderDiscount)}</span>
                   </div>
-                );
-              })}
-            </div>
-          </Card>
-        )}
-      </main>
+                )}
 
-      {/* NEW ASSISTANCE ALERT SELECTOR MODAL */}
-      <Modal
-        isOpen={isRequestAlertOpen}
-        onClose={() => setIsRequestAlertOpen(false)}
-        title="Request Service Staff"
-      >
-        <div className="space-y-4 text-left select-none text-xs">
-          <p className="text-slate-400 font-medium leading-relaxed">
-            Select a service category below. An alert notification will immediately route to the waiter dashboard commands desk.
-          </p>
+                {orderTax > 0 && (
+                  <div className="flex justify-between">
+                    <span>VAT / Tax</span>
+                    <span className="font-bold text-[#202124]">{formatPrice(orderTax)}</span>
+                  </div>
+                )}
 
-          <div className="grid grid-cols-2 gap-3.5 pt-2">
-            {[
-              { label: 'Call Waiter', desc: 'General assistance' },
-              { label: 'Need Water', desc: 'Chilled mineral water' },
-              { label: 'Extra Plates', desc: 'Clean plates' },
-              { label: 'Extra Spoons', desc: 'Silverware/spoons' },
-              { label: 'Tissues', desc: 'Napkins/tissues' },
-              { label: 'Cleaning', desc: 'Wipe down table' },
-              { label: 'Other Request', desc: 'Custom help' }
-            ].map(opt => (
-              <button
-                key={opt.label}
-                disabled={isSubmittingRequest}
-                onClick={() => handleCallWaiter(opt.label)}
-                className="p-4 bg-slate-900 hover:bg-slate-850 border border-slate-850 hover:border-primary/50 text-slate-350 hover:text-primary rounded-2xl flex flex-col items-center justify-center text-center gap-2.5 transition-all shadow-md group"
-              >
-                <div className="w-8 h-8 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-450 group-hover:text-primary transition-all">
-                  <Bell className="w-4 h-4" />
+                {orderServiceCharge > 0 && (
+                  <div className="flex justify-between">
+                    <span>Service Fee</span>
+                    <span className="font-bold text-[#202124]">{formatPrice(orderServiceCharge)}</span>
+                  </div>
+                )}
+
+                {orderTip > 0 && (
+                  <div className="flex justify-between text-[#C85A3F] font-semibold">
+                    <span>Staff Tip</span>
+                    <span>{formatCurrency(orderTip / 100)}</span>
+                  </div>
+                )}
+
+                <div className="border-t border-[#E5DCD5] pt-2.5 flex justify-between items-baseline">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-[#202124]">
+                    Grand Total
+                  </span>
+                  <span className="text-2xl font-black text-[#C85A3F]">
+                    {formatPrice(orderTotal)}
+                  </span>
                 </div>
+              </div>
+
+              {/* Estimated Prep Time Banner */}
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center space-x-2.5 text-xs text-[#2E8B57]">
+                <Clock className="w-4 h-4 shrink-0" />
                 <div>
-                  <span className="font-bold block leading-tight">{opt.label}</span>
-                  <span className="text-[8.5px] text-slate-500 mt-0.5 block">{opt.desc}</span>
+                  <span className="font-bold block">Estimated Prep Time: {estimatedTimeText}</span>
+                  <span className="text-[10.5px] text-[#2E8B57]/80">Freshly prepared to order by the kitchen</span>
                 </div>
-              </button>
-            ))}
+              </div>
+
+              {/* Invoicing / Request Bill Buttons */}
+              <div className="pt-1">
+                {!order.billRequestedAt ? (
+                  <button
+                    type="button"
+                    disabled={isSubmittingRequest}
+                    onClick={handleRequestBill}
+                    className="w-full bg-white hover:bg-[#F3E8DF] border-2 border-[#C85A3F] text-[#C85A3F] hover:text-[#A94332] font-extrabold py-3.5 px-4 rounded-xl text-xs transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    <span>{isSubmittingRequest ? 'Sending Request...' : 'Request Bill'}</span>
+                  </button>
+                ) : order.paymentStatus !== 'paid' ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsPaymentModalOpen(true)}
+                    className="w-full bg-[#C85A3F] hover:bg-[#A94332] text-white font-extrabold py-3.5 px-4 rounded-xl text-xs shadow-md shadow-[#C85A3F]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    <span>Settle Bill & Finish</span>
+                  </button>
+                ) : (
+                  <div className="w-full py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-xs font-bold text-[#2E8B57] flex items-center justify-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Invoice Settled Successfully</span>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Card 2: Service Assistance */}
+            <div className="bg-white border border-[#E5DCD5] rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#E5DCD5]">
+                <div className="flex items-center space-x-2">
+                  <LifeBuoy className="w-4 h-4 text-[#C85A3F]" />
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#202124]">
+                    Service Assistance
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setIsRequestAlertOpen(true)}
+                  className="inline-flex items-center space-x-1 text-xs font-bold text-[#C85A3F] hover:underline cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>New Alert</span>
+                </button>
+              </div>
+
+              <p className="text-xs text-[#756B64] leading-relaxed">
+                Need extra water, plates, or a server? Our staff is here to help.
+              </p>
+
+              {/* Table requests status stream */}
+              {activeTableRequests.length === 0 ? (
+                <div className="bg-[#FCFAF7] border border-[#E5DCD5] rounded-xl p-3 text-center text-[11px] font-semibold text-[#756B64]">
+                  No assistance requests yet.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                  {activeTableRequests.slice(0, 3).map((req) => (
+                    <div key={req.id} className="bg-[#FCFAF7] p-2.5 border border-[#E5DCD5] rounded-xl flex justify-between items-center text-xs">
+                      <div className="space-y-0.5">
+                        <span className="font-bold text-[#202124] block">{req.requestType}</span>
+                        <span className="text-[9.5px] text-[#756B64] block">
+                          {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        req.status === 'Completed' 
+                          ? 'bg-emerald-50 text-[#2E8B57] border border-emerald-200' 
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {req.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* 4. BOTTOM TRUST STRIP */}
+        <div className="border-t border-[#E5DCD5] pt-8 mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+          <div className="flex items-center justify-center gap-2.5 text-xs text-[#756B64] font-semibold">
+            <Sparkles className="w-4 h-4 text-[#C85A3F]" />
+            <span>Freshly Prepared to Order</span>
+          </div>
+          <div className="flex items-center justify-center gap-2.5 text-xs text-[#756B64] font-semibold">
+            <ShieldCheck className="w-4 h-4 text-[#2E8B57]" />
+            <span>Secure & Contactless Ordering</span>
+          </div>
+          <div className="flex items-center justify-center gap-2.5 text-xs text-[#756B64] font-semibold">
+            <Heart className="w-4 h-4 text-[#C85A3F]" />
+            <span>Support Local Dining</span>
           </div>
         </div>
-      </Modal>
 
-      {/* SIMULATED INVOICING CHECKOUT MODAL */}
-      <Modal
-        isOpen={isPaymentModalOpen}
-        onClose={() => setIsPaymentModalOpen(false)}
-        title="Simulated Bill Settlement"
-      >
-        <div className="space-y-5 text-left select-none text-xs">
-          <div className="bg-slate-900 border border-slate-850 p-4.5 rounded-2xl space-y-2 text-xs font-semibold text-slate-400">
-            <div className="flex justify-between">
-              <span>Total Payable Amount</span>
-              <span className="text-primary font-mono text-sm font-extrabold">{formatPrice(orderTotal)}</span>
+      </div>
+
+      {/* 5. NEW ASSISTANCE ALERT SELECTOR MODAL */}
+      {isRequestAlertOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white border border-[#E5DCD5] rounded-3xl p-6 max-w-md w-full shadow-xl space-y-4 text-left">
+            <div className="flex items-center justify-between pb-2 border-b border-[#E5DCD5]">
+              <div className="flex items-center space-x-2">
+                <Bell className="w-4 h-4 text-[#C85A3F]" />
+                <h3 className="text-base font-extrabold text-[#202124]">Request Service Staff</h3>
+              </div>
+              <button
+                onClick={() => setIsRequestAlertOpen(false)}
+                className="text-[#756B64] hover:text-[#202124] font-bold text-xs p-1"
+              >
+                ✕
+              </button>
             </div>
-            <p className="text-[10px] text-slate-550 leading-relaxed pt-1.5 border-t border-slate-850/60 font-medium">
-              We process simulated billing. Select a payment mechanism below to trigger automated validation.
-            </p>
-          </div>
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Payment Options</label>
-            <div className="grid grid-cols-3 gap-2.5">
+            <p className="text-xs text-[#756B64] leading-relaxed">
+              Select an alert below. A notification will route to the server commands desk.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
               {[
-                { id: 'UPI', label: 'UPI QR' },
-                { id: 'Card', label: 'Credit Card' },
-                { id: 'Wallet', label: 'E-Wallet' }
+                { label: 'Call Waiter', desc: 'General assistance' },
+                { label: 'Need Water', desc: 'Fresh drinking water' },
+                { label: 'Extra Plates', desc: 'Clean plates' },
+                { label: 'Extra Spoons', desc: 'Silverware / cutlery' },
+                { label: 'Tissues', desc: 'Paper napkins' },
+                { label: 'Cleaning', desc: 'Wipe table' },
+                { label: 'Other Request', desc: 'Custom assistance' }
               ].map(opt => (
                 <button
-                  key={opt.id}
-                  onClick={() => setSelectedPaymentMethod(opt.id)}
-                  disabled={isProcessingPayment}
-                  className={`p-3 rounded-xl border flex flex-col items-center justify-center font-bold text-center gap-1.5 transition-all ${
-                    selectedPaymentMethod === opt.id
-                      ? 'bg-primary/10 border-primary text-primary'
-                      : 'bg-slate-900 border-slate-850 text-slate-400 hover:text-textPearl'
-                  }`}
+                  key={opt.label}
+                  disabled={isSubmittingRequest}
+                  onClick={() => handleCallWaiter(opt.label)}
+                  className="p-3 bg-[#FCFAF7] hover:bg-[#F3E8DF] border border-[#E5DCD5] hover:border-[#C85A3F]/50 rounded-xl flex flex-col items-center justify-center text-center gap-1.5 transition-all cursor-pointer group"
                 >
-                  <DollarSign className="w-4 h-4 text-emerald-500" />
-                  <span className="text-[10.5px] leading-tight block">{opt.label}</span>
+                  <span className="font-bold text-xs text-[#202124] group-hover:text-[#C85A3F]">
+                    {opt.label}
+                  </span>
+                  <span className="text-[10px] text-[#756B64]">
+                    {opt.desc}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
-
-          {/* Loading details */}
-          {isProcessingPayment && (
-            <div className="p-4 bg-slate-900 border border-slate-850 rounded-xl flex items-center justify-center space-x-3">
-              <div className="w-5 h-5 border-2 border-primary/20 border-t-primary rounded-full animate-spin shrink-0" />
-              <span className="text-[11px] text-slate-350 font-semibold animate-pulse">Contacting payment clearance gateway...</span>
-            </div>
-          )}
-
-          <Button
-            className="w-full text-xs font-bold py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-background"
-            onClick={handleProcessPayment}
-            isLoading={isProcessingPayment}
-          >
-            Confirm Simulated Settle
-          </Button>
         </div>
-      </Modal>
+      )}
+
+      {/* 6. SIMULATED BILL SETTLEMENT MODAL */}
+      {isPaymentModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white border border-[#E5DCD5] rounded-3xl p-6 max-w-md w-full shadow-xl space-y-5 text-left">
+            <div className="flex items-center justify-between pb-2 border-b border-[#E5DCD5]">
+              <div className="flex items-center space-x-2">
+                <DollarSign className="w-4 h-4 text-[#C85A3F]" />
+                <h3 className="text-base font-extrabold text-[#202124]">Settle Bill</h3>
+              </div>
+              <button
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="text-[#756B64] hover:text-[#202124] font-bold text-xs p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-[#FCFAF7] border border-[#E5DCD5] p-4 rounded-xl space-y-1">
+              <div className="flex justify-between items-baseline">
+                <span className="text-xs font-semibold text-[#756B64]">Total Payable Amount</span>
+                <span className="text-xl font-black text-[#C85A3F] font-mono">{formatPrice(orderTotal)}</span>
+              </div>
+              <p className="text-[10px] text-[#756B64] pt-1 border-t border-[#E5DCD5]/60">
+                Select your simulated payment method below to complete the order.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-extrabold uppercase tracking-wider text-[#756B64] block">
+                Payment Method
+              </label>
+              <div className="grid grid-cols-3 gap-2.5">
+                {[
+                  { id: 'UPI', label: 'UPI QR' },
+                  { id: 'Card', label: 'Credit Card' },
+                  { id: 'Wallet', label: 'E-Wallet' }
+                ].map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setSelectedPaymentMethod(opt.id)}
+                    disabled={isProcessingPayment}
+                    className={`p-3 rounded-xl border flex flex-col items-center justify-center font-bold text-center gap-1.5 transition-all cursor-pointer ${
+                      selectedPaymentMethod === opt.id
+                        ? 'bg-[#F3E8DF] border-[#C85A3F] text-[#C85A3F] shadow-xs'
+                        : 'bg-white border-[#E5DCD5] text-[#756B64] hover:bg-[#FCFAF7]'
+                    }`}
+                  >
+                    <DollarSign className="w-4 h-4 text-[#2E8B57]" />
+                    <span className="text-xs">{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {isProcessingPayment && (
+              <div className="p-3 bg-[#FCFAF7] border border-[#E5DCD5] rounded-xl flex items-center justify-center space-x-2.5">
+                <RefreshCw className="w-4 h-4 text-[#C85A3F] animate-spin" />
+                <span className="text-xs text-[#756B64] font-semibold">Contacting payment clearance gateway...</span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              disabled={isProcessingPayment || !selectedPaymentMethod}
+              onClick={handleProcessPayment}
+              className="w-full bg-[#C85A3F] hover:bg-[#A94332] text-white font-extrabold py-3.5 px-4 rounded-xl text-xs shadow-md shadow-[#C85A3F]/20 transition-all cursor-pointer disabled:opacity-50"
+            >
+              Confirm Payment & Finish
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
