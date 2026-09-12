@@ -11,6 +11,14 @@ export interface IOrderItem {
   complimentaryApprovedBy?: string;
   complimentaryApprovedByName?: string;
   complimentaryAt?: string;
+
+  // Visual presentation metadata (optional)
+  image?: string;
+  imageUrl?: string;
+  description?: string;
+  isVeg?: boolean;
+  veg?: boolean;
+  category?: string;
 }
 
 export interface ITimelineEvent {

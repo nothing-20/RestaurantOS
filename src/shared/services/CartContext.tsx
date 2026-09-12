@@ -58,7 +58,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: item.name,
         count,
         notes,
-        pricePerUnit: activePrice
+        pricePerUnit: activePrice,
+        image: item.image || item.imageUrl || '',
+        imageUrl: item.imageUrl || item.image || '',
+        description: item.description || '',
+        isVeg: item.isVeg ?? item.veg,
+        veg: item.veg ?? item.isVeg,
+        category: item.category || ''
       };
       saveCart([...cartItems, newCartItem]);
     }
