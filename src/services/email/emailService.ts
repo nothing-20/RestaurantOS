@@ -8,18 +8,33 @@ export const emailService = {
     tenantId: string;
     createdBy: string;
   }): Promise<{ success: boolean; employeeId?: string; error?: string }> {
-    const res = await fetch('/api/send-staff-invitation', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(errorText || 'Failed to send staff invitation email.');
+    try {
+      const res = await fetch('/api/send-staff-invitation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        let errMessage = 'Failed to dispatch staff invitation email.';
+        try {
+          const errData = await res.json();
+          if (errData && errData.error) errMessage = errData.error;
+        } catch (_) {
+          const text = await res.text();
+          if (text && text.length < 200 && !text.includes('<!DOCTYPE')) {
+            errMessage = text;
+          }
+        }
+        console.warn('[emailService] send-staff-invitation response error:', errMessage);
+        return { success: false, error: errMessage };
+      }
+      return await res.json();
+    } catch (err: any) {
+      console.warn('[emailService] send-staff-invitation request error:', err.message);
+      return { success: false, error: err.message || 'Email dispatch network error.' };
     }
-    return res.json();
   },
 
   async sendWelcomeEmail(data: {

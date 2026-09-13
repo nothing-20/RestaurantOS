@@ -106,11 +106,12 @@ service cloud.firestore {
     }
 
     // Root-level Employee invitation records
-    // Readable by any authenticated user (needed for activation lookup by email & login sync).
+    // Readable by authenticated staff or unauthenticated employees verifying their invitation status.
     // Writable by authenticated staff.
     match /employees/{employeeId} {
-      allow read: if isAuth();
-      allow create, update: if isAuth();
+      allow read: if isAuth() || resource.data.activationStatus == 'invited';
+      allow create: if isAuth();
+      allow update: if isAuth();
       allow delete: if isAuth();
     }
 

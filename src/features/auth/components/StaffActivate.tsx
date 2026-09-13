@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import {
   collection,
@@ -17,6 +17,7 @@ import Input from '../../../components/ui/Input/Input';
 import Card from '../../../components/ui/Card/Card';
 import toast from 'react-hot-toast';
 import { CheckCircle, Mail, Lock, Eye, EyeOff, ArrowRight, UserCheck } from 'lucide-react';
+import { getDashboardRoute } from '../../../utils/navigation';
 
 // ─── Steps ────────────────────────────────────────────────────────────────────
 type Step = 'email' | 'password' | 'success';
@@ -33,25 +34,16 @@ interface IEmployeeInvite {
   status: string;
   activationStatus: string;
   firebaseUid: string | null;
+  invitationToken?: string;
+  expiresAt?: string;
   invitedAt: string;
   createdBy: string;
 }
 
-// ─── Role path routing ─────────────────────────────────────────────────────────
-const ROLE_PATHS: Record<string, string> = {
-  owner:       '/dashboard/owner',
-  admin:       '/dashboard/owner',
-  manager:     '/dashboard/manager',
-  waiter:      '/dashboard/waiter',
-  kitchen:     '/dashboard/kitchen',
-  cashier:     '/dashboard/cashier',
-  reception:   '/dashboard/reception',
-  'super-admin': '/super-admin',
-};
-
 // ─── Component ─────────────────────────────────────────────────────────────────
 export const StaffActivate: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
@@ -63,10 +55,12 @@ export const StaffActivate: React.FC = () => {
   const [invite, setInvite] = useState<IEmployeeInvite | null>(null);
   const [errors, setErrors] = useState<{ email?: string; password?: string; confirm?: string }>({});
 
+  const tokenParam = searchParams.get('token') || '';
+  const emailParam = searchParams.get('email') || '';
+
   // ── Step 1: look up invitation ─────────────────────────────────────────────
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmedEmail = email.trim().toLowerCase();
+  const lookupInvite = useCallback(async (emailToLookup: string, tokenToCheck?: string) => {
+    const trimmedEmail = emailToLookup.trim().toLowerCase();
 
     if (!trimmedEmail) {
       setErrors({ email: 'Email address is required.' });
@@ -105,6 +99,20 @@ export const StaffActivate: React.FC = () => {
         return;
       }
 
+      // Check expiry if present
+      if (data.expiresAt && new Date(data.expiresAt).getTime() < Date.now()) {
+        setErrors({ email: 'This invitation link has expired (7-day validity). Please request a new invitation from your manager.' });
+        setIsLoading(false);
+        return;
+      }
+
+      // Verify token match if provided
+      if (tokenToCheck && data.invitationToken && data.invitationToken !== tokenToCheck) {
+        setErrors({ email: 'Invalid invitation token. Please check your activation link or contact your manager.' });
+        setIsLoading(false);
+        return;
+      }
+
       setInvite({ id: empDoc.id, ...data });
       setStep('password');
       toast.success(`Welcome, ${data.fullName}! Set your password to continue.`);
@@ -114,6 +122,19 @@ export const StaffActivate: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  // Auto-detect invitation parameters from URL query
+  useEffect(() => {
+    if (emailParam) {
+      setEmail(emailParam);
+      lookupInvite(emailParam, tokenParam);
+    }
+  }, [emailParam, tokenParam, lookupInvite]);
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await lookupInvite(email, tokenParam);
   };
 
   // ── Step 2: create Firebase account + link records ─────────────────────────
@@ -180,9 +201,9 @@ export const StaffActivate: React.FC = () => {
       setStep('success');
       toast.success('Account activated! Redirecting to your dashboard...');
 
-      // Auto-redirect after 2 seconds
+      // Auto-redirect after 2 seconds to canonical role dashboard
       setTimeout(() => {
-        const destination = ROLE_PATHS[invite.role] || '/staff/login';
+        const destination = getDashboardRoute(invite.role);
         navigate(destination, { replace: true });
       }, 2000);
     } catch (err: any) {

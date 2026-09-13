@@ -13,7 +13,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
-import { emailService } from '../../../services/email/emailService';
+import { createStaffInvitation } from '../../../services/staff/invitationService';
 import { useAuth } from '../../../context/AuthContext';
 import { IOrder } from '../../../types';
 import { formatPrice } from '../../../shared/utils/format';
@@ -626,7 +626,7 @@ export const OwnerOverview: React.FC = () => {
     try {
       const trimmedEmail = inviteForm.email.trim().toLowerCase();
 
-      await emailService.sendStaffInvitation({
+      const result = await createStaffInvitation({
         fullName: inviteForm.fullName.trim(),
         email: trimmedEmail,
         phone: inviteForm.phone.trim(),
@@ -635,6 +635,11 @@ export const OwnerOverview: React.FC = () => {
         tenantId: tenantId,
         createdBy: user.uid,
       });
+
+      if (!result.success) {
+        toast.error(result.error || 'Failed to create invitation.');
+        return;
+      }
 
       // Log action log event
       await logEvent(tenantId, {
@@ -647,7 +652,12 @@ export const OwnerOverview: React.FC = () => {
         description: `Owner invited ${inviteForm.fullName} as ${inviteRole === 'kitchen' ? 'Kitchen Staff' : 'Waiter'}.`
       });
 
-      toast.success(`Invitation sent to ${inviteForm.email}!`);
+      try {
+        await navigator.clipboard.writeText(result.activationLink);
+        toast.success(`Invitation created! Activation link copied to clipboard.`, { duration: 5000 });
+      } catch {
+        toast.success(`Invitation created for ${inviteForm.fullName}!`);
+      }
       setInviteForm({ fullName: '', email: '', phone: '', department: '' });
       setIsInviteOpen(false);
     } catch (err) {

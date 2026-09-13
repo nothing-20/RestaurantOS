@@ -16,11 +16,10 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app);
 
 // Safe Resend API Key resolver
-const getResendApiKey = (): string => {
+const getResendApiKey = (): string | null => {
   const key = process.env.RESEND_API_KEY;
   if (!key) {
-    console.error('[Vercel API] Missing RESEND_API_KEY environment variable.');
-    throw new Error('Server misconfiguration: Missing RESEND_API_KEY.');
+    return null;
   }
   return key;
 };
@@ -45,8 +44,13 @@ export const sendMailWithLogging = async (
   const retriesLeft = options.retries ?? MAX_RETRIES;
   const timestamp = new Date().toISOString();
 
+  const apiKey = getResendApiKey();
+  if (!apiKey) {
+    console.warn('[Vercel API] RESEND_API_KEY is not configured. Email dispatch skipped.');
+    return { success: false, error: 'RESEND_API_KEY is not configured on the server.' };
+  }
+
   try {
-    const apiKey = getResendApiKey();
     const resend = new Resend(apiKey);
 
     const response = await resend.emails.send({

@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth as fbAuth } from '../../../config/firebase';
-import { emailService } from '../../../services/email/emailService';
+import { createStaffInvitation } from '../../../services/staff/invitationService';
 import { useAuth } from '../../../context/AuthContext';
 import Button from '../../../components/ui/Button/Button';
 import Input from '../../../components/ui/Input/Input';
@@ -58,6 +58,8 @@ interface IEmployee {
   status: EmployeeStatus;
   activationStatus: ActivationStatus;
   firebaseUid: string | null;
+  invitationToken?: string;
+  expiresAt?: string;
   invitedAt: string;
   activatedAt?: string;
   createdBy: string;
@@ -118,6 +120,13 @@ export const OwnerStaffManager: React.FC = () => {
   const [editingEmployee, setEditingEmployee] = useState<IEmployee | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [inviteSuccessData, setInviteSuccessData] = useState<{
+    fullName: string;
+    email: string;
+    role: string;
+    activationLink: string;
+    emailSent: boolean;
+  } | null>(null);
 
   // Form state
   const [form, setForm] = useState<IInviteForm>(BLANK_FORM);
@@ -184,7 +193,7 @@ export const OwnerStaffManager: React.FC = () => {
     try {
       const trimmedEmail = form.email.trim().toLowerCase();
 
-      await emailService.sendStaffInvitation({
+      const result = await createStaffInvitation({
         fullName: form.fullName.trim(),
         email: trimmedEmail,
         phone: form.phone.trim(),
@@ -194,10 +203,24 @@ export const OwnerStaffManager: React.FC = () => {
         createdBy: user.uid,
       });
 
-      toast.success(`Invitation sent to ${trimmedEmail}!`);
+      if (!result.success) {
+        toast.error(result.error || 'Failed to create staff invitation.');
+        return;
+      }
+
+      toast.success(`Invitation created for ${form.fullName.trim()}!`);
+      const createdData = {
+        fullName: form.fullName.trim(),
+        email: trimmedEmail,
+        role: form.role,
+        activationLink: result.activationLink,
+        emailSent: result.emailSent || false,
+      };
+
       setForm(BLANK_FORM);
       setIsInviteOpen(false);
       fetchEmployees();
+      setInviteSuccessData(createdData);
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Failed to create invitation. Please try again.');
@@ -300,12 +323,13 @@ export const OwnerStaffManager: React.FC = () => {
   };
 
   const handleResendInvite = async (emp: IEmployee) => {
-    const activationLink = `${window.location.origin}/staff/activate`;
+    const tokenQuery = emp.invitationToken ? `token=${emp.invitationToken}&` : '';
+    const activationLink = `${window.location.origin}/staff/activate?${tokenQuery}email=${encodeURIComponent(emp.email)}`;
     try {
       await navigator.clipboard.writeText(activationLink);
-      toast.success(`Activation link copied! Share it with ${emp.fullName}.`, { duration: 5000 });
+      toast.success(`Activation link copied for ${emp.fullName}! Share it directly.`, { duration: 5000 });
     } catch {
-      toast.success(`Ask ${emp.fullName} to visit: ${activationLink}`, { duration: 6000 });
+      toast.success(`Share this link with ${emp.fullName}: ${activationLink}`, { duration: 6000 });
     }
   };
 
@@ -691,6 +715,65 @@ export const OwnerStaffManager: React.FC = () => {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Invitation Success Modal with 1-Click Copy Link */}
+      <Modal
+        isOpen={!!inviteSuccessData}
+        onClose={() => setInviteSuccessData(null)}
+        title="Staff Invitation Created"
+      >
+        {inviteSuccessData && (
+          <div className="space-y-4 text-left">
+            <div className="flex items-center space-x-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                <UserCheck className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-textPearl">{inviteSuccessData.fullName}</p>
+                <p className="text-[11px] text-emerald-400 capitalize">{inviteSuccessData.role} • Pending Activation</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                Direct Activation Link
+              </label>
+              <p className="text-[11px] text-slate-400">
+                Share this activation link with <strong className="text-slate-200">{inviteSuccessData.fullName}</strong> ({inviteSuccessData.email}) so they can set their password and log in:
+              </p>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={inviteSuccessData.activationLink}
+                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-200 select-all font-mono focus:outline-none"
+                />
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(inviteSuccessData.activationLink);
+                      toast.success('Activation link copied to clipboard!');
+                    } catch {
+                      toast.error('Failed to copy to clipboard.');
+                    }
+                  }}
+                  className="shrink-0"
+                >
+                  Copy Link
+                </Button>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-800/40 flex justify-end">
+              <Button variant="secondary" onClick={() => setInviteSuccessData(null)}>
+                Done
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       <Modal

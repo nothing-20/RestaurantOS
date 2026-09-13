@@ -86,11 +86,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       type: 'staff_invitation',
     });
 
-    if (!emailRes.success) {
-      return res.status(500).json({ error: emailRes.error || 'Failed to dispatch invitation email.' });
-    }
-
-    return res.status(200).json({ success: true, employeeId: employeeRef.id });
+    return res.status(200).json({ 
+      success: true, 
+      employeeId: employeeRef.id, 
+      emailSent: emailRes.success,
+      emailError: emailRes.error || undefined,
+      activationLink
+    });
   } catch (err: any) {
     console.error('[Vercel API] send-staff-invitation error:', err);
     return res.status(500).json({ error: err.message || 'Internal Server Error' });
