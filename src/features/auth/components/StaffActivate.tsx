@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import {
   doc,
   getDoc,
@@ -28,8 +28,66 @@ import {
 } from 'lucide-react';
 import { getDashboardRoute } from '../../../utils/navigation';
 
-// ─── Steps ────────────────────────────────────────────────────────────────────
+// ─── Steps & Stages ───────────────────────────────────────────────────────────
 type Step = 'verifying' | 'email' | 'password' | 'success' | 'error';
+
+export type ActivationStage =
+  | 'idle'
+  | 'validating'
+  | 'verifying-invitation'
+  | 'auth-creating'
+  | 'auth-signing-in'
+  | 'writing-profile'
+  | 'updating-employee'
+  | 'refreshing-profile'
+  | 'resolving-role'
+  | 'navigating'
+  | 'complete'
+  | 'error';
+
+export function getStageLabel(stage: ActivationStage): string {
+  switch (stage) {
+    case 'validating':
+      return 'Checking password requirements...';
+    case 'verifying-invitation':
+      return 'Verifying invitation status...';
+    case 'auth-creating':
+      return 'Creating staff credentials...';
+    case 'auth-signing-in':
+      return 'Connecting existing account...';
+    case 'writing-profile':
+      return 'Creating your staff profile...';
+    case 'updating-employee':
+      return 'Activating your employee record...';
+    case 'refreshing-profile':
+      return 'Confirming account activation...';
+    case 'resolving-role':
+      return 'Preparing your dashboard...';
+    case 'navigating':
+      return 'Redirecting to your dashboard...';
+    default:
+      return '';
+  }
+}
+
+// Safe async timeout wrapper
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operationName: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Activation timed out during ${operationName}. Please check your connection and try again.`));
+    }, timeoutMs);
+
+    promise
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
 
 interface IEmployeeInvite {
   id: string;
@@ -43,6 +101,7 @@ interface IEmployeeInvite {
   status: string;
   activationStatus: string;
   firebaseUid?: string | null;
+  userId?: string | null;
   invitationToken?: string;
   expiresAt?: string;
   restaurantName?: string;
@@ -85,6 +144,7 @@ export const StaffActivate: React.FC = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
+  const [stage, setStage] = useState<ActivationStage>('idle');
   const [invite, setInvite] = useState<IEmployeeInvite | null>(null);
   const [errors, setErrors] = useState<{ input?: string; email?: string; password?: string; confirm?: string }>({});
 
@@ -301,6 +361,7 @@ export const StaffActivate: React.FC = () => {
   // ── Step 2: create Firebase account + link records ─────────────────────────
   const handleActivation = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.info('[StaffActivation] START');
     console.info('[StaffActivation] Button clicked');
 
     if (isActivating) {
@@ -310,10 +371,22 @@ export const StaffActivate: React.FC = () => {
 
     setIsActivating(true);
     setErrors({});
+    setStage('validating');
+    console.info('[StaffActivation] Stage: validating');
+
+    // 30-second hard timeout for the entire activation operation
+    let isTimeoutAborted = false;
+    const globalTimeout = setTimeout(() => {
+      isTimeoutAborted = true;
+      setIsActivating(false);
+      setStage('error');
+      const timeoutMsg = 'Activation took longer than expected. Please check your network connection and try again.';
+      setErrorMessage(timeoutMsg);
+      toast.error(timeoutMsg);
+      console.error('[StaffActivation] Global 30s timeout triggered');
+    }, 30000);
 
     try {
-      console.info('[StaffActivation] Validation started');
-
       // Autofill fallback: extract from DOM ref if state was not populated by browser autofill
       const pass = (password || passwordInputRef.current?.value || '').trim();
       const confirmPass = (confirmPassword || confirmInputRef.current?.value || '').trim();
@@ -337,7 +410,9 @@ export const StaffActivate: React.FC = () => {
 
       if (Object.keys(nextErrors).length) {
         setErrors(nextErrors);
+        clearTimeout(globalTimeout);
         setIsActivating(false);
+        setStage('idle');
         return;
       }
 
@@ -350,35 +425,49 @@ export const StaffActivate: React.FC = () => {
 
       if (!invite) {
         toast.error('Invitation record is missing. Please refresh the page.');
+        clearTimeout(globalTimeout);
         setIsActivating(false);
+        setStage('idle');
         return;
       }
 
       // Step A: Re-verify invitation document exists & valid in Firestore before creating Auth
+      setStage('verifying-invitation');
+      console.info('[StaffActivation] Stage: verifying-invitation');
       console.info('[StaffActivation] Re-verifying invitation before Auth creation', { employeeId: invite.id });
-      let freshSnap;
+
+      let freshSnap: any = null;
       try {
-        freshSnap = await getDoc(doc(db, 'employees', invite.id));
+        freshSnap = await withTimeout(
+          getDoc(doc(db, 'employees', invite.id)),
+          12000,
+          'invitation verification'
+        );
       } catch (checkErr: any) {
         console.error('[StaffActivation] Error checking employee document:', checkErr);
+        throw checkErr;
       }
 
       if (!freshSnap || !freshSnap.exists()) {
-        const msg = 'This invitation record was not found or was updated. Please use the latest link provided by your manager.';
+        const msg = 'This invitation record was not found or was replaced by a newer invitation. Please ask your manager for the latest link.';
         setErrorMessage(msg);
         toast.error(msg);
+        clearTimeout(globalTimeout);
         setIsActivating(false);
+        setStage('idle');
         return;
       }
 
       const freshData = freshSnap.data();
       if (freshData.activationStatus === 'activated' || freshData.status === 'active') {
-        const msg = 'This account has already been activated. Please sign in to your staff account.';
+        const msg = 'This account has already been activated. Redirecting to login...';
+        toast.error(msg);
         setErrorCode('ALREADY_ACTIVATED');
         setErrorMessage(msg);
         setStep('error');
-        toast.error(msg);
+        clearTimeout(globalTimeout);
         setIsActivating(false);
+        setStage('idle');
         return;
       }
 
@@ -388,20 +477,23 @@ export const StaffActivate: React.FC = () => {
         setErrorMessage(msg);
         setStep('error');
         toast.error(msg);
+        clearTimeout(globalTimeout);
         setIsActivating(false);
+        setStage('idle');
         return;
       }
 
-      // Step B: Create Firebase Authentication account
-      console.info('[StaffActivation] Creating Firebase Auth account');
+      // Step B: Create Firebase Authentication account or reconcile existing
+      setStage('auth-creating');
+      console.info('[StaffActivation] Stage: auth-creating');
       const verifiedEmail = invite.email.trim().toLowerCase();
       let fUser: any = null;
 
       try {
-        const credentials = await createUserWithEmailAndPassword(
-          auth,
-          verifiedEmail,
-          pass
+        const credentials = await withTimeout(
+          createUserWithEmailAndPassword(auth, verifiedEmail, pass),
+          15000,
+          'account credential creation'
         );
         fUser = credentials.user;
         console.info('[StaffActivation] Auth account created', { uid: fUser.uid });
@@ -409,74 +501,151 @@ export const StaffActivate: React.FC = () => {
         console.error('[StaffActivation] Auth creation error:', authErr?.code || authErr?.message);
         if (authErr?.code === 'auth/email-already-in-use') {
           // Email already registered in Firebase Auth: attempt sign-in to reconcile profile
+          setStage('auth-signing-in');
+          console.info('[StaffActivation] Stage: auth-signing-in');
+          console.info('[StaffActivation] Existing Auth account detected. Attempting existing-account sign in');
+
           try {
-            const { signInWithEmailAndPassword } = await import('firebase/auth');
-            const signinCred = await signInWithEmailAndPassword(auth, verifiedEmail, pass);
+            const signinCred = await withTimeout(
+              signInWithEmailAndPassword(auth, verifiedEmail, pass),
+              15000,
+              'existing account sign-in'
+            );
             fUser = signinCred.user;
             console.info('[StaffActivation] Existing Auth account reconciled via sign-in', { uid: fUser.uid });
           } catch (signinErr: any) {
-            toast.error('This email already has an account. Please sign in via Staff Login.');
+            console.error('[StaffActivation] Sign-in reconciliation failed:', signinErr?.code || signinErr?.message);
+            const errDetail =
+              signinErr?.code === 'auth/invalid-credential' || signinErr?.code === 'auth/wrong-password'
+                ? 'The password entered does not match the existing RestaurantOS account for this email. Please enter your existing account password, or use Staff Login.'
+                : 'An existing account was found for this email, but could not be connected. Please sign in via Staff Login.';
+            setErrorMessage(errDetail);
+            toast.error(errDetail);
+            clearTimeout(globalTimeout);
             setIsActivating(false);
+            setStage('idle');
             return;
           }
         } else if (authErr?.code === 'auth/weak-password') {
           toast.error('Password is too weak. Please choose a stronger password.');
           setErrors({ password: 'Password is too weak. Choose a stronger password.' });
+          clearTimeout(globalTimeout);
           setIsActivating(false);
+          setStage('idle');
           return;
         } else {
           toast.error(authErr?.message || 'Unable to create staff account. Please try again.');
+          clearTimeout(globalTimeout);
           setIsActivating(false);
+          setStage('idle');
           return;
         }
       }
 
+      if (isTimeoutAborted) return;
+
       const now = new Date().toISOString();
 
       // Step C: Create users/{uid} document — the authoritative profile record
-      console.info('[StaffActivation] Writing user profile');
+      setStage('writing-profile');
+      console.info('[StaffActivation] Stage: writing-profile');
+      console.info('[StaffActivation] Writing user profile for UID:', fUser.uid);
       const userRef = doc(db, 'users', fUser.uid);
-      await setDoc(userRef, {
-        uid: fUser.uid,
-        fullName: invite.fullName,
-        displayName: invite.fullName,
-        email: verifiedEmail,
-        phone: invite.phone || '',
-        phoneNumber: invite.phone || '',
-        role: invite.role,
-        tenantId: invite.tenantId,
-        branchId: invite.branchId || 'main',
-        department: invite.department || '',
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      });
+      await withTimeout(
+        setDoc(userRef, {
+          uid: fUser.uid,
+          fullName: invite.fullName,
+          displayName: invite.fullName,
+          email: verifiedEmail,
+          phone: invite.phone || '',
+          phoneNumber: invite.phone || '',
+          role: invite.role,
+          tenantId: invite.tenantId,
+          branchId: invite.branchId || 'main',
+          department: invite.department || '',
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        }),
+        10000,
+        'staff profile write'
+      );
+
+      // Verify user profile confirmed written
+      const profileSnap = await withTimeout(
+        getDoc(userRef),
+        8000,
+        'staff profile write verification'
+      );
+      if (!profileSnap.exists()) {
+        throw new Error('Staff profile document could not be verified in Firestore.');
+      }
+
+      if (isTimeoutAborted) return;
 
       // Step D: Update employees/{id} — link Firebase UID, mark activated
-      console.info('[StaffActivation] Updating employee');
+      setStage('updating-employee');
+      console.info('[StaffActivation] Stage: updating-employee');
+      console.info('[StaffActivation] Updating employee record:', invite.id);
       const employeeRef = doc(db, 'employees', invite.id);
-      await updateDoc(employeeRef, {
-        firebaseUid: fUser.uid,
-        status: 'active',
-        activationStatus: 'activated',
-        activatedAt: now,
-        updatedAt: now,
-        invitationToken: null,
-      });
+      await withTimeout(
+        updateDoc(employeeRef, {
+          firebaseUid: fUser.uid,
+          userId: fUser.uid,
+          status: 'active',
+          activationStatus: 'activated',
+          activatedAt: now,
+          updatedAt: now,
+          invitationToken: null,
+        }),
+        10000,
+        'employee activation update'
+      );
 
-      console.info('[StaffActivation] Activation complete');
+      // Verify employee record confirmed updated
+      const employeeSnap = await withTimeout(
+        getDoc(employeeRef),
+        8000,
+        'employee activation update verification'
+      );
+      if (!employeeSnap.exists() || employeeSnap.data()?.activationStatus !== 'activated') {
+        throw new Error('Employee record activation could not be verified in Firestore.');
+      }
+
+      if (isTimeoutAborted) return;
+
+      // Step E: Auth/Profile refresh stage
+      setStage('refreshing-profile');
+      console.info('[StaffActivation] Stage: refreshing-profile');
+
+      // Step F: Role resolution
+      setStage('resolving-role');
+      console.info('[StaffActivation] Stage: resolving-role');
+      const resolvedRole = (invite.role || freshData?.role || 'kitchen').toLowerCase();
+      console.info('[StaffActivation] Role resolved', { role: resolvedRole });
+      const targetDestination = getDashboardRoute(resolvedRole);
+
+      // Step G: Navigation
+      setStage('navigating');
+      console.info('[StaffActivation] Stage: navigating');
+      console.info('[StaffActivation] COMPLETE');
+      clearTimeout(globalTimeout);
+
       setStep('success');
+      setStage('complete');
       toast.success('Account activated successfully! Redirecting to your dashboard...');
 
-      // Auto-redirect to canonical role dashboard after 2 seconds
+      // Auto-redirect to canonical role dashboard after 1.5 seconds
       setTimeout(() => {
-        const destination = getDashboardRoute(invite.role);
-        navigate(destination, { replace: true });
-      }, 2000);
+        navigate(targetDestination, { replace: true });
+      }, 1500);
     } catch (err: any) {
-      console.error('[StaffActivation] Unexpected error during activation:', err);
-      toast.error(err?.message || 'Unable to activate your account. Please try again.');
-    } finally {
+      clearTimeout(globalTimeout);
+      console.error('[StaffActivation] Activation error:', err);
+      setStage('error');
+      const errMessage = err?.message || 'Unable to activate your account. Please try again.';
+      setErrorMessage(errMessage);
+      toast.error(errMessage);
       setIsActivating(false);
     }
   };
@@ -766,6 +935,13 @@ export const StaffActivate: React.FC = () => {
                   </>
                 )}
               </Button>
+
+              {isActivating && stage !== 'idle' && (
+                <div className="flex items-center justify-center space-x-2 text-xs text-emerald-400 font-medium animate-pulse py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                  <span>{getStageLabel(stage)}</span>
+                </div>
+              )}
 
               <button
                 type="button"
