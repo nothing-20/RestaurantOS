@@ -5,10 +5,10 @@ import { useAuth } from '../context/AuthContext';
 
 export const WorkspaceGuard: React.FC = () => {
   const { workspace, isLoading, validationError } = useWorkspace();
-  const { user, role } = useAuth();
+  const { user, role, authStatus, isLoading: authLoading } = useAuth();
   const isOwner = role === 'owner' || workspace?.role === 'owner' || user?.role === 'owner';
 
-  if (isLoading) {
+  if (isLoading || authLoading || authStatus === 'AUTH_LOADING' || authStatus === 'PROFILE_LOADING') {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-6 select-none relative overflow-hidden">
         {/* Background ambient glow */}

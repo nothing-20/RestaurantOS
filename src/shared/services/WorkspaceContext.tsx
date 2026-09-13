@@ -26,12 +26,18 @@ interface IWorkspaceContext {
 const WorkspaceContext = createContext<IWorkspaceContext | undefined>(undefined);
 
 export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, authStatus, isLoading: authLoading } = useAuth();
   const [workspace, setWorkspace] = useState<IWorkspaceSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const fetchAndValidateWorkspace = async () => {
+    // If auth or profile is still initializing, remain in loading state to avoid race condition
+    if (authLoading || authStatus === 'AUTH_LOADING' || authStatus === 'PROFILE_LOADING') {
+      setIsLoading(true);
+      return;
+    }
+
     if (!user) {
       setWorkspace(null);
       setIsLoading(false);
@@ -42,6 +48,9 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setValidationError(null);
 
     try {
+      console.info('[WorkspaceValidation] Start');
+      console.info('[WorkspaceValidation] Authenticated user', { uid: user.uid });
+
       // MOCK SESSION SHORTCUT: If this is a dev mock user (uid starts with 'mock-uid-'),
       // skip ALL Firestore lookups and build a synthetic workspace directly from the user object.
       // This keeps the dev workflow functional without requiring Firestore documents for mock roles.
@@ -68,6 +77,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         });
         setValidationError(null);
         setIsLoading(false);
+        console.info('[WorkspaceValidation] Result', { allowed: true, reason: 'MOCK_SESSION' });
         return;
       }
 
@@ -88,7 +98,15 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       }
 
+      console.info('[WorkspaceValidation] Profile state', {
+        hasProfile: Boolean(userData),
+        tenantIdPresent: Boolean(userData?.tenantId || user.tenantId),
+        restaurantIdPresent: Boolean((user as any).restaurantId || userData?.restaurantId),
+        branchIdPresent: Boolean(userData?.branchId)
+      });
+
       if (!userData) {
+        console.info('[WorkspaceValidation] Result', { allowed: false, reason: 'PROFILE_MISSING' });
         setValidationError('user-not-found');
         setIsLoading(false);
         return;
@@ -96,6 +114,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       // Step 2: Validate Account Status == "active"
       if (userData.status && userData.status !== 'active') {
+        console.info('[WorkspaceValidation] Result', { allowed: false, reason: 'USER_SUSPENDED' });
         setValidationError('user-suspended');
         setIsLoading(false);
         return;
@@ -114,12 +133,14 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           isValid: true
         });
         setIsLoading(false);
+        console.info('[WorkspaceValidation] Result', { allowed: true, reason: 'SUPER_ADMIN_BYPASS' });
         return;
       }
 
       // Step 3: Validate Role
       const allowedRoles = ['owner', 'manager', 'waiter', 'kitchen', 'cashier', 'reception', 'admin'];
       if (!userData.role || !allowedRoles.includes(userData.role)) {
+        console.info('[WorkspaceValidation] Result', { allowed: false, reason: 'UNAUTHORIZED_ROLE' });
         setValidationError('unauthorized');
         setIsLoading(false);
         return;
@@ -188,6 +209,14 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       }
 
+      const tenantFound = Boolean(tenantData);
+      const tenantActive = tenantData ? (tenantData.status === 'active' || !tenantData.status) : false;
+
+      console.info('[WorkspaceValidation] Tenant lookup', {
+        found: tenantFound,
+        active: tenantActive
+      });
+
       if (!tenantData) {
         if (isOwner) {
           tenantId = tenantId || `restaurant-${user.uid.slice(0, 8)}`;
@@ -198,7 +227,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             subscriptionStatus: 'active'
           };
         } else {
-          setValidationError('tenant-suspended');
+          console.info('[WorkspaceValidation] Result', { allowed: false, reason: 'TENANT_MISSING' });
+          setValidationError('workspace-unavailable');
           setIsLoading(false);
           return;
         }
@@ -206,6 +236,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       // Validate Tenant Status (owners are never locked out with 'tenant-suspended')
       if (tenantData.status && tenantData.status !== 'active' && !isOwner) {
+        console.info('[WorkspaceValidation] Result', { allowed: false, reason: 'TENANT_DISABLED' });
         setValidationError('tenant-suspended');
         setIsLoading(false);
         return;
@@ -215,7 +246,6 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const subStatus = tenantData.subscriptionStatus || tenantData.stripeSubscriptionStatus || 'active';
       const invalidSubStatuses = ['expired', 'cancelled', 'unpaid'];
       if (invalidSubStatuses.includes(subStatus)) {
-        // Define permissions mapping even if expired, so context is populated for owner billing renewal
         let permissions: string[] = [];
         const role = userData.role;
         if (role === 'owner') permissions = ['full-access'];
@@ -235,31 +265,107 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           restaurant: tenantData.name || 'Gourmet Restaurant',
           isValid: false
         });
+        console.info('[WorkspaceValidation] Result', { allowed: false, reason: 'SUBSCRIPTION_EXPIRED' });
         setValidationError('subscription-expired');
         setIsLoading(false);
         return;
       }
 
-      // Step 6: Validate Branch (if branchId exists)
-      const branchId = userData.branchId;
-      let branchData = null;
-      if (branchId) {
-        const branchRef = doc(db, 'restaurants', tenantId, 'branches', branchId);
-        const branchSnap = await getDoc(branchRef);
+      // Step 6: Validate and Resolve Branch
+      let branchId = userData.branchId;
+      let branchData: any = null;
+      let branchFound = false;
+      let branchActive = false;
 
-        if (!branchSnap.exists()) {
-          setValidationError('branch-disabled');
-          setIsLoading(false);
-          return;
-        }
-
-        branchData = branchSnap.data();
-        if (branchData.status && branchData.status !== 'active') {
-          setValidationError('branch-disabled');
-          setIsLoading(false);
-          return;
+      // 6a. If a specific valid branchId is on the profile (and not placeholder 'main')
+      if (branchId && branchId !== 'main') {
+        try {
+          const branchRef = doc(db, 'restaurants', tenantId, 'branches', branchId);
+          const branchSnap = await getDoc(branchRef);
+          if (branchSnap.exists()) {
+            const data = branchSnap.data();
+            branchFound = true;
+            const isExplicitlyDisabled = data.status === 'disabled' || data.status === 'inactive' || data.isActive === false || data.enabled === false;
+            branchActive = !isExplicitlyDisabled;
+            if (isExplicitlyDisabled) {
+              console.info('[WorkspaceValidation] Branch resolution', { branchIdPresent: true, branchFound: true, branchActive: false });
+              console.info('[WorkspaceValidation] Result', { allowed: false, reason: 'BRANCH_DISABLED' });
+              setValidationError('branch-disabled');
+              setIsLoading(false);
+              return;
+            }
+            branchData = { id: branchSnap.id, ...data };
+          }
+        } catch (err) {
+          console.warn('[WorkspaceValidation] Error checking assigned branchId:', err);
         }
       }
+
+      // 6b. If branchData is not yet resolved (e.g. branchId was 'main', not found in subcollection, or not on profile)
+      if (!branchData) {
+        try {
+          const branchesSnap = await getDocs(collection(db, 'restaurants', tenantId, 'branches'));
+          if (!branchesSnap.empty) {
+            // Find active branches (any branch not explicitly marked disabled/inactive)
+            const activeBranchDocs = branchesSnap.docs.filter((d) => {
+              const data = d.data();
+              return data.status !== 'disabled' && data.status !== 'inactive' && data.isActive !== false && data.enabled !== false;
+            });
+
+            if (activeBranchDocs.length > 0) {
+              // Resolve to the restaurant's active branch (e.g. branch-1 "Downtown Branch")
+              const primaryBranchDoc = activeBranchDocs[0];
+              branchData = { id: primaryBranchDoc.id, ...primaryBranchDoc.data() };
+              branchId = primaryBranchDoc.id;
+              branchFound = true;
+              branchActive = true;
+
+              // Self-heal: persist canonical branchId to users/{uid} if missing or was 'main'
+              if (user.uid && userData.branchId !== branchId) {
+                try {
+                  await setDoc(doc(db, 'users', user.uid), { branchId }, { merge: true });
+                } catch (_e) {}
+              }
+            } else {
+              // Restaurant has branches configured, but ALL are explicitly disabled
+              branchFound = true;
+              branchActive = false;
+              console.info('[WorkspaceValidation] Branch resolution', { branchIdPresent: Boolean(branchId), branchFound: true, branchActive: false });
+              console.info('[WorkspaceValidation] Result', { allowed: false, reason: 'BRANCH_DISABLED' });
+              setValidationError('branch-disabled');
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            // Restaurant operates as a single unit without branch subcollections
+            branchFound = true;
+            branchActive = true;
+            branchData = {
+              id: 'main',
+              name: tenantData.name || 'Main Branch',
+              status: 'active'
+            };
+            branchId = 'main';
+          }
+        } catch (err) {
+          console.warn('[WorkspaceValidation] Error querying restaurant branches subcollection:', err);
+          // Graceful fallback for single-unit establishment
+          branchFound = true;
+          branchActive = true;
+          branchData = {
+            id: 'main',
+            name: tenantData.name || 'Main Branch',
+            status: 'active'
+          };
+          branchId = 'main';
+        }
+      }
+
+      console.info('[WorkspaceValidation] Branch resolution', {
+        branchIdPresent: Boolean(branchId),
+        branchFound,
+        branchActive
+      });
 
       // Define permissions mapping
       let permissions: string[] = [];
@@ -283,6 +389,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         isValid: true
       });
       setValidationError(null);
+
+      console.info('[WorkspaceValidation] Result', {
+        allowed: true,
+        reason: 'VALID_WORKSPACE'
+      });
     } catch (e) {
       console.error('Error validating workspace session:', e);
       setValidationError('unauthorized');
@@ -294,7 +405,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     fetchAndValidateWorkspace();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid, user?.role, user?.tenantId]);
+  }, [user?.uid, user?.role, user?.tenantId, authStatus, authLoading]);
 
   return (
     <WorkspaceContext.Provider 

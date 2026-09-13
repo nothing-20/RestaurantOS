@@ -76,6 +76,30 @@ export const WorkspaceError: React.FC = () => {
         iconColor: 'text-amber-500 bg-amber-500/10 border-amber-500/20'
       };
       break;
+    case 'branch-not-found':
+      errorConfig = {
+        title: 'Branch Not Found',
+        description: 'The assigned restaurant branch could not be found. Please verify the branch configuration with your manager.',
+        icon: Search,
+        iconColor: 'text-amber-500 bg-amber-500/10 border-amber-500/20'
+      };
+      break;
+    case 'workspace-unavailable':
+      errorConfig = {
+        title: 'Workspace Unavailable',
+        description: 'Your restaurant tenant workspace is currently unavailable or unconfigured. Please contact your restaurant administrator.',
+        icon: Building2,
+        iconColor: 'text-amber-500 bg-amber-500/10 border-amber-500/20'
+      };
+      break;
+    case 'staff-not-assigned':
+      errorConfig = {
+        title: 'Staff Workspace Assignment Required',
+        description: 'Your staff profile is not yet assigned to an active restaurant workspace. Please contact your restaurant manager.',
+        icon: Search,
+        iconColor: 'text-purple-500 bg-purple-500/10 border-purple-500/20'
+      };
+      break;
     case 'user-not-found':
       errorConfig = {
         title: 'Staff Record Missing',
