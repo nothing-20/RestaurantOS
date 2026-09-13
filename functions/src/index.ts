@@ -62,9 +62,9 @@ export const sendStaffInvitation = functions.https.onCall(async (data, context) 
       invitationToken: secureToken
     });
 
-    // Generate activation link (using origin of the request or default fallback)
-    const requestOrigin = context.rawRequest?.headers?.origin || 'https://restaurantos.com';
-    const activationLink = `${requestOrigin}/staff/activate?token=${secureToken}&email=${encodeURIComponent(trimmedEmail)}`;
+    // Generate canonical activation link (using origin of the request or default production fallback)
+    const requestOrigin = context.rawRequest?.headers?.origin || 'https://restaurant-os-dun.vercel.app';
+    const activationLink = `${requestOrigin}/staff/activate?token=${encodeURIComponent(secureToken)}&email=${encodeURIComponent(trimmedEmail)}&id=${encodeURIComponent(employeeRef.id)}`;
 
     const templateHtml = getInviteStaffTemplate({
       fullName: fullName,

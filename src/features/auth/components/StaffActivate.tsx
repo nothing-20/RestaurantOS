@@ -70,7 +70,7 @@ export const StaffActivate: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const tokenParam = (searchParams.get('token') || '').trim();
-  const emailParam = (searchParams.get('email') || '').trim();
+  const emailParam = (searchParams.get('email') || '').trim().toLowerCase();
   const idParam = (searchParams.get('id') || '').trim();
 
   // If id is provided in URL, go straight to auto-verification; otherwise show link/ID input

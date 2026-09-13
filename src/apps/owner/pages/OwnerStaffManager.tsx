@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth as fbAuth } from '../../../config/firebase';
-import { createStaffInvitation, generateSecureToken } from '../../../services/staff/invitationService';
+import { createStaffInvitation, generateSecureToken, buildStaffActivationLink } from '../../../services/staff/invitationService';
 import { useAuth } from '../../../context/AuthContext';
 import Button from '../../../components/ui/Button/Button';
 import Input from '../../../components/ui/Input/Input';
@@ -335,11 +335,7 @@ export const OwnerStaffManager: React.FC = () => {
       emp.invitationToken = token;
       emp.expiresAt = expiresAt;
     }
-    const params = new URLSearchParams();
-    params.set('token', token);
-    params.set('email', emp.email);
-    params.set('id', emp.id);
-    const activationLink = `${window.location.origin}/staff/activate?${params.toString()}`;
+    const activationLink = buildStaffActivationLink(token, emp.email, emp.id);
     try {
       await navigator.clipboard.writeText(activationLink);
       toast.success(`Activation link copied for ${emp.fullName}! Share it directly.`, { duration: 5000 });
