@@ -35,7 +35,8 @@ import {
   FileText,
   ShieldCheck,
   RefreshCw,
-  LifeBuoy
+  LifeBuoy,
+  Receipt
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -100,6 +101,8 @@ export const OrderTracking: React.FC = () => {
   // UI / Modal States
   const [isRequestAlertOpen, setIsRequestAlertOpen] = useState(false);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const [cancelDialogRequest, setCancelDialogRequest] = useState<any | null>(null);
+  const [isCancellingRequest, setIsCancellingRequest] = useState(false);
   
   // Payment Simulated States
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -264,9 +267,35 @@ export const OrderTracking: React.FC = () => {
     setTimeout(() => setHasCopiedOrderId(false), 2000);
   };
 
-  // 4. Submit Waiter / Dining alerts
+  // Helper to determine if a request status is active
+  const isRequestActive = (status?: string) => {
+    const s = (status || '').toLowerCase();
+    return s === 'pending' || s === 'accepted' || s === 'in_progress' || s === 'acknowledged';
+  };
+
+  const isRequestPending = (status?: string) => {
+    const s = (status || '').toLowerCase();
+    return s === 'pending';
+  };
+
+  // 4. Submit Waiter / Dining alerts with duplicate prevention
   const handleCallWaiter = async (requestType: string) => {
     if (!tenantId || !order) return;
+    if (isSubmittingRequest) return;
+
+    // Check if an active request for this service type already exists for this table/order
+    const existingActive = waiterRequests.find(r => 
+      r.requestType === requestType &&
+      (r.orderId ? r.orderId === orderId : r.tableNumber === order.tableNumber) &&
+      isRequestActive(r.status)
+    );
+
+    if (existingActive) {
+      toast.error(`A request for "${requestType}" is already pending.`);
+      setIsRequestAlertOpen(false);
+      return;
+    }
+
     setIsSubmittingRequest(true);
 
     try {
@@ -275,12 +304,16 @@ export const OrderTracking: React.FC = () => {
 
       const requestPayload = {
         id: requestId,
+        orderId: orderId || null,
         tableNumber: order.tableNumber || 'Walk-in',
         requestType,
         status: 'Pending',
         createdAt: new Date().toISOString(),
         deviceId: localStorage.getItem('restaurantos_device_id') || 'unknown',
-        sessionId: session?.sessionId || 'ANON-SESSION'
+        sessionId: session?.sessionId || 'ANON-SESSION',
+        customerId: user?.uid || session?.customerId || 'anonymous',
+        cancelledAt: null,
+        cancelledBy: null
       };
 
       await setDoc(requestRef, requestPayload);
@@ -295,27 +328,48 @@ export const OrderTracking: React.FC = () => {
       setIsRequestAlertOpen(false);
     } catch (e) {
       console.error(e);
-      toast.error('Failed to submit request.');
+      toast.error('Failed to submit request. Please try again.');
     } finally {
       setIsSubmittingRequest(false);
     }
   };
 
-  // 5. Submit Bill Request alert and update table status in Firestore
+  // 5. Submit Bill Request with single-active-request guarantee & deterministic key
   const handleRequestBill = async () => {
     if (!tenantId || !orderId || !order) return;
+    if (isSubmittingRequest) return;
+
+    // Guard against duplicate active bill request
+    const existingActiveBill = waiterRequests.find(r => 
+      r.requestType === 'Bill Request' &&
+      (r.orderId ? r.orderId === orderId : r.tableNumber === order.tableNumber) &&
+      isRequestActive(r.status)
+    );
+
+    if (existingActiveBill) {
+      toast.error('Our staff has already been notified of your bill request.');
+      return;
+    }
+
     setIsSubmittingRequest(true);
 
     try {
-      const requestId = `REQ-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-      await setDoc(doc(db, 'restaurants', tenantId, 'waiterRequests', requestId), {
+      const requestId = `BILL-${orderId}`;
+      const requestRef = doc(db, 'restaurants', tenantId, 'waiterRequests', requestId);
+
+      await setDoc(requestRef, {
         id: requestId,
+        orderId,
         tableNumber: order.tableNumber || 'Walk-in',
         requestType: 'Bill Request',
         status: 'Pending',
         createdAt: new Date().toISOString(),
-        orderId
-      });
+        customerId: user?.uid || session?.customerId || 'anonymous',
+        sessionId: session?.sessionId || 'ANON-SESSION',
+        deviceId: localStorage.getItem('restaurantos_device_id') || 'unknown',
+        cancelledAt: null,
+        cancelledBy: null
+      }, { merge: true });
 
       // Update Order billRequestedAt
       const orderRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
@@ -343,9 +397,53 @@ export const OrderTracking: React.FC = () => {
       toast.success('Bill request sent to staff!');
     } catch (e) {
       console.error(e);
-      toast.error('Failed to request bill.');
+      toast.error('Unable to send your bill request. Please try again.');
     } finally {
       setIsSubmittingRequest(false);
+    }
+  };
+
+  // 5.5. Customer Cancel / Withdraw Request
+  const handleConfirmCancelRequest = async () => {
+    if (!cancelDialogRequest || !tenantId) return;
+    const req = cancelDialogRequest;
+    setIsCancellingRequest(true);
+
+    try {
+      const requestRef = doc(db, 'restaurants', tenantId, 'waiterRequests', req.id);
+      await updateDoc(requestRef, {
+        status: 'Cancelled',
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: 'customer'
+      });
+
+      // If this was a Bill Request, also clear billRequestedAt on the order
+      if (req.requestType === 'Bill Request' && orderId) {
+        try {
+          const orderRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
+          await updateDoc(orderRef, {
+            billRequestedAt: null
+          });
+        } catch (_) {}
+
+        // Reset table status if needed
+        const tableId = session?.tableId || (order.tableNumber ? `TBL-${order.tableNumber}` : '');
+        if (tableId) {
+          try {
+            await updateDoc(doc(db, 'restaurants', tenantId, 'tables', tableId), {
+              status: 'occupied'
+            });
+          } catch (_) {}
+        }
+      }
+
+      toast.success('Request cancelled successfully.');
+      setCancelDialogRequest(null);
+    } catch (e) {
+      console.error(e);
+      toast.error('Unable to cancel the request. Please try again.');
+    } finally {
+      setIsCancellingRequest(false);
     }
   };
 
@@ -752,8 +850,30 @@ export const OrderTracking: React.FC = () => {
   const orderTip = order.tip || 0;
   const orderTotal = order.total || order.totalAmount || 0;
 
-  // Active table assistance requests
-  const activeTableRequests = waiterRequests.filter(r => r.tableNumber === order.tableNumber);
+  // Scoped requests strictly for this specific order / table session
+  const orderRequests = useMemo(() => {
+    if (!order) return [];
+    return waiterRequests.filter(r => {
+      if (r.orderId && orderId) {
+        return r.orderId === orderId;
+      }
+      return r.tableNumber === order.tableNumber;
+    });
+  }, [waiterRequests, orderId, order?.tableNumber]);
+
+  // Active bill request for this order (at most ONE)
+  const activeBillRequest = useMemo(() => {
+    return orderRequests.find(r => 
+      r.requestType === 'Bill Request' && isRequestActive(r.status)
+    );
+  }, [orderRequests]);
+
+  // Active service assistance requests (excluding Bill Requests)
+  const activeServiceRequests = useMemo(() => {
+    return orderRequests.filter(r => 
+      r.requestType !== 'Bill Request' && isRequestActive(r.status)
+    );
+  }, [orderRequests]);
 
   // Placed At Formatted Timestamp
   const placedAtFormatted = order.createdAt ? new Date(order.createdAt).toLocaleTimeString([], {
@@ -1113,30 +1233,75 @@ export const OrderTracking: React.FC = () => {
 
               {/* Invoicing / Request Bill Buttons */}
               <div className="pt-1">
-                {!order.billRequestedAt ? (
+                {order.paymentStatus === 'paid' ? (
+                  <div className="w-full py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-xs font-bold text-[#2E8B57] flex items-center justify-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Invoice Settled Successfully</span>
+                  </div>
+                ) : activeBillRequest ? (
+                  isRequestPending(activeBillRequest.status) ? (
+                    <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                            <Receipt className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-amber-950">Bill Request — Pending</h4>
+                            <p className="text-[11px] text-amber-700">Staff has been notified and is preparing your bill.</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
+                          Pending
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-amber-200/60">
+                        <span className="text-[10.5px] text-amber-700">Want to order more items?</span>
+                        <button
+                          type="button"
+                          onClick={() => setCancelDialogRequest(activeBillRequest)}
+                          className="px-3 py-1.5 bg-white hover:bg-amber-100/60 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                        >
+                          Cancel Request
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-blue-50/90 border border-blue-200 rounded-xl p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 shrink-0">
+                            <Receipt className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-blue-950">Staff is Preparing Your Bill</h4>
+                            <p className="text-[11px] text-blue-700">Your server has acknowledged the request.</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-300 shrink-0">
+                          Acknowledged
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsPaymentModalOpen(true)}
+                        className="w-full bg-[#C85A3F] hover:bg-[#A94332] text-white font-extrabold py-3 px-4 rounded-xl text-xs shadow-md shadow-[#C85A3F]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <DollarSign className="w-4 h-4" />
+                        <span>Settle Bill Online</span>
+                      </button>
+                    </div>
+                  )
+                ) : (
                   <button
                     type="button"
                     disabled={isSubmittingRequest}
                     onClick={handleRequestBill}
                     className="w-full bg-white hover:bg-[#F3E8DF] border-2 border-[#C85A3F] text-[#C85A3F] hover:text-[#A94332] font-extrabold py-3.5 px-4 rounded-xl text-xs transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
-                    <DollarSign className="w-4 h-4" />
-                    <span>{isSubmittingRequest ? 'Sending Request...' : 'Request Bill'}</span>
+                    <Receipt className="w-4 h-4" />
+                    <span>{isSubmittingRequest ? 'Requesting Bill...' : 'Request Bill'}</span>
                   </button>
-                ) : order.paymentStatus !== 'paid' ? (
-                  <button
-                    type="button"
-                    onClick={() => setIsPaymentModalOpen(true)}
-                    className="w-full bg-[#C85A3F] hover:bg-[#A94332] text-white font-extrabold py-3.5 px-4 rounded-xl text-xs shadow-md shadow-[#C85A3F]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <DollarSign className="w-4 h-4" />
-                    <span>Settle Bill & Finish</span>
-                  </button>
-                ) : (
-                  <div className="w-full py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-xs font-bold text-[#2E8B57] flex items-center justify-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Invoice Settled Successfully</span>
-                  </div>
                 )}
               </div>
 
@@ -1156,7 +1321,7 @@ export const OrderTracking: React.FC = () => {
                   className="inline-flex items-center space-x-1 text-xs font-bold text-[#C85A3F] hover:underline cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>New Alert</span>
+                  <span>+ New Request</span>
                 </button>
               </div>
 
@@ -1165,13 +1330,13 @@ export const OrderTracking: React.FC = () => {
               </p>
 
               {/* Table requests status stream */}
-              {activeTableRequests.length === 0 ? (
+              {activeServiceRequests.length === 0 ? (
                 <div className="bg-[#FCFAF7] border border-[#E5DCD5] rounded-xl p-3 text-center text-[11px] font-semibold text-[#756B64]">
-                  No assistance requests yet.
+                  No active assistance requests.
                 </div>
               ) : (
-                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-                  {activeTableRequests.slice(0, 3).map((req) => (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {activeServiceRequests.map((req) => (
                     <div key={req.id} className="bg-[#FCFAF7] p-2.5 border border-[#E5DCD5] rounded-xl flex justify-between items-center text-xs">
                       <div className="space-y-0.5">
                         <span className="font-bold text-[#202124] block">{req.requestType}</span>
@@ -1179,13 +1344,26 @@ export const OrderTracking: React.FC = () => {
                           {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        req.status === 'Completed' 
-                          ? 'bg-emerald-50 text-[#2E8B57] border border-emerald-200' 
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
-                      }`}>
-                        {req.status}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          req.status === 'Completed' 
+                            ? 'bg-emerald-50 text-[#2E8B57] border border-emerald-200' 
+                            : req.status === 'Accepted' || req.status === 'Acknowledged'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {req.status}
+                        </span>
+                        {isRequestPending(req.status) && (
+                          <button
+                            type="button"
+                            onClick={() => setCancelDialogRequest(req)}
+                            className="text-[10.5px] font-bold text-rose-600 hover:text-rose-700 hover:underline px-1 py-0.5 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1334,6 +1512,48 @@ export const OrderTracking: React.FC = () => {
             >
               Confirm Payment & Finish
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 7. CANCEL REQUEST CONFIRMATION MODAL */}
+      {cancelDialogRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white border border-[#E5DCD5] rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 text-left">
+            <div className="flex items-start space-x-3.5">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-extrabold text-[#202124]">
+                  {cancelDialogRequest.requestType === 'Bill Request' ? 'Cancel bill request?' : 'Cancel service request?'}
+                </h3>
+                <p className="text-xs text-[#756B64] leading-relaxed">
+                  {cancelDialogRequest.requestType === 'Bill Request'
+                    ? 'Are you sure you want to cancel your bill request? You can request it again later.'
+                    : `Are you sure you want to cancel your request for "${cancelDialogRequest.requestType}"?`}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-3 border-t border-[#E5DCD5]">
+              <button
+                type="button"
+                disabled={isCancellingRequest}
+                onClick={() => setCancelDialogRequest(null)}
+                className="px-4 py-2 text-xs font-bold text-[#756B64] hover:bg-[#F3E8DF] rounded-xl transition-all cursor-pointer"
+              >
+                Keep Request
+              </button>
+              <button
+                type="button"
+                disabled={isCancellingRequest}
+                onClick={handleConfirmCancelRequest}
+                className="px-4 py-2 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {isCancellingRequest ? 'Cancelling...' : 'Cancel Request'}
+              </button>
+            </div>
           </div>
         </div>
       )}

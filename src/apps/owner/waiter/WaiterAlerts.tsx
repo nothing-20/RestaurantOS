@@ -115,7 +115,8 @@ export const WaiterAlerts: React.FC = () => {
         const list: any[] = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
-          if (data.status !== 'Completed') {
+          const status = (data.status || '').toLowerCase();
+          if (status !== 'completed' && status !== 'cancelled' && status !== 'rejected') {
             list.push({ id: docSnap.id, ...data });
           }
         });

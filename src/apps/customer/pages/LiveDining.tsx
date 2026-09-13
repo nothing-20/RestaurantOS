@@ -138,9 +138,12 @@ export const LiveDining: React.FC = () => {
             { label: 'Need Spoon', type: 'Need Spoon', icon: Sparkles },
             { label: 'Need Tissue', type: 'Need Tissue', icon: Send },
             { label: 'Need Bill', type: 'Request Bill', icon: CreditCard },
-            { label: 'Need Manager', type: 'Call Manager', icon: ShieldCheck }
           ].map((item) => {
-            const hasActiveRequest = waiterRequests.some(r => r.type === item.type);
+            const hasActiveRequest = waiterRequests.some(r => {
+              const matchesType = r.type === item.type || r.requestType === item.type;
+              const isInactive = ['completed', 'cancelled', 'rejected'].includes((r.status || '').toLowerCase());
+              return matchesType && !isInactive;
+            });
             return (
               <button
                 key={item.label}

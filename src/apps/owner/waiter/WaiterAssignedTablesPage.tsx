@@ -253,7 +253,7 @@ export const WaiterAssignedTablesPage: React.FC = () => {
   const mappedTables = useMemo(() => {
     return tables.map(table => {
       const activeOrder = orders.find(o => o.orderId === table.activeOrderId && o.status !== 'ARCHIVED' && o.status !== 'COMPLETED');
-      const tableRequests = waiterRequests.filter(r => r.tableNumber === table.number && r.status !== 'Completed');
+      const tableRequests = waiterRequests.filter(r => r.tableNumber === table.number && !['completed', 'cancelled', 'rejected'].includes((r.status || '').toLowerCase()));
 
       let status = 'Available';
       if (table.status === 'empty') status = 'Available';

@@ -426,7 +426,8 @@ export const WaiterMatrix: React.FC = () => {
     const pendingDeliveries = orders.filter(o => o.waiterId === user?.uid && o.status === 'READY');
     const myDinerRequests = waiterRequests.filter(r => {
       const tableObj = tables.find(t => t.number === r.tableNumber);
-      return tableObj?.assignedWaiterId === user?.uid && r.status !== 'Completed';
+      const isInactive = ['completed', 'cancelled', 'rejected'].includes((r.status || '').toLowerCase());
+      return tableObj?.assignedWaiterId === user?.uid && !isInactive;
     });
 
     const hasPendingWork = pendingTables.length > 0 || pendingDeliveries.length > 0 || myDinerRequests.length > 0;
@@ -533,7 +534,8 @@ export const WaiterMatrix: React.FC = () => {
       const myDeliveries = orders.filter(o => o.waiterId === user?.uid && o.status === 'READY');
       const myRequests = waiterRequests.filter(r => {
         const tableObj = tables.find(t => t.number === r.tableNumber);
-        return tableObj?.assignedWaiterId === user?.uid && r.status !== 'Completed';
+        const isInactive = ['completed', 'cancelled', 'rejected'].includes((r.status || '').toLowerCase());
+        return tableObj?.assignedWaiterId === user?.uid && !isInactive;
       });
 
       const tableIds = myTables.map(t => t.id);
@@ -2969,7 +2971,8 @@ export const WaiterMatrix: React.FC = () => {
               <span className="font-bold text-textPearl">
                 {waiterRequests.filter(r => {
                   const tableObj = tables.find(t => t.number === r.tableNumber);
-                  return tableObj?.assignedWaiterId === user?.uid && r.status !== 'Completed';
+                  const isInactive = ['completed', 'cancelled', 'rejected'].includes((r.status || '').toLowerCase());
+                  return tableObj?.assignedWaiterId === user?.uid && !isInactive;
                 }).length}
               </span>
             </div>
