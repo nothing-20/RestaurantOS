@@ -109,7 +109,7 @@ service cloud.firestore {
     // Individual document fetch: allowed if authenticated OR if fetching a pending invitation by exact ID.
     // Collection listing/querying: strictly restricted to authenticated staff to prevent enumeration of pending invitations.
     match /employees/{employeeId} {
-      allow get: if isAuth() || resource.data.activationStatus == 'invited';
+      allow get: if isAuth() || resource.data.activationStatus in ['invited', 'activated'];
       allow list: if isAuth();
       allow create: if isAuth();
       allow update: if isAuth();
