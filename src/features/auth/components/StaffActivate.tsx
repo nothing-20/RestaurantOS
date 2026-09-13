@@ -84,6 +84,7 @@ export const StaffActivate: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
   const [invite, setInvite] = useState<IEmployeeInvite | null>(null);
   const [errors, setErrors] = useState<{ input?: string; email?: string; password?: string; confirm?: string }>({});
 
@@ -91,6 +92,8 @@ export const StaffActivate: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   const verificationAttemptedRef = useRef(false);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+  const confirmInputRef = useRef<HTMLInputElement>(null);
 
   // ── Direct O(1) Firestore Document Verification ──────────────────────────────
   const verifyByEmployeeId = useCallback(
@@ -298,45 +301,146 @@ export const StaffActivate: React.FC = () => {
   // ── Step 2: create Firebase account + link records ─────────────────────────
   const handleActivation = async (e: React.FormEvent) => {
     e.preventDefault();
-    const nextErrors: typeof errors = {};
+    console.info('[StaffActivation] Button clicked');
 
-    if (!password) {
-      nextErrors.password = 'Password is required.';
-    } else if (password.length < 6) {
-      nextErrors.password = 'Password must be at least 6 characters.';
-    }
-    if (!confirmPassword) {
-      nextErrors.confirm = 'Please confirm your password.';
-    } else if (password !== confirmPassword) {
-      nextErrors.confirm = 'Passwords do not match.';
-    }
-    if (Object.keys(nextErrors).length) {
-      setErrors(nextErrors);
+    if (isActivating) {
+      console.info('[StaffActivation] Activation already in progress, ignoring duplicate submit');
       return;
     }
+
+    setIsActivating(true);
     setErrors({});
 
-    if (!invite) return;
-    setIsLoading(true);
-
     try {
-      // Step A: Create Firebase Authentication account
-      const credentials = await createUserWithEmailAndPassword(
-        auth,
-        invite.email,
-        password
-      );
-      const fUser = credentials.user;
+      console.info('[StaffActivation] Validation started');
+
+      // Autofill fallback: extract from DOM ref if state was not populated by browser autofill
+      const pass = (password || passwordInputRef.current?.value || '').trim();
+      const confirmPass = (confirmPassword || confirmInputRef.current?.value || '').trim();
+
+      const nextErrors: typeof errors = {};
+      if (!pass) {
+        nextErrors.password = 'Password is required.';
+        toast.error('Please enter a password.');
+      } else if (pass.length < 6) {
+        nextErrors.password = 'Password must be at least 6 characters.';
+        toast.error('Password must be at least 6 characters.');
+      }
+
+      if (!confirmPass) {
+        nextErrors.confirm = 'Please confirm your password.';
+        toast.error('Please confirm your password.');
+      } else if (pass && confirmPass && pass !== confirmPass) {
+        nextErrors.confirm = 'Passwords do not match.';
+        toast.error('Passwords do not match.');
+      }
+
+      if (Object.keys(nextErrors).length) {
+        setErrors(nextErrors);
+        setIsActivating(false);
+        return;
+      }
+
+      console.info('[StaffActivation] Invitation state', {
+        hasInvitation: Boolean(invite),
+        hasEmployeeId: Boolean(invite?.id),
+        emailPresent: Boolean(invite?.email),
+        tokenPresent: Boolean(tokenParam || invite?.invitationToken),
+      });
+
+      if (!invite) {
+        toast.error('Invitation record is missing. Please refresh the page.');
+        setIsActivating(false);
+        return;
+      }
+
+      // Step A: Re-verify invitation document exists & valid in Firestore before creating Auth
+      console.info('[StaffActivation] Re-verifying invitation before Auth creation', { employeeId: invite.id });
+      let freshSnap;
+      try {
+        freshSnap = await getDoc(doc(db, 'employees', invite.id));
+      } catch (checkErr: any) {
+        console.error('[StaffActivation] Error checking employee document:', checkErr);
+      }
+
+      if (!freshSnap || !freshSnap.exists()) {
+        const msg = 'This invitation record was not found or was updated. Please use the latest link provided by your manager.';
+        setErrorMessage(msg);
+        toast.error(msg);
+        setIsActivating(false);
+        return;
+      }
+
+      const freshData = freshSnap.data();
+      if (freshData.activationStatus === 'activated' || freshData.status === 'active') {
+        const msg = 'This account has already been activated. Please sign in to your staff account.';
+        setErrorCode('ALREADY_ACTIVATED');
+        setErrorMessage(msg);
+        setStep('error');
+        toast.error(msg);
+        setIsActivating(false);
+        return;
+      }
+
+      if (isInvitationExpired(freshData.expiresAt)) {
+        const msg = 'This invitation link has expired. Ask your restaurant owner to send a new invitation.';
+        setErrorCode('EXPIRED');
+        setErrorMessage(msg);
+        setStep('error');
+        toast.error(msg);
+        setIsActivating(false);
+        return;
+      }
+
+      // Step B: Create Firebase Authentication account
+      console.info('[StaffActivation] Creating Firebase Auth account');
+      const verifiedEmail = invite.email.trim().toLowerCase();
+      let fUser: any = null;
+
+      try {
+        const credentials = await createUserWithEmailAndPassword(
+          auth,
+          verifiedEmail,
+          pass
+        );
+        fUser = credentials.user;
+        console.info('[StaffActivation] Auth account created', { uid: fUser.uid });
+      } catch (authErr: any) {
+        console.error('[StaffActivation] Auth creation error:', authErr?.code || authErr?.message);
+        if (authErr?.code === 'auth/email-already-in-use') {
+          // Email already registered in Firebase Auth: attempt sign-in to reconcile profile
+          try {
+            const { signInWithEmailAndPassword } = await import('firebase/auth');
+            const signinCred = await signInWithEmailAndPassword(auth, verifiedEmail, pass);
+            fUser = signinCred.user;
+            console.info('[StaffActivation] Existing Auth account reconciled via sign-in', { uid: fUser.uid });
+          } catch (signinErr: any) {
+            toast.error('This email already has an account. Please sign in via Staff Login.');
+            setIsActivating(false);
+            return;
+          }
+        } else if (authErr?.code === 'auth/weak-password') {
+          toast.error('Password is too weak. Please choose a stronger password.');
+          setErrors({ password: 'Password is too weak. Choose a stronger password.' });
+          setIsActivating(false);
+          return;
+        } else {
+          toast.error(authErr?.message || 'Unable to create staff account. Please try again.');
+          setIsActivating(false);
+          return;
+        }
+      }
 
       const now = new Date().toISOString();
 
-      // Step B: Create users/{uid} document — the authoritative profile record
+      // Step C: Create users/{uid} document — the authoritative profile record
+      console.info('[StaffActivation] Writing user profile');
       const userRef = doc(db, 'users', fUser.uid);
       await setDoc(userRef, {
         uid: fUser.uid,
         fullName: invite.fullName,
         displayName: invite.fullName,
-        email: invite.email,
+        email: verifiedEmail,
         phone: invite.phone || '',
         phoneNumber: invite.phone || '',
         role: invite.role,
@@ -348,7 +452,8 @@ export const StaffActivate: React.FC = () => {
         updatedAt: now,
       });
 
-      // Step C: Update employees/{id} — link Firebase UID, mark activated
+      // Step D: Update employees/{id} — link Firebase UID, mark activated
+      console.info('[StaffActivation] Updating employee');
       const employeeRef = doc(db, 'employees', invite.id);
       await updateDoc(employeeRef, {
         firebaseUid: fUser.uid,
@@ -356,8 +461,10 @@ export const StaffActivate: React.FC = () => {
         activationStatus: 'activated',
         activatedAt: now,
         updatedAt: now,
+        invitationToken: null,
       });
 
+      console.info('[StaffActivation] Activation complete');
       setStep('success');
       toast.success('Account activated successfully! Redirecting to your dashboard...');
 
@@ -367,14 +474,10 @@ export const StaffActivate: React.FC = () => {
         navigate(destination, { replace: true });
       }, 2000);
     } catch (err: any) {
-      console.error('[StaffActivate] Account creation error:', err?.code || err?.message);
-      if (err.code === 'auth/email-already-in-use') {
-        toast.error('This email already has a registered account. Please sign in via Staff Login.');
-      } else {
-        toast.error(err.message || 'Activation failed. Please try again.');
-      }
+      console.error('[StaffActivation] Unexpected error during activation:', err);
+      toast.error(err?.message || 'Unable to activate your account. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsActivating(false);
     }
   };
 
@@ -570,7 +673,7 @@ export const StaffActivate: React.FC = () => {
 
           {/* ── State: Password Creation ── */}
           {step === 'password' && invite && (
-            <form onSubmit={handleActivation} className="space-y-5">
+            <form onSubmit={handleActivation} noValidate className="space-y-5">
               <div className="space-y-1 text-center pb-1">
                 <h2 className="text-base font-bold text-emerald-400">Welcome, {invite.fullName}!</h2>
                 <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
@@ -595,13 +698,14 @@ export const StaffActivate: React.FC = () => {
               {/* Password */}
               <div className="relative">
                 <Input
+                  ref={passwordInputRef}
                   label="Choose a Password *"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="At least 6 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   error={errors.password}
-                  disabled={isLoading}
+                  disabled={isActivating || isLoading}
                   required
                 />
                 <button
@@ -617,13 +721,14 @@ export const StaffActivate: React.FC = () => {
               {/* Confirm */}
               <div className="relative">
                 <Input
+                  ref={confirmInputRef}
                   label="Confirm Password *"
                   type={showConfirm ? 'text' : 'password'}
                   placeholder="Re-enter your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   error={errors.confirm}
-                  disabled={isLoading}
+                  disabled={isActivating || isLoading}
                   required
                 />
                 <button
@@ -636,9 +741,30 @@ export const StaffActivate: React.FC = () => {
                 </button>
               </div>
 
-              <Button type="submit" className="w-full flex items-center justify-center space-x-2" isLoading={isLoading}>
-                <CheckCircle className="w-4 h-4" />
-                <span>Activate Account &amp; Join</span>
+              {errorMessage && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-left">
+                  <p className="text-xs font-semibold text-red-400">{errorMessage}</p>
+                </div>
+              )}
+
+              <Button
+                id="staff-activate-submit-button"
+                type="submit"
+                className="w-full flex items-center justify-center space-x-2"
+                isLoading={isActivating || isLoading}
+                disabled={isActivating || isLoading}
+              >
+                {isActivating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Activating Account...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Activate Account &amp; Join</span>
+                  </>
+                )}
               </Button>
 
               <button
@@ -648,6 +774,8 @@ export const StaffActivate: React.FC = () => {
                   setInvite(null);
                   setPassword('');
                   setConfirmPassword('');
+                  setErrorMessage('');
+                  setErrors({});
                 }}
                 className="w-full text-center text-[10px] font-bold text-slate-500 hover:text-textPearl transition-colors pt-1"
               >

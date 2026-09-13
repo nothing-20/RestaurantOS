@@ -195,8 +195,9 @@ const NotFound: React.FC = () => (
 
 export const AppRoutes: React.FC = () => {
   const { profileError, logout } = useAuth();
+  const isActivatingStaff = typeof window !== 'undefined' && window.location.pathname.startsWith('/staff/activate');
 
-  if (profileError) {
+  if (profileError && !isActivatingStaff) {
     return <ProfileErrorScreen message={profileError} onLogout={logout} />;
   }
 
