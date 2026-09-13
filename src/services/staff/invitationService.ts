@@ -32,7 +32,7 @@ export interface CreateInvitationResult {
 /**
  * Generate a cryptographically secure 64-character hex token client-side.
  */
-function generateSecureToken(): string {
+export function generateSecureToken(): string {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
     const arr = new Uint8Array(32);
     window.crypto.getRandomValues(arr);
@@ -127,9 +127,9 @@ export const invitationService = {
       invitationToken: secureToken,
     });
 
-    // 4. Construct Activation Link
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://restaurantos-dun.vercel.app';
-    const activationLink = `${origin}/staff/activate?token=${secureToken}&email=${encodeURIComponent(trimmedEmail)}`;
+    // 4. Construct Activation Link with production origin fallback, token, email, and exact document ID
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://restaurant-os-dun.vercel.app';
+    const activationLink = `${origin}/staff/activate?token=${secureToken}&email=${encodeURIComponent(trimmedEmail)}&id=${employeeDoc.id}`;
 
     // 5. Non-blocking attempt to send email
     let emailSent = false;
@@ -144,6 +144,9 @@ export const invitationService = {
         department: trimmedDept,
         tenantId: tenantId,
         createdBy: createdBy,
+        activationLink: activationLink,
+        token: secureToken,
+        employeeId: employeeDoc.id,
       });
 
       if (emailResult && emailResult.success) {

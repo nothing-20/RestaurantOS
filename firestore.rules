@@ -106,10 +106,11 @@ service cloud.firestore {
     }
 
     // Root-level Employee invitation records
-    // Readable by authenticated staff or unauthenticated employees verifying their invitation status.
-    // Writable by authenticated staff.
+    // Individual document fetch: allowed if authenticated OR if fetching a pending invitation by exact ID.
+    // Collection listing/querying: strictly restricted to authenticated staff to prevent enumeration of pending invitations.
     match /employees/{employeeId} {
-      allow read: if isAuth() || resource.data.activationStatus == 'invited';
+      allow get: if isAuth() || resource.data.activationStatus == 'invited';
+      allow list: if isAuth();
       allow create: if isAuth();
       allow update: if isAuth();
       allow delete: if isAuth();

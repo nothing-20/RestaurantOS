@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { fullName, email, phone, role, department, tenantId, createdBy } = req.body;
+  const { fullName, email, phone, role, department, tenantId, createdBy, activationLink: incomingLink, token: incomingToken, employeeId: incomingId } = req.body;
 
   if (!fullName || !email || !role || !tenantId) {
     return res.status(400).json({ error: 'Missing required arguments: fullName, email, role, and tenantId.' });
@@ -18,18 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const trimmedEmail = email.trim().toLowerCase();
 
-    // 1. Check duplicate pending invite in Firestore employees collection
-    const checkQ = query(
-      collection(db, 'employees'),
-      where('email', '==', trimmedEmail),
-      where('tenantId', '==', tenantId)
-    );
-    const checkSnap = await getDocs(checkQ);
-    if (!checkSnap.empty) {
-      return res.status(400).json({ error: `An invitation/employee with email ${trimmedEmail} already exists.` });
-    }
-
-    // 2. Fetch Restaurant Name for the email template branding
+    // 1. Fetch Restaurant Name for the email template branding
     let restaurantName = 'RestaurantOS Partner';
     try {
       const restDocRef = doc(db, 'restaurants', tenantId);
@@ -44,38 +33,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.warn('[Vercel API] Failed to fetch restaurant name:', e);
     }
 
-    const secureToken = crypto.randomBytes(32).toString('hex');
-    const now = new Date().toISOString();
+    let finalActivationLink = incomingLink;
+    let employeeId = incomingId;
 
-    // 3. Store invitation status in Firestore
-    const employeeRef = await addDoc(collection(db, 'employees'), {
-      fullName: fullName.trim(),
-      email: trimmedEmail,
-      phone: (phone || '').trim(),
-      role: role,
-      department: (department || '').trim(),
-      tenantId: tenantId,
-      branchId: '',
-      status: 'pending',
-      activationStatus: 'invited',
-      firebaseUid: null,
-      invitedAt: now,
-      createdBy: createdBy || 'system',
-      updatedAt: now,
-      invitationToken: secureToken,
-    });
+    // If activationLink wasn't provided, handle creation server-side
+    if (!finalActivationLink) {
+      const secureToken = incomingToken || crypto.randomBytes(32).toString('hex');
+      const now = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // 4. Send invitation email using Resend
-    const protocol = req.headers['x-forwarded-proto'] || 'http';
-    const host = req.headers.host || 'localhost:3000';
-    const activationLink = `${protocol}://${host}/staff/activate?token=${secureToken}&email=${encodeURIComponent(trimmedEmail)}`;
+      const employeeRef = await addDoc(collection(db, 'employees'), {
+        fullName: fullName.trim(),
+        email: trimmedEmail,
+        phone: (phone || '').trim(),
+        role: role,
+        department: (department || '').trim(),
+        tenantId: tenantId,
+        branchId: '',
+        status: 'pending',
+        activationStatus: 'invited',
+        firebaseUid: null,
+        invitedAt: now,
+        createdAt: now,
+        expiresAt: expiresAt,
+        createdBy: createdBy || 'system',
+        updatedAt: now,
+        invitationToken: secureToken,
+      });
 
+      employeeId = employeeRef.id;
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host || 'restaurant-os-dun.vercel.app';
+      finalActivationLink = `${protocol}://${host}/staff/activate?token=${secureToken}&email=${encodeURIComponent(trimmedEmail)}&id=${employeeRef.id}`;
+    }
+
+    // 2. Send invitation email using Resend
     const templateHtml = getInviteStaffTemplate({
       fullName: fullName,
       restaurantName: restaurantName,
       role: role,
       department: department || (role === 'kitchen' ? 'Kitchen' : 'Service'),
-      activationLink: activationLink,
+      activationLink: finalActivationLink,
     });
 
     const emailRes = await sendMailWithLogging({
@@ -88,10 +86,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({ 
       success: true, 
-      employeeId: employeeRef.id, 
+      employeeId: employeeId, 
       emailSent: emailRes.success,
       emailError: emailRes.error || undefined,
-      activationLink
+      activationLink: finalActivationLink
     });
   } catch (err: any) {
     console.error('[Vercel API] send-staff-invitation error:', err);

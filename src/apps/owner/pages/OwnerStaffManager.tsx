@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth as fbAuth } from '../../../config/firebase';
-import { createStaffInvitation } from '../../../services/staff/invitationService';
+import { createStaffInvitation, generateSecureToken } from '../../../services/staff/invitationService';
 import { useAuth } from '../../../context/AuthContext';
 import Button from '../../../components/ui/Button/Button';
 import Input from '../../../components/ui/Input/Input';
@@ -323,8 +323,23 @@ export const OwnerStaffManager: React.FC = () => {
   };
 
   const handleResendInvite = async (emp: IEmployee) => {
-    const tokenQuery = emp.invitationToken ? `token=${emp.invitationToken}&` : '';
-    const activationLink = `${window.location.origin}/staff/activate?${tokenQuery}email=${encodeURIComponent(emp.email)}`;
+    let token = emp.invitationToken;
+    if (!token) {
+      token = generateSecureToken();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      await updateDoc(doc(db, 'employees', emp.id), {
+        invitationToken: token,
+        expiresAt: expiresAt,
+        updatedAt: new Date().toISOString()
+      });
+      emp.invitationToken = token;
+      emp.expiresAt = expiresAt;
+    }
+    const params = new URLSearchParams();
+    params.set('token', token);
+    params.set('email', emp.email);
+    params.set('id', emp.id);
+    const activationLink = `${window.location.origin}/staff/activate?${params.toString()}`;
     try {
       await navigator.clipboard.writeText(activationLink);
       toast.success(`Activation link copied for ${emp.fullName}! Share it directly.`, { duration: 5000 });

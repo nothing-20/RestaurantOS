@@ -7,6 +7,9 @@ export const emailService = {
     department: string;
     tenantId: string;
     createdBy: string;
+    activationLink?: string;
+    token?: string;
+    employeeId?: string;
   }): Promise<{ success: boolean; employeeId?: string; error?: string }> {
     try {
       const res = await fetch('/api/send-staff-invitation', {

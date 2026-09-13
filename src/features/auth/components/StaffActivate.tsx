@@ -1,26 +1,35 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import {
-  collection,
-  query,
-  where,
-  getDocs,
   doc,
+  getDoc,
   setDoc,
-  updateDoc,
-  limit
+  updateDoc
 } from 'firebase/firestore';
 import { auth, db } from '../../../config/firebase';
 import Button from '../../../components/ui/Button/Button';
 import Input from '../../../components/ui/Input/Input';
 import Card from '../../../components/ui/Card/Card';
 import toast from 'react-hot-toast';
-import { CheckCircle, Mail, Lock, Eye, EyeOff, ArrowRight, UserCheck } from 'lucide-react';
+import {
+  CheckCircle,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  UserCheck,
+  AlertTriangle,
+  Clock,
+  ShieldAlert,
+  Loader2,
+  Building
+} from 'lucide-react';
 import { getDashboardRoute } from '../../../utils/navigation';
 
 // ─── Steps ────────────────────────────────────────────────────────────────────
-type Step = 'email' | 'password' | 'success';
+type Step = 'verifying' | 'email' | 'password' | 'success' | 'error';
 
 interface IEmployeeInvite {
   id: string;
@@ -33,11 +42,10 @@ interface IEmployeeInvite {
   department?: string;
   status: string;
   activationStatus: string;
-  firebaseUid: string | null;
+  firebaseUid?: string | null;
   invitationToken?: string;
   expiresAt?: string;
-  invitedAt: string;
-  createdBy: string;
+  restaurantName?: string;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -45,8 +53,15 @@ export const StaffActivate: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [step, setStep] = useState<Step>('email');
-  const [email, setEmail] = useState('');
+  const tokenParam = (searchParams.get('token') || '').trim();
+  const emailParam = (searchParams.get('email') || '').trim().toLowerCase();
+  const idParam = (searchParams.get('id') || '').trim();
+
+  // Determine initial step: if URL parameters are provided, go straight to auto-verification
+  const hasDirectParams = Boolean(tokenParam || idParam || emailParam);
+  const [step, setStep] = useState<Step>(hasDirectParams ? 'verifying' : 'email');
+
+  const [email, setEmail] = useState(emailParam);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -55,86 +70,164 @@ export const StaffActivate: React.FC = () => {
   const [invite, setInvite] = useState<IEmployeeInvite | null>(null);
   const [errors, setErrors] = useState<{ email?: string; password?: string; confirm?: string }>({});
 
-  const tokenParam = searchParams.get('token') || '';
-  const emailParam = searchParams.get('email') || '';
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
-  // ── Step 1: look up invitation ─────────────────────────────────────────────
-  const lookupInvite = useCallback(async (emailToLookup: string, tokenToCheck?: string) => {
-    const trimmedEmail = emailToLookup.trim().toLowerCase();
+  const verificationAttemptedRef = useRef(false);
 
-    if (!trimmedEmail) {
+  // ── Verification Handler ─────────────────────────────────────────────────────
+  const verifyInvitation = useCallback(
+    async (overrideEmail?: string) => {
+      setIsLoading(true);
+      setErrors({});
+      setErrorCode(null);
+      setErrorMessage('');
+
+      try {
+        // 1. DIRECT CLIENT-SIDE GET: If idParam is present, fetch the exact document
+        if (idParam) {
+          try {
+            const empDocRef = doc(db, 'employees', idParam);
+            const empSnap = await getDoc(empDocRef);
+
+            if (empSnap.exists()) {
+              const data = empSnap.data() as Omit<IEmployeeInvite, 'id'>;
+
+              // Check if already activated
+              if (data.activationStatus === 'activated' || data.status === 'active') {
+                setErrorCode('ALREADY_ACTIVATED');
+                setErrorMessage('This invitation has already been activated. Please sign in to your staff account.');
+                setStep('error');
+                setIsLoading(false);
+                return;
+              }
+
+              // Check if status is invalid/revoked
+              if (data.status !== 'pending' || data.activationStatus !== 'invited') {
+                setErrorCode('INVALID_STATUS');
+                setErrorMessage('This invitation is no longer valid or has been revoked.');
+                setStep('error');
+                setIsLoading(false);
+                return;
+              }
+
+              // Check expiration (7-day validity)
+              if (data.expiresAt && new Date(data.expiresAt).getTime() < Date.now()) {
+                setErrorCode('EXPIRED');
+                setErrorMessage('This invitation link has expired. Ask your restaurant owner to send a new invitation.');
+                setStep('error');
+                setIsLoading(false);
+                return;
+              }
+
+              // Verify token match if tokenParam exists
+              if (tokenParam && data.invitationToken && data.invitationToken !== tokenParam) {
+                setErrorCode('INVALID_TOKEN');
+                setErrorMessage('Invalid invitation token. Please check your activation link or contact your restaurant manager.');
+                setStep('error');
+                setIsLoading(false);
+                return;
+              }
+
+              // Verify email match if email provided
+              const targetEmail = (overrideEmail || emailParam).trim().toLowerCase();
+              if (targetEmail && data.email && data.email.trim().toLowerCase() !== targetEmail) {
+                setErrorCode('EMAIL_MISMATCH');
+                setErrorMessage('The email address does not match this invitation.');
+                setStep('error');
+                setIsLoading(false);
+                return;
+              }
+
+              // Attempt to fetch restaurant name for nice UI context
+              let restaurantName = '';
+              if (data.tenantId) {
+                try {
+                  const restSnap = await getDoc(doc(db, 'restaurants', data.tenantId));
+                  if (restSnap.exists()) {
+                    restaurantName = restSnap.data()?.name || '';
+                  }
+                } catch {
+                  // Non-blocking
+                }
+              }
+
+              setInvite({ id: empSnap.id, ...data, restaurantName });
+              setEmail(data.email);
+              setStep('password');
+              toast.success(`Invitation verified! Welcome, ${data.fullName}. Set your password to continue.`);
+              setIsLoading(false);
+              return;
+            }
+          } catch (directErr) {
+            console.warn('[StaffActivate] Direct getDoc lookup failed, trying verify API:', directErr);
+          }
+        }
+
+        // 2. SERVER-SIDE FALLBACK (api/verify-invitation): For token-only, email-only, or client fetch fallback
+        const targetEmail = (overrideEmail || emailParam || email).trim().toLowerCase();
+        const response = await fetch('/api/verify-invitation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: idParam || undefined,
+            token: tokenParam || undefined,
+            email: targetEmail || undefined,
+          }),
+        });
+
+        const resData = await response.json();
+
+        if (!response.ok || !resData.success) {
+          setErrorCode(resData.code || 'NOT_FOUND');
+          setErrorMessage(
+            resData.error ||
+              'No pending invitation found. Please check your email and token or ask your manager for a new link.'
+          );
+          setStep('error');
+          setIsLoading(false);
+          return;
+        }
+
+        const inv: IEmployeeInvite = resData.invitation;
+        setInvite(inv);
+        setEmail(inv.email);
+        setStep('password');
+        toast.success(`Invitation verified! Welcome, ${inv.fullName}. Set your password to continue.`);
+      } catch (err: any) {
+        console.error('[StaffActivate] Error verifying invitation:', err);
+        setErrorCode('SYSTEM_ERROR');
+        setErrorMessage('Failed to connect to verification service. Please try again.');
+        setStep('error');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [idParam, tokenParam, emailParam, email]
+  );
+
+  // Auto-verify once when component mounts if URL has token, id, or email
+  useEffect(() => {
+    if (!verificationAttemptedRef.current && hasDirectParams) {
+      verificationAttemptedRef.current = true;
+      verifyInvitation();
+    }
+  }, [hasDirectParams, verifyInvitation]);
+
+  // Fallback manual email submit
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) {
       setErrors({ email: 'Email address is required.' });
       return;
     }
-    if (!/\S+@\S+\.\S+/.test(trimmedEmail)) {
+    if (!/\S+@\S+\.\S+/.test(trimmed)) {
       setErrors({ email: 'Please enter a valid email address.' });
       return;
     }
-    setErrors({});
-    setIsLoading(true);
-
-    try {
-      // Query root-level employees collection by email + activationStatus
-      const empRef = collection(db, 'employees');
-      const q = query(
-        empRef,
-        where('email', '==', trimmedEmail),
-        where('activationStatus', '==', 'invited'),
-        limit(1)
-      );
-      const snap = await getDocs(q);
-
-      if (snap.empty) {
-        setErrors({ email: 'No pending invitation found for this email. Check the address or contact your manager.' });
-        setIsLoading(false);
-        return;
-      }
-
-      const empDoc = snap.docs[0];
-      const data = empDoc.data() as Omit<IEmployeeInvite, 'id'>;
-
-      if (data.status !== 'pending') {
-        setErrors({ email: 'This invitation has already been used or has been revoked.' });
-        setIsLoading(false);
-        return;
-      }
-
-      // Check expiry if present
-      if (data.expiresAt && new Date(data.expiresAt).getTime() < Date.now()) {
-        setErrors({ email: 'This invitation link has expired (7-day validity). Please request a new invitation from your manager.' });
-        setIsLoading(false);
-        return;
-      }
-
-      // Verify token match if provided
-      if (tokenToCheck && data.invitationToken && data.invitationToken !== tokenToCheck) {
-        setErrors({ email: 'Invalid invitation token. Please check your activation link or contact your manager.' });
-        setIsLoading(false);
-        return;
-      }
-
-      setInvite({ id: empDoc.id, ...data });
-      setStep('password');
-      toast.success(`Welcome, ${data.fullName}! Set your password to continue.`);
-    } catch (err: any) {
-      console.error(err);
-      toast.error('Failed to look up invitation. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // Auto-detect invitation parameters from URL query
-  useEffect(() => {
-    if (emailParam) {
-      setEmail(emailParam);
-      lookupInvite(emailParam, tokenParam);
-    }
-  }, [emailParam, tokenParam, lookupInvite]);
-
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await lookupInvite(email, tokenParam);
+    setStep('verifying');
+    await verifyInvitation(trimmed);
   };
 
   // ── Step 2: create Firebase account + link records ─────────────────────────
@@ -172,16 +265,18 @@ export const StaffActivate: React.FC = () => {
 
       const now = new Date().toISOString();
 
-      // Step B: Create users/{uid} document — the auth record
+      // Step B: Create users/{uid} document — the authoritative profile record
       const userRef = doc(db, 'users', fUser.uid);
       await setDoc(userRef, {
         uid: fUser.uid,
         fullName: invite.fullName,
+        displayName: invite.fullName,
         email: invite.email,
-        phone: invite.phone,
+        phone: invite.phone || '',
+        phoneNumber: invite.phone || '',
         role: invite.role,
         tenantId: invite.tenantId,
-        branchId: invite.branchId || '',
+        branchId: invite.branchId || 'main',
         department: invite.department || '',
         status: 'active',
         createdAt: now,
@@ -199,17 +294,17 @@ export const StaffActivate: React.FC = () => {
       });
 
       setStep('success');
-      toast.success('Account activated! Redirecting to your dashboard...');
+      toast.success('Account activated successfully! Redirecting to your dashboard...');
 
-      // Auto-redirect after 2 seconds to canonical role dashboard
+      // Auto-redirect to canonical role dashboard after 2 seconds
       setTimeout(() => {
         const destination = getDashboardRoute(invite.role);
         navigate(destination, { replace: true });
       }, 2000);
     } catch (err: any) {
-      console.error(err);
+      console.error('[StaffActivate] Account creation error:', err);
       if (err.code === 'auth/email-already-in-use') {
-        toast.error('This email already has a Firebase account. Try logging in at Staff Login.');
+        toast.error('This email already has a registered account. Please sign in via Staff Login.');
       } else {
         toast.error(err.message || 'Activation failed. Please try again.');
       }
@@ -224,7 +319,10 @@ export const StaffActivate: React.FC = () => {
     { label: 'Set Password', icon: Lock },
     { label: 'Activated',    icon: CheckCircle },
   ];
-  const stepIndex = step === 'email' ? 0 : step === 'password' ? 1 : 2;
+
+  let stepIndex = 0;
+  if (step === 'password') stepIndex = 1;
+  else if (step === 'success') stepIndex = 2;
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 relative overflow-hidden select-none">
@@ -249,7 +347,7 @@ export const StaffActivate: React.FC = () => {
         <div className="flex items-center justify-center space-x-2">
           {STEPS.map((s, i) => {
             const isDone = i < stepIndex;
-            const isCurrent = i === stepIndex;
+            const isCurrent = i === stepIndex && step !== 'error';
             const Icon = s.icon;
             return (
               <React.Fragment key={s.label}>
@@ -278,7 +376,80 @@ export const StaffActivate: React.FC = () => {
         {/* Card */}
         <Card className="p-8 border-slate-800/60 bg-slate-900/40 backdrop-blur-md rounded-3xl shadow-2xl">
 
-          {/* ── Step 1: Email ── */}
+          {/* ── State: Verifying ── */}
+          {step === 'verifying' && (
+            <div className="flex flex-col items-center text-center space-y-4 py-6">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-lg">
+                <Loader2 className="w-7 h-7 text-emerald-400 animate-spin" />
+              </div>
+              <div className="space-y-1">
+                <h2 className="text-base font-bold text-textPearl">Verifying Your Invitation</h2>
+                <p className="text-xs text-slate-400">
+                  Checking invitation token and credentials...
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── State: Error ── */}
+          {step === 'error' && (
+            <div className="space-y-5 text-center py-2">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shadow-lg">
+                {errorCode === 'ALREADY_ACTIVATED' ? (
+                  <ShieldAlert className="w-7 h-7 text-amber-400" />
+                ) : errorCode === 'EXPIRED' ? (
+                  <Clock className="w-7 h-7 text-amber-400" />
+                ) : (
+                  <AlertTriangle className="w-7 h-7 text-red-400" />
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <h2 className="text-base font-bold text-textPearl">
+                  {errorCode === 'ALREADY_ACTIVATED'
+                    ? 'Account Already Activated'
+                    : errorCode === 'EXPIRED'
+                    ? 'Invitation Has Expired'
+                    : 'Invalid Invitation'}
+                </h2>
+                <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
+                  {errorMessage || 'This invitation link could not be verified.'}
+                </p>
+              </div>
+
+              <div className="pt-2 space-y-2.5">
+                {errorCode === 'ALREADY_ACTIVATED' ? (
+                  <Link to="/staff/login" className="block w-full">
+                    <Button variant="primary" className="w-full">
+                      Proceed to Staff Login
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => {
+                      setStep('email');
+                      setErrorCode(null);
+                      setErrorMessage('');
+                    }}
+                  >
+                    Enter Email Manually
+                  </Button>
+                )}
+
+                <Link
+                  to="/"
+                  className="block text-center text-xs font-semibold text-slate-500 hover:text-slate-300 transition-colors pt-1"
+                >
+                  Return to Home
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* ── State: Manual Email Fallback ── */}
           {step === 'email' && (
             <form onSubmit={handleEmailSubmit} className="space-y-5">
               <div className="space-y-1 text-center pb-1">
@@ -306,20 +477,28 @@ export const StaffActivate: React.FC = () => {
             </form>
           )}
 
-          {/* ── Step 2: Password ── */}
+          {/* ── State: Password Creation ── */}
           {step === 'password' && invite && (
             <form onSubmit={handleActivation} className="space-y-5">
               <div className="space-y-1 text-center pb-1">
                 <h2 className="text-base font-bold text-emerald-400">Welcome, {invite.fullName}!</h2>
                 <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
-                  You've been invited as <strong className="text-slate-300">{invite.role.charAt(0).toUpperCase() + invite.role.slice(1)}</strong>. Set a password to activate your account.
+                  You've been invited as <strong className="text-slate-300 capitalize">{invite.role}</strong>. Set a password to activate your account.
                 </p>
               </div>
 
               {/* Invite summary chip */}
-              <div className="bg-emerald-500/8 border border-emerald-500/20 rounded-xl px-4 py-2.5 flex items-center space-x-2.5">
-                <Mail className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span className="text-[11px] font-semibold text-emerald-300 truncate">{invite.email}</span>
+              <div className="bg-emerald-500/8 border border-emerald-500/20 rounded-xl p-3 space-y-1.5">
+                <div className="flex items-center space-x-2">
+                  <Mail className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="text-[11px] font-semibold text-emerald-300 truncate">{invite.email}</span>
+                </div>
+                {invite.restaurantName && (
+                  <div className="flex items-center space-x-2 pt-1 border-t border-emerald-500/10">
+                    <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="text-[10px] text-slate-400 truncate">{invite.restaurantName}</span>
+                  </div>
+                )}
               </div>
 
               {/* Password */}
@@ -373,7 +552,12 @@ export const StaffActivate: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => { setStep('email'); setInvite(null); setPassword(''); setConfirmPassword(''); }}
+                onClick={() => {
+                  setStep('email');
+                  setInvite(null);
+                  setPassword('');
+                  setConfirmPassword('');
+                }}
                 className="w-full text-center text-[10px] font-bold text-slate-500 hover:text-textPearl transition-colors pt-1"
               >
                 ← Use a Different Email
@@ -381,7 +565,7 @@ export const StaffActivate: React.FC = () => {
             </form>
           )}
 
-          {/* ── Step 3: Success ── */}
+          {/* ── State: Success ── */}
           {step === 'success' && invite && (
             <div className="flex flex-col items-center text-center space-y-5 py-2">
               <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shadow-xl shadow-emerald-500/20 animate-bounce">
@@ -395,7 +579,7 @@ export const StaffActivate: React.FC = () => {
                 </p>
               </div>
               <div className="w-full bg-slate-800/40 rounded-full h-1 overflow-hidden">
-                <div className="h-full bg-emerald-500 animate-[progress_2s_linear_forwards] rounded-full" style={{ animation: 'width 2s linear forwards' }} />
+                <div className="h-full bg-emerald-500 rounded-full animate-pulse" />
               </div>
             </div>
           )}
