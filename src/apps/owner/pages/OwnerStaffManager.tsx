@@ -208,6 +208,13 @@ export const OwnerStaffManager: React.FC = () => {
         return;
       }
 
+      console.info('[StaffInvitation] Created', {
+        employeeId: result.employeeId,
+        hasToken: Boolean(result.token),
+        hasEmail: Boolean(trimmedEmail),
+        activationLinkHasId: result.activationLink.includes('&id='),
+      });
+
       toast.success(`Invitation created for ${form.fullName.trim()}!`);
       const createdData = {
         fullName: form.fullName.trim(),
@@ -336,6 +343,12 @@ export const OwnerStaffManager: React.FC = () => {
       emp.expiresAt = expiresAt;
     }
     const activationLink = buildStaffActivationLink(token, emp.email, emp.id);
+    console.info('[StaffInvitation] Resend link generated', {
+      employeeId: emp.id,
+      hasToken: Boolean(token),
+      hasEmail: Boolean(emp.email),
+      activationLinkHasId: activationLink.includes('&id='),
+    });
     try {
       await navigator.clipboard.writeText(activationLink);
       toast.success(`Activation link copied for ${emp.fullName}! Share it directly.`, { duration: 5000 });

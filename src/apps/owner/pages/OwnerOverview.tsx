@@ -641,6 +641,13 @@ export const OwnerOverview: React.FC = () => {
         return;
       }
 
+      console.info('[StaffInvitation] Created via Overview', {
+        employeeId: result.employeeId,
+        hasToken: Boolean(result.token),
+        hasEmail: Boolean(trimmedEmail),
+        activationLinkHasId: result.activationLink.includes('&id='),
+      });
+
       // Log action log event
       await logEvent(tenantId, {
         tenantId,

@@ -275,7 +275,13 @@ export const StaffActivate: React.FC = () => {
     }
 
     if (!parsedId) {
-      setErrors({ input: 'Could not find a valid Invitation ID. Please paste the complete link provided by your manager.' });
+      if (raw.includes('token=') || raw.includes('email=')) {
+        setErrors({
+          input: 'This activation link is missing the Invitation ID parameter (&id=...). Please ask your restaurant manager to use "Copy Link" or "Resend Invite" in the Staff Manager to provide the complete link, or enter your Invitation ID directly.'
+        });
+      } else {
+        setErrors({ input: 'Could not find a valid Invitation ID. Please paste the complete link provided by your manager or enter your Invitation ID.' });
+      }
       return;
     }
 
@@ -525,6 +531,15 @@ export const StaffActivate: React.FC = () => {
                   Enter the secure activation link sent to you by your restaurant manager or in your invitation email.
                 </p>
               </div>
+
+              {tokenParam && emailParam && !idParam && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-left space-y-1">
+                  <p className="text-xs font-bold text-amber-400">Missing Invitation ID Parameter</p>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    This link has your token and email but is missing the document ID (<code>&id=...</code>). Ask your restaurant manager to click <strong>"Copy Link"</strong> or <strong>"Resend Invite"</strong> in the Staff Manager to copy the complete link, or enter your Invitation ID below.
+                  </p>
+                </div>
+              )}
 
               <Input
                 label="Activation Link or Invitation ID"
