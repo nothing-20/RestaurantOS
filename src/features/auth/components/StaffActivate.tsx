@@ -48,232 +48,245 @@ interface IEmployeeInvite {
   restaurantName?: string;
 }
 
+// ─── Helper: Flexible Expiration Checker ───────────────────────────────────────
+function isInvitationExpired(expiresAt: any): boolean {
+  if (!expiresAt) return false;
+  let expireTime: number | null = null;
+  if (typeof expiresAt === 'string') {
+    expireTime = new Date(expiresAt).getTime();
+  } else if (typeof expiresAt === 'number') {
+    expireTime = expiresAt;
+  } else if (expiresAt && typeof expiresAt.toDate === 'function') {
+    expireTime = expiresAt.toDate().getTime();
+  } else if (expiresAt && typeof expiresAt.seconds === 'number') {
+    expireTime = expiresAt.seconds * 1000;
+  }
+  return expireTime !== null && !isNaN(expireTime) && expireTime < Date.now();
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────────
 export const StaffActivate: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const tokenParam = (searchParams.get('token') || '').trim();
-  const emailParam = (searchParams.get('email') || '').trim().toLowerCase();
+  const emailParam = (searchParams.get('email') || '').trim();
   const idParam = (searchParams.get('id') || '').trim();
 
-  // Determine initial step: if URL parameters are provided, go straight to auto-verification
-  const hasDirectParams = Boolean(tokenParam || idParam || emailParam);
-  const [step, setStep] = useState<Step>(hasDirectParams ? 'verifying' : 'email');
+  // If id is provided in URL, go straight to auto-verification; otherwise show link/ID input
+  const hasDirectId = Boolean(idParam);
+  const [step, setStep] = useState<Step>(hasDirectId ? 'verifying' : 'email');
 
-  const [email, setEmail] = useState(emailParam);
+  const [pastedInput, setPastedInput] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [invite, setInvite] = useState<IEmployeeInvite | null>(null);
-  const [errors, setErrors] = useState<{ email?: string; password?: string; confirm?: string }>({});
+  const [errors, setErrors] = useState<{ input?: string; email?: string; password?: string; confirm?: string }>({});
 
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   const verificationAttemptedRef = useRef(false);
 
-  // ── Verification Handler ─────────────────────────────────────────────────────
-  const verifyInvitation = useCallback(
-    async (overrideEmail?: string) => {
+  // ── Direct O(1) Firestore Document Verification ──────────────────────────────
+  const verifyByEmployeeId = useCallback(
+    async (targetId: string, targetToken?: string, targetEmail?: string) => {
       setIsLoading(true);
       setErrors({});
       setErrorCode(null);
       setErrorMessage('');
 
+      const cleanId = (targetId || '').trim();
+      const cleanToken = (targetToken ?? tokenParam).trim().toLowerCase();
+      let cleanEmail = '';
       try {
-        // ─────────────────────────────────────────────────────────────────────
-        // 1. DIRECT CLIENT-SIDE GET: Preferred O(1) direct document fetch
-        // ─────────────────────────────────────────────────────────────────────
-        if (idParam) {
-          console.log('[StaffActivate] Verification method: direct-firestore, employeeId:', idParam);
-          try {
-            const empDocRef = doc(db, 'employees', idParam);
-            const empSnap = await getDoc(empDocRef);
+        cleanEmail = decodeURIComponent((targetEmail ?? emailParam).trim()).toLowerCase();
+      } catch {
+        cleanEmail = (targetEmail ?? emailParam).trim().toLowerCase();
+      }
 
-            if (!empSnap.exists()) {
-              console.warn('[StaffActivate] Firestore document does not exist for ID:', idParam);
-              setErrorCode('NOT_FOUND');
-              setErrorMessage('This invitation could not be found. Please check your activation link or contact your manager.');
-              setStep('error');
-              setIsLoading(false);
-              return;
-            }
+      console.log('[StaffActivate] Verifying employee invitation directly from Firestore:', {
+        id: cleanId,
+        hasToken: Boolean(cleanToken),
+        hasEmail: Boolean(cleanEmail),
+      });
 
-            const data = empSnap.data() as Omit<IEmployeeInvite, 'id'>;
+      if (!cleanId) {
+        setErrorCode('NOT_FOUND');
+        setErrorMessage('Invitation ID is required. Please check your activation link or contact your restaurant manager.');
+        setStep('error');
+        setIsLoading(false);
+        return;
+      }
 
-            // Check if already activated
-            if (data.activationStatus === 'activated' || data.status === 'active') {
-              console.log('[StaffActivate] Invitation status: already activated');
-              setErrorCode('ALREADY_ACTIVATED');
-              setErrorMessage('This invitation has already been activated. Please sign in to your staff account.');
-              setStep('error');
-              setIsLoading(false);
-              return;
-            }
+      try {
+        const empDocRef = doc(db, 'employees', cleanId);
+        const empSnap = await getDoc(empDocRef);
 
-            // Check if status is invalid or revoked
-            if (data.status !== 'pending' || data.activationStatus !== 'invited') {
-              console.log('[StaffActivate] Invitation status invalid:', data.status, data.activationStatus);
-              setErrorCode('INVALID_STATUS');
-              setErrorMessage('This invitation is no longer valid or has been revoked.');
-              setStep('error');
-              setIsLoading(false);
-              return;
-            }
-
-            // Check expiration (7-day validity)
-            if (data.expiresAt && new Date(data.expiresAt).getTime() < Date.now()) {
-              console.log('[StaffActivate] Invitation expired at:', data.expiresAt);
-              setErrorCode('EXPIRED');
-              setErrorMessage('This invitation link has expired. Ask your restaurant owner to send a new invitation.');
-              setStep('error');
-              setIsLoading(false);
-              return;
-            }
-
-            // Verify token match if tokenParam exists
-            if (tokenParam && data.invitationToken && data.invitationToken !== tokenParam) {
-              console.warn('[StaffActivate] Invitation token mismatch');
-              setErrorCode('INVALID_TOKEN');
-              setErrorMessage('This invitation link is invalid. The security token does not match.');
-              setStep('error');
-              setIsLoading(false);
-              return;
-            }
-
-            // Verify email match if email provided
-            const targetEmail = (overrideEmail || emailParam).trim().toLowerCase();
-            if (targetEmail && data.email && data.email.trim().toLowerCase() !== targetEmail) {
-              console.warn('[StaffActivate] Email mismatch');
-              setErrorCode('EMAIL_MISMATCH');
-              setErrorMessage('The email address in the link does not match this invitation record.');
-              setStep('error');
-              setIsLoading(false);
-              return;
-            }
-
-            // Valid invitation! Fetch restaurant name for UI context
-            let restaurantName = '';
-            if (data.tenantId) {
-              try {
-                const restSnap = await getDoc(doc(db, 'restaurants', data.tenantId));
-                if (restSnap.exists()) {
-                  restaurantName = restSnap.data()?.name || '';
-                }
-              } catch {
-                // Non-blocking
-              }
-            }
-
-            console.log('[StaffActivate] Verification successful:', {
-              id: empSnap.id,
-              role: data.role,
-              tenantId: data.tenantId,
-              status: data.status,
-            });
-
-            setInvite({ id: empSnap.id, ...data, restaurantName });
-            setEmail(data.email);
-            setStep('password');
-            toast.success(`Invitation verified! Welcome, ${data.fullName}. Set your password to continue.`);
-            setIsLoading(false);
-            return;
-          } catch (directErr: any) {
-            console.error('[StaffActivate] Direct getDoc error:', directErr?.code || directErr?.message);
-            if (directErr?.code === 'permission-denied') {
-              setErrorCode('PERMISSION_DENIED');
-              setErrorMessage('Unable to verify this invitation. It may have already been activated or expired.');
-            } else if (directErr?.code === 'unavailable' || directErr?.message?.includes('network')) {
-              setErrorCode('NETWORK_ERROR');
-              setErrorMessage('Unable to connect. Please check your internet connection and try again.');
-            } else {
-              setErrorCode('LOOKUP_FAILED');
-              setErrorMessage('Unable to verify this invitation. Please contact your restaurant manager.');
-            }
-            setStep('error');
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        // ─────────────────────────────────────────────────────────────────────
-        // 2. SERVER-SIDE FALLBACK: Only used if idParam was not in URL
-        // ─────────────────────────────────────────────────────────────────────
-        console.log('[StaffActivate] Verification method: serverless API fallback');
-        const targetEmail = (overrideEmail || emailParam || email).trim().toLowerCase();
-        const response = await fetch('/api/verify-invitation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: idParam || undefined,
-            token: tokenParam || undefined,
-            email: targetEmail || undefined,
-          }),
-        });
-
-        const resData = await response.json();
-
-        if (!response.ok || !resData.success) {
-          const code = resData.code || 'NOT_FOUND';
-          setErrorCode(code);
-          if (code === 'ALREADY_ACTIVATED') {
-            setErrorMessage('This invitation has already been activated. Please sign in to your staff account.');
-          } else if (code === 'EXPIRED') {
-            setErrorMessage('This invitation link has expired. Ask your restaurant owner to send a new invitation.');
-          } else if (code === 'INVALID_TOKEN') {
-            setErrorMessage('This invitation link is invalid. The security token does not match.');
-          } else if (code === 'EMAIL_MISMATCH') {
-            setErrorMessage('The email address does not match this invitation record.');
-          } else {
-            setErrorMessage(resData.error || 'This invitation could not be found. Please contact your manager.');
-          }
+        if (!empSnap.exists()) {
+          console.warn('[StaffActivate] Firestore document does not exist for ID:', cleanId);
+          setErrorCode('NOT_FOUND');
+          setErrorMessage('This invitation record was not found. Please check your activation link or contact your restaurant manager.');
           setStep('error');
           setIsLoading(false);
           return;
         }
 
-        const inv: IEmployeeInvite = resData.invitation;
-        setInvite(inv);
-        setEmail(inv.email);
+        const data = empSnap.data() as Omit<IEmployeeInvite, 'id'>;
+
+        // 1. Check if already activated
+        if (data.activationStatus === 'activated' || data.status === 'active') {
+          console.log('[StaffActivate] Invitation status: already activated');
+          setErrorCode('ALREADY_ACTIVATED');
+          setErrorMessage('This invitation has already been activated. Please sign in to your staff account.');
+          setStep('error');
+          setIsLoading(false);
+          return;
+        }
+
+        // 2. Check if status is invalid or revoked
+        if (data.status !== 'pending' || data.activationStatus !== 'invited') {
+          console.log('[StaffActivate] Invitation status invalid:', data.status, data.activationStatus);
+          setErrorCode('INVALID_STATUS');
+          setErrorMessage('This invitation is no longer active or has been revoked.');
+          setStep('error');
+          setIsLoading(false);
+          return;
+        }
+
+        // 3. Check expiration
+        if (isInvitationExpired(data.expiresAt)) {
+          console.log('[StaffActivate] Invitation expired at:', data.expiresAt);
+          setErrorCode('EXPIRED');
+          setErrorMessage('This invitation link has expired. Ask your restaurant owner to send a new invitation.');
+          setStep('error');
+          setIsLoading(false);
+          return;
+        }
+
+        // 4. Verify token match if token provided
+        const storedToken = (data.invitationToken || '').trim().toLowerCase();
+        if (cleanToken && storedToken && cleanToken !== storedToken) {
+          console.warn('[StaffActivate] Invitation token mismatch');
+          setErrorCode('INVALID_TOKEN');
+          setErrorMessage('This invitation link is invalid. The security token does not match.');
+          setStep('error');
+          setIsLoading(false);
+          return;
+        }
+
+        // 5. Verify email match if email provided
+        const storedEmail = (data.email || '').trim().toLowerCase();
+        if (cleanEmail && storedEmail && cleanEmail !== storedEmail) {
+          console.warn('[StaffActivate] Email mismatch:', { cleanEmail, storedEmail });
+          setErrorCode('EMAIL_MISMATCH');
+          setErrorMessage(`The email address in the link (${cleanEmail}) does not match this invitation record.`);
+          setStep('error');
+          setIsLoading(false);
+          return;
+        }
+
+        // 6. Valid invitation! Fetch restaurant name for UI context (non-blocking)
+        let restaurantName = '';
+        if (data.tenantId) {
+          try {
+            const restSnap = await getDoc(doc(db, 'restaurants', data.tenantId));
+            if (restSnap.exists()) {
+              restaurantName = restSnap.data()?.name || '';
+            }
+          } catch {
+            // Non-blocking
+          }
+        }
+
+        console.log('[StaffActivate] Verification successful:', {
+          id: empSnap.id,
+          fullName: data.fullName,
+          role: data.role,
+          tenantId: data.tenantId,
+        });
+
+        setInvite({ id: empSnap.id, ...data, restaurantName });
+        setEmail(data.email);
         setStep('password');
-        toast.success(`Invitation verified! Welcome, ${inv.fullName}. Set your password to continue.`);
-      } catch (err: any) {
-        console.error('[StaffActivate] Error verifying invitation:', err?.code || err?.message);
-        setErrorCode('NETWORK_ERROR');
-        setErrorMessage('Unable to connect. Please check your connection and try again.');
+        toast.success(`Invitation verified! Welcome, ${data.fullName}. Set your password to continue.`);
+      } catch (directErr: any) {
+        console.error('[StaffActivate] Direct getDoc error:', directErr?.code, directErr?.message);
+        if (directErr?.code === 'permission-denied') {
+          // Firestore security rules evaluate resource data; if doc is absent or uninvited, permission-denied is returned
+          setErrorCode('PERMISSION_DENIED');
+          setErrorMessage('Unable to access this invitation. The link may have expired, already been activated, or does not exist.');
+        } else if (directErr?.code === 'unavailable' || directErr?.message?.includes('network')) {
+          setErrorCode('NETWORK_ERROR');
+          setErrorMessage('Unable to connect to the database. Please check your internet connection and try again.');
+        } else {
+          setErrorCode('LOOKUP_FAILED');
+          setErrorMessage(directErr?.message || 'Unable to verify invitation. Please contact your manager.');
+        }
         setStep('error');
       } finally {
         setIsLoading(false);
       }
     },
-    [idParam, tokenParam, emailParam, email]
+    [tokenParam, emailParam]
   );
 
-  // Auto-verify once when component mounts if URL has token, id, or email
+  // Auto-verify on mount if idParam is present in URL
   useEffect(() => {
-    if (!verificationAttemptedRef.current && hasDirectParams) {
+    if (!verificationAttemptedRef.current && idParam) {
       verificationAttemptedRef.current = true;
-      verifyInvitation();
+      verifyByEmployeeId(idParam, tokenParam, emailParam);
     }
-  }, [hasDirectParams, verifyInvitation]);
+  }, [idParam, tokenParam, emailParam, verifyByEmployeeId]);
 
-  // Fallback manual email submit
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  // Handle manual input of link or ID
+  const handleManualInputSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = email.trim().toLowerCase();
-    if (!trimmed) {
-      setErrors({ email: 'Email address is required.' });
+    const raw = pastedInput.trim();
+    if (!raw) {
+      setErrors({ input: 'Please enter an activation link or Invitation ID.' });
       return;
     }
-    if (!/\S+@\S+\.\S+/.test(trimmed)) {
-      setErrors({ email: 'Please enter a valid email address.' });
+
+    let parsedId = raw;
+    let parsedToken = '';
+    let parsedEmail = '';
+
+    // Check if user pasted a full URL
+    if (raw.includes('?') || raw.includes('/staff/activate')) {
+      try {
+        const urlObj = raw.startsWith('http') ? new URL(raw) : new URL(`https://dummy.internal/${raw.replace(/^\/+/, '')}`);
+        parsedId = urlObj.searchParams.get('id') || '';
+        parsedToken = urlObj.searchParams.get('token') || '';
+        parsedEmail = urlObj.searchParams.get('email') || '';
+      } catch {
+        // Fallback simple regex extraction
+        const idMatch = raw.match(/[?&]id=([^&]+)/);
+        if (idMatch) parsedId = idMatch[1];
+        const tokenMatch = raw.match(/[?&]token=([^&]+)/);
+        if (tokenMatch) parsedToken = tokenMatch[1];
+        const emailMatch = raw.match(/[?&]email=([^&]+)/);
+        if (emailMatch) parsedEmail = emailMatch[1];
+      }
+    }
+
+    if (!parsedId) {
+      setErrors({ input: 'Could not find a valid Invitation ID. Please paste the complete link provided by your manager.' });
       return;
     }
+
+    // Update search params in URL so refresh works
+    const newParams: Record<string, string> = { id: parsedId };
+    if (parsedToken) newParams.token = parsedToken;
+    if (parsedEmail) newParams.email = parsedEmail;
+    setSearchParams(newParams);
+
     setStep('verifying');
-    await verifyInvitation(trimmed);
+    await verifyByEmployeeId(parsedId, parsedToken, parsedEmail);
   };
 
   // ── Step 2: create Firebase account + link records ─────────────────────────
@@ -452,14 +465,18 @@ export const StaffActivate: React.FC = () => {
 
               <div className="space-y-1.5">
                 <h2 className="text-base font-bold text-textPearl">
-                  {errorCode === 'ALREADY_ACTIVATED' || errorCode === 'PERMISSION_DENIED'
+                  {errorCode === 'ALREADY_ACTIVATED'
                     ? 'Account Already Activated'
                     : errorCode === 'EXPIRED'
                     ? 'Invitation Has Expired'
                     : errorCode === 'INVALID_TOKEN'
                     ? 'Invalid Security Token'
+                    : errorCode === 'EMAIL_MISMATCH'
+                    ? 'Email Address Mismatch'
                     : errorCode === 'NOT_FOUND'
                     ? 'Invitation Not Found'
+                    : errorCode === 'PERMISSION_DENIED'
+                    ? 'Invitation Not Accessible'
                     : 'Invalid Invitation'}
                 </h2>
                 <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
@@ -485,7 +502,7 @@ export const StaffActivate: React.FC = () => {
                       setErrorMessage('');
                     }}
                   >
-                    Enter Email Manually
+                    Enter Link or ID Manually
                   </Button>
                 )}
 
@@ -499,31 +516,40 @@ export const StaffActivate: React.FC = () => {
             </div>
           )}
 
-          {/* ── State: Manual Email Fallback ── */}
+          {/* ── State: Manual Link / ID Fallback ── */}
           {step === 'email' && (
-            <form onSubmit={handleEmailSubmit} className="space-y-5">
+            <form onSubmit={handleManualInputSubmit} className="space-y-5">
               <div className="space-y-1 text-center pb-1">
-                <h2 className="text-base font-bold text-textPearl">Verify Your Invitation</h2>
-                <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
-                  Enter the email address your manager used when they invited you.
+                <h2 className="text-base font-bold text-textPearl">Activate Staff Account</h2>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Enter the secure activation link sent to you by your restaurant manager or in your invitation email.
                 </p>
               </div>
 
               <Input
-                label="Invitation Email Address"
-                type="email"
-                placeholder="you@restaurant.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                error={errors.email}
+                label="Activation Link or Invitation ID"
+                type="text"
+                placeholder="https://.../staff/activate?token=...&id=..."
+                value={pastedInput}
+                onChange={(e) => setPastedInput(e.target.value)}
+                error={errors.input}
                 disabled={isLoading}
                 required
               />
 
               <Button type="submit" className="w-full flex items-center justify-center space-x-2" isLoading={isLoading}>
-                <span>Find My Invitation</span>
+                <span>Verify & Continue</span>
                 <ArrowRight className="w-4 h-4" />
               </Button>
+
+              <div className="pt-1 text-center">
+                <Link
+                  to="/staff/login"
+                  className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  Already activated? <strong className="text-primary">Staff Login</strong>
+                </Link>
+              </div>
             </form>
           )}
 

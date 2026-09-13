@@ -714,8 +714,7 @@ export const OwnerStaffManager: React.FC = () => {
         <div className="mb-4 p-3 bg-emerald-500/8 border border-emerald-500/20 rounded-xl">
           <p className="text-[11px] text-emerald-300 font-semibold leading-relaxed">
             <Mail className="w-3 h-3 inline mr-1" />
-            An invitation record will be created. The employee will activate their account at{' '}
-            <strong>/staff/activate</strong> using their email.
+            An invitation record will be created. A secure direct activation link will be generated for the employee to set their password.
           </p>
         </div>
         <form onSubmit={handleInviteSubmit} className="space-y-4 text-left">

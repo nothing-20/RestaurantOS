@@ -1,98 +1,81 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { collection, query, where, getDocs, getDoc, doc, addDoc } from 'firebase/firestore';
-import crypto from 'crypto';
-import { db, sendMailWithLogging } from './_lib/resendHelper';
-import { getInviteStaffTemplate } from '../src/services/email/emailTemplates';
+import { Resend } from 'resend';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { fullName, email, phone, role, department, tenantId, createdBy, activationLink: incomingLink, token: incomingToken, employeeId: incomingId } = req.body;
+  const { fullName, email, role, department, activationLink, employeeId, restaurantName: incomingRestName } = req.body || {};
 
-  if (!fullName || !email || !role || !tenantId) {
-    return res.status(400).json({ error: 'Missing required arguments: fullName, email, role, and tenantId.' });
+  if (!fullName || !email) {
+    return res.status(400).json({ error: 'Missing required fields: fullName and email.' });
+  }
+
+  const trimmedEmail = String(email).trim().toLowerCase();
+  const restName = incomingRestName || 'RestaurantOS';
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn('[Vercel API] RESEND_API_KEY is not configured on the server. Email skipped.');
+    return res.status(200).json({
+      success: true,
+      emailSent: false,
+      warning: 'RESEND_API_KEY not configured.',
+      employeeId,
+      activationLink
+    });
   }
 
   try {
-    const trimmedEmail = email.trim().toLowerCase();
+    const resend = new Resend(apiKey);
+    const link = activationLink || `https://restaurant-os-dun.vercel.app/staff/activate?id=${employeeId || ''}`;
 
-    // 1. Fetch Restaurant Name for the email template branding
-    let restaurantName = 'RestaurantOS Partner';
-    try {
-      const restDocRef = doc(db, 'restaurants', tenantId);
-      const restDocSnap = await getDoc(restDocRef);
-      if (restDocSnap.exists()) {
-        const restData = restDocSnap.data();
-        if (restData && restData.name) {
-          restaurantName = restData.name;
-        }
-      }
-    } catch (e) {
-      console.warn('[Vercel API] Failed to fetch restaurant name:', e);
-    }
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #020617; border: 1px solid #1e293b; border-radius: 16px; overflow: hidden; color: #f8fafc;">
+        <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 32px; text-align: center;">
+          <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.025em;">RestaurantOS</h1>
+          <p style="color: #d1fae5; font-size: 14px; margin: 6px 0 0 0; font-weight: 500;">Staff Account Invitation</p>
+        </div>
+        <div style="padding: 32px; line-height: 1.6;">
+          <h2 style="font-size: 18px; font-weight: 700; color: #f8fafc; margin-top: 0;">Welcome, ${fullName}!</h2>
+          <p style="font-size: 14px; color: #cbd5e1;">You have been invited to join the team at <strong>${restName}</strong> as <strong>${role || 'Staff'}</strong>${department ? ` (${department})` : ''}.</p>
+          <p style="font-size: 14px; color: #cbd5e1;">Click the button below to set your password and activate your staff access:</p>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${link}" style="background-color: #10b981; color: #020617; font-weight: 700; font-size: 14px; padding: 14px 32px; border-radius: 10px; text-decoration: none; display: inline-block;">
+              Activate Staff Account
+            </a>
+          </div>
+          <p style="font-size: 12px; color: #64748b; line-height: 1.5;">If the button does not work, copy and paste this link into your browser:<br/><span style="color: #94a3b8; word-break: break-all;">${link}</span></p>
+          <hr style="border: 0; border-top: 1px solid #1e293b; margin: 28px 0;" />
+          <p style="font-size: 11px; color: #475569; margin: 0; text-align: center;">This invitation link is valid for 7 days. If you did not expect this invitation, you can safely ignore this email.</p>
+        </div>
+      </div>
+    `;
 
-    let finalActivationLink = incomingLink;
-    let employeeId = incomingId;
-
-    // If activationLink wasn't provided, handle creation server-side
-    if (!finalActivationLink) {
-      const secureToken = incomingToken || crypto.randomBytes(32).toString('hex');
-      const now = new Date().toISOString();
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-      const employeeRef = await addDoc(collection(db, 'employees'), {
-        fullName: fullName.trim(),
-        email: trimmedEmail,
-        phone: (phone || '').trim(),
-        role: role,
-        department: (department || '').trim(),
-        tenantId: tenantId,
-        branchId: '',
-        status: 'pending',
-        activationStatus: 'invited',
-        firebaseUid: null,
-        invitedAt: now,
-        createdAt: now,
-        expiresAt: expiresAt,
-        createdBy: createdBy || 'system',
-        updatedAt: now,
-        invitationToken: secureToken,
-      });
-
-      employeeId = employeeRef.id;
-      const protocol = req.headers['x-forwarded-proto'] || 'https';
-      const host = req.headers.host || 'restaurant-os-dun.vercel.app';
-      finalActivationLink = `${protocol}://${host}/staff/activate?token=${secureToken}&email=${encodeURIComponent(trimmedEmail)}&id=${employeeRef.id}`;
-    }
-
-    // 2. Send invitation email using Resend
-    const templateHtml = getInviteStaffTemplate({
-      fullName: fullName,
-      restaurantName: restaurantName,
-      role: role,
-      department: department || (role === 'kitchen' ? 'Kitchen' : 'Service'),
-      activationLink: finalActivationLink,
+    const response = await resend.emails.send({
+      from: 'RestaurantOS <onboarding@resend.dev>',
+      to: [trimmedEmail],
+      subject: `You're invited to join ${restName} on RestaurantOS`,
+      html: htmlContent,
     });
 
-    const emailRes = await sendMailWithLogging({
-      to: trimmedEmail,
-      subject: `Join ${restaurantName} on RestaurantOS`,
-      html: templateHtml,
-      tenantId: tenantId,
-      type: 'staff_invitation',
-    });
-
-    return res.status(200).json({ 
-      success: true, 
-      employeeId: employeeId, 
-      emailSent: emailRes.success,
-      emailError: emailRes.error || undefined,
-      activationLink: finalActivationLink
+    return res.status(200).json({
+      success: true,
+      emailSent: !response.error,
+      emailId: response.data?.id,
+      emailError: response.error ? response.error.message : undefined,
+      employeeId,
+      activationLink: link
     });
   } catch (err: any) {
-    console.error('[Vercel API] send-staff-invitation error:', err);
-    return res.status(500).json({ error: err.message || 'Internal Server Error' });
+    console.warn('[Vercel API] send-staff-invitation dispatch failed:', err?.message);
+    return res.status(200).json({
+      success: true,
+      emailSent: false,
+      emailError: err?.message || 'Email dispatch failed',
+      employeeId,
+      activationLink
+    });
   }
 }
