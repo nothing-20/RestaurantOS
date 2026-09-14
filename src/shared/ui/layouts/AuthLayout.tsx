@@ -1,7 +1,14 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 
 export const AuthLayout: React.FC = () => {
+  const location = useLocation();
+  const isOwnerLogin = location.pathname === '/owner/login' || location.pathname === '/login';
+
+  if (isOwnerLogin) {
+    return <Outlet />;
+  }
+
   return (
     <div className="min-h-screen bg-background relative flex items-center justify-center p-4 overflow-hidden">
       <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-primary/10 blur-[150px] pointer-events-none" />
@@ -21,3 +28,4 @@ export const AuthLayout: React.FC = () => {
   );
 };
 export default AuthLayout;
+
