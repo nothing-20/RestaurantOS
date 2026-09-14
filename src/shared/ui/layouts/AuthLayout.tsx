@@ -6,7 +6,8 @@ export const AuthLayout: React.FC = () => {
   const isCustomAuthLayout = 
     location.pathname === '/owner/login' || 
     location.pathname === '/login' || 
-    location.pathname === '/register';
+    location.pathname === '/register' ||
+    location.pathname === '/staff/login';
 
   if (isCustomAuthLayout) {
     return <Outlet />;
