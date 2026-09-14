@@ -1,169 +1,147 @@
 import React from 'react';
 import { IKdsMetrics } from '../../../features/kitchen-dashboard/types';
 import {
+  Utensils,
   Flame,
-  ChefHat,
   CheckCircle2,
-  Clock,
   AlertTriangle,
-  UtensilsCrossed,
   BarChart2,
-  Zap
+  Clock,
+  Check
 } from 'lucide-react';
-
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-
-interface IStatCardProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number;
-  subtext?: string;
-  accent: string;       // border/icon accent colour class
-  bgAccent: string;     // subtle background accent
-  pulse?: boolean;
-  alert?: boolean;
-}
-
-const StatCard: React.FC<IStatCardProps> = ({
-  icon, label, value, subtext, accent, bgAccent, pulse = false, alert = false,
-}) => (
-  <div className={`relative flex flex-col justify-between p-4 rounded-2xl border ${accent} ${bgAccent} overflow-hidden min-w-0`}>
-    {alert && (
-      <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 animate-ping" />
-    )}
-    <div className="flex items-center space-x-2 mb-2">
-      <div className={`opacity-80 ${pulse ? 'animate-pulse' : ''}`}>{icon}</div>
-      <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 truncate">
-        {label}
-      </span>
-    </div>
-    <div>
-      <span className={`text-2xl font-display font-extrabold text-textPearl tabular-nums leading-none ${pulse ? 'animate-pulse' : ''}`}>
-        {value}
-      </span>
-      {subtext && (
-        <p className="text-[9px] text-slate-500 font-semibold mt-0.5 leading-tight">{subtext}</p>
-      )}
-    </div>
-  </div>
-);
-
-// ─── Props ────────────────────────────────────────────────────────────────────
 
 interface IKitchenStatsBarProps {
   metrics: IKdsMetrics;
   targetPrepMinutes: number;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
-const KitchenStatsBar: React.FC<IKitchenStatsBarProps> = ({ metrics, targetPrepMinutes }) => {
-  const effColor =
-    metrics.kitchenEfficiencyPct >= 80
-      ? 'text-emerald-400 border-emerald-500/25 bg-emerald-950/10'
-      : metrics.kitchenEfficiencyPct >= 60
-      ? 'text-yellow-400 border-yellow-500/25 bg-yellow-950/10'
-      : 'text-red-400 border-red-500/25 bg-red-950/10';
+export const KitchenStatsBar: React.FC<IKitchenStatsBarProps> = ({ metrics, targetPrepMinutes }) => {
+  const onTimeCount = Math.max(0, metrics.activeOrders - metrics.delayedOrders);
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
-
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 select-none font-sans">
+      
       {/* 1. Active Orders */}
-      <StatCard
-        icon={<Flame className="w-4 h-4 text-orange-400" />}
-        label="Active Orders"
-        value={metrics.activeOrders}
-        subtext="In queue"
-        accent="border-orange-500/20"
-        bgAccent="bg-orange-950/10"
-        pulse={metrics.activeOrders > 0}
-      />
-
-      {/* 2. Preparing */}
-      <StatCard
-        icon={<ChefHat className="w-4 h-4 text-yellow-400" />}
-        label="Preparing"
-        value={metrics.preparingOrders}
-        subtext="On the pass"
-        accent="border-yellow-500/20"
-        bgAccent="bg-yellow-950/10"
-        pulse={metrics.preparingOrders > 0}
-      />
-
-      {/* 3. Ready */}
-      <StatCard
-        icon={<CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-        label="Ready"
-        value={metrics.readyOrders}
-        subtext="Awaiting pickup"
-        accent="border-emerald-500/20"
-        bgAccent="bg-emerald-950/10"
-      />
-
-      {/* 4. Avg Prep Time */}
-      <StatCard
-        icon={<Clock className="w-4 h-4 text-blue-400" />}
-        label="Avg Prep Time"
-        value={metrics.avgPrepTimeMinutes > 0 ? `${metrics.avgPrepTimeMinutes.toFixed(1)}m` : '—'}
-        subtext={`Target: ${targetPrepMinutes}m`}
-        accent="border-blue-500/20"
-        bgAccent="bg-blue-950/10"
-      />
-
-      {/* 5. Delayed Orders */}
-      <StatCard
-        icon={<AlertTriangle className="w-4 h-4 text-red-400" />}
-        label="Delayed"
-        value={metrics.delayedOrders}
-        subtext={`> ${targetPrepMinutes}m threshold`}
-        accent={metrics.delayedOrders > 0 ? 'border-red-500/30' : 'border-slate-800/60'}
-        bgAccent={metrics.delayedOrders > 0 ? 'bg-red-950/15' : 'bg-slate-900/20'}
-        alert={metrics.delayedOrders > 0}
-      />
-
-      {/* 6. Completed Today */}
-      <StatCard
-        icon={<UtensilsCrossed className="w-4 h-4 text-teal-400" />}
-        label="Completed Today"
-        value={metrics.completedToday}
-        subtext="This shift"
-        accent="border-teal-500/20"
-        bgAccent="bg-teal-950/10"
-      />
-
-      {/* 7. Kitchen Efficiency */}
-      <div className={`relative flex flex-col justify-between p-4 rounded-2xl border overflow-hidden min-w-0 ${effColor}`}>
-        <div className="flex items-center space-x-2 mb-2">
-          <BarChart2 className="w-4 h-4 opacity-80" />
-          <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 truncate">
-            Efficiency
+      <div className="bg-white border border-[#E3DED5] rounded-xl p-4 shadow-[0_2px_10px_rgba(30,30,20,0.06)] flex flex-col justify-between hover:border-[#D1C9BC] transition-all text-left">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] font-semibold text-[#5F6762] tracking-wide uppercase">
+            Active Orders
           </span>
+          <div className="w-6 h-6 rounded-md bg-[#F9E8E4] flex items-center justify-center text-[#C84A38]">
+            <Utensils className="w-3.5 h-3.5 text-[#C84A38]" />
+          </div>
         </div>
         <div>
-          <span className="text-2xl font-display font-extrabold tabular-nums leading-none">
-            {metrics.kitchenEfficiencyPct}%
-          </span>
-          <p className="text-[9px] text-slate-500 font-semibold mt-0.5">
-            Within {targetPrepMinutes}m target
-          </p>
-        </div>
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-900/40">
-          <div
-            className="h-full transition-all duration-700 bg-current opacity-60"
-            style={{ width: `${metrics.kitchenEfficiencyPct}%` }}
-          />
+          <div className="text-3xl font-bold text-[#18201D] tabular-nums tracking-tight font-sans">
+            {metrics.activeOrders}
+          </div>
+          <p className="text-xs text-[#5F6762] mt-1 font-medium">In queue</p>
         </div>
       </div>
 
-      {/* 8. Peak Queue */}
-      <StatCard
-        icon={<Zap className="w-4 h-4 text-purple-400" />}
-        label="Peak Queue"
-        value={metrics.peakQueueToday}
-        subtext="This session"
-        accent="border-purple-500/20"
-        bgAccent="bg-purple-950/10"
-      />
+      {/* 2. Preparing */}
+      <div className="bg-white border border-[#E3DED5] rounded-xl p-4 shadow-[0_2px_10px_rgba(30,30,20,0.06)] flex flex-col justify-between hover:border-[#D1C9BC] transition-all text-left">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#D79A24]" />
+            <span className="text-[11px] font-semibold text-[#5F6762] tracking-wide uppercase">
+              Preparing
+            </span>
+          </div>
+          <div className="w-6 h-6 rounded-md bg-[#F8EED8] flex items-center justify-center text-[#D79A24]">
+            <Flame className="w-3.5 h-3.5 text-[#D79A24]" />
+          </div>
+        </div>
+        <div>
+          <div className="text-3xl font-bold text-[#18201D] tabular-nums tracking-tight font-sans">
+            {metrics.preparingOrders}
+          </div>
+          <p className="text-xs text-[#5F6762] mt-1 font-medium">On the pass</p>
+        </div>
+      </div>
+
+      {/* 3. Ready */}
+      <div className="bg-white border border-[#E3DED5] rounded-xl p-4 shadow-[0_2px_10px_rgba(30,30,20,0.06)] flex flex-col justify-between hover:border-[#D1C9BC] transition-all text-left">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#287A55]" />
+            <span className="text-[11px] font-semibold text-[#5F6762] tracking-wide uppercase">
+              Ready
+            </span>
+          </div>
+          <div className="w-6 h-6 rounded-md bg-[#E8F3ED] flex items-center justify-center text-[#287A55]">
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#287A55]" />
+          </div>
+        </div>
+        <div>
+          <div className="text-3xl font-bold text-[#18201D] tabular-nums tracking-tight font-sans">
+            {metrics.readyOrders}
+          </div>
+          <p className="text-xs text-[#5F6762] mt-1 font-medium">Awaiting pickup</p>
+        </div>
+      </div>
+
+      {/* 4. Delayed */}
+      <div className="bg-white border border-[#E3DED5] rounded-xl p-4 shadow-[0_2px_10px_rgba(30,30,20,0.06)] flex flex-col justify-between hover:border-[#D1C9BC] transition-all text-left">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-1.5">
+            <span className={`w-2 h-2 rounded-full ${metrics.delayedOrders > 0 ? 'bg-[#C7463A]' : 'bg-[#E3DED5]'}`} />
+            <span className="text-[11px] font-semibold text-[#5F6762] tracking-wide uppercase">
+              Delayed
+            </span>
+          </div>
+          <div className={`w-6 h-6 rounded-md flex items-center justify-center ${
+            metrics.delayedOrders > 0 ? 'bg-[#F9E8E4] text-[#C7463A]' : 'bg-[#F7F4EE] text-[#5F6762]'
+          }`}>
+            <AlertTriangle className="w-3.5 h-3.5" />
+          </div>
+        </div>
+        <div>
+          <div className={`text-3xl font-bold tabular-nums tracking-tight font-sans ${
+            metrics.delayedOrders > 0 ? 'text-[#C7463A]' : 'text-[#18201D]'
+          }`}>
+            {metrics.delayedOrders}
+          </div>
+          <p className="text-xs text-[#5F6762] mt-1 font-medium truncate">
+            {metrics.delayedOrders > 0 ? `> ${targetPrepMinutes}m overdue` : 'Within target SLA'}
+          </p>
+        </div>
+      </div>
+
+      {/* 5. Kitchen Efficiency */}
+      <div className="col-span-2 md:col-span-1 bg-white border border-[#E3DED5] rounded-xl p-4 shadow-[0_2px_10px_rgba(30,30,20,0.06)] flex flex-col justify-between hover:border-[#D1C9BC] transition-all text-left">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[11px] font-semibold text-[#5F6762] tracking-wide uppercase">
+            Kitchen Efficiency
+          </span>
+          <div className="w-6 h-6 rounded-md bg-[#E8F3ED] flex items-center justify-center text-[#287A55]">
+            <BarChart2 className="w-3.5 h-3.5 text-[#287A55]" />
+          </div>
+        </div>
+        <div>
+          <div className="flex items-baseline justify-between mb-1.5">
+            <span className="text-3xl font-bold text-[#18201D] tabular-nums font-sans">
+              {metrics.kitchenEfficiencyPct}%
+            </span>
+          </div>
+          
+          {/* Horizontal Progress Bar */}
+          <div className="h-1.5 w-full bg-[#E3DED5] rounded-full overflow-hidden mb-1.5">
+            <div 
+              className="h-full bg-[#287A55] rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, Math.max(0, metrics.kitchenEfficiencyPct))}%` }}
+            />
+          </div>
+
+          <p className="text-[11px] text-[#5F6762] font-medium leading-tight">
+            {metrics.activeOrders > 0 
+              ? `${onTimeCount}/${metrics.activeOrders} orders running smoothly`
+              : 'All stations operating normally'
+            }
+          </p>
+        </div>
+      </div>
+
     </div>
   );
 };

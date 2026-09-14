@@ -23,6 +23,12 @@ import { useCart } from '../../../shared/services/CartContext';
 import { formatPrice, setGlobalCurrencyConfig } from '../../../shared/utils/format';
 import { customerService } from '../../../shared/services/customerService';
 import { generateUniqueOrderId } from '../../../shared/utils/orderUtils';
+import { 
+  getActiveDiningSession, 
+  saveActiveDiningSession, 
+  generateSessionId, 
+  syncDiningSessionToFirestore 
+} from '../../../shared/utils/diningSession';
 
 // Navigation & Header
 import CustomerHeader from '../../../shared/ui/navigation/CustomerHeader';
@@ -48,7 +54,9 @@ import {
   X,
   ExternalLink,
   ChevronDown,
-  Info
+  Info,
+  Eye,
+  Receipt
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -152,29 +160,38 @@ export const CustomerMenu: React.FC = () => {
     setReviewCount(null);
     setLocality('');
 
-    // Load table parameter from URL (?table=12 or ?tableId=TBL-12 or ?t=12)
+    // 1. Reconcile active dining session and table parameter
     const tableParam = searchParams.get('table') || searchParams.get('tableId') || searchParams.get('t');
-    if (tableParam) {
-      setTableNumber(tableParam.replace('TBL-', ''));
+    const activeSession = getActiveDiningSession(tenantId);
+
+    if (activeSession) {
+      setSession(activeSession);
+      if (!tableParam && activeSession.tableNumber) {
+        setTableNumber(activeSession.tableNumber);
+      }
     }
 
-    // Load active dining session from sessionStorage / localStorage
-    const savedSessionStr = sessionStorage.getItem('restaurantos_dining_session') || localStorage.getItem('restaurantos_dining_session');
-    if (savedSessionStr) {
-      try {
-        const activeSession = JSON.parse(savedSessionStr);
-        if (activeSession.restaurantId === tenantId) {
-          const cachedTableNum = (activeSession.tableId || '').replace('TBL-', '');
-          if (!tableParam || cachedTableNum === tableParam) {
-            setSession(activeSession);
-            setTableNumber(cachedTableNum);
-          } else {
-            sessionStorage.removeItem('restaurantos_dining_session');
-            localStorage.removeItem('restaurantos_dining_session');
-          }
-        }
-      } catch (e) {
-        console.error('[CustomerMenu] Failed to parse cached session', e);
+    if (tableParam) {
+      const cleanParam = tableParam.replace(/^TBL-/i, '');
+      setTableNumber(cleanParam);
+
+      if (!activeSession || activeSession.tableNumber !== cleanParam) {
+        // Establish new active dining session for this table
+        const newSession = {
+          sessionId: generateSessionId(),
+          restaurantId: tenantId,
+          tenantId,
+          branchId: 'main',
+          tableId: tableParam.startsWith('TBL-') ? tableParam : `TBL-${cleanParam}`,
+          tableNumber: cleanParam,
+          tableName: `Table ${cleanParam}`,
+          orderSource: searchParams.get('source') === 'qr' ? ('qr' as const) : ('app' as const),
+          status: 'active' as const,
+          startedAt: new Date().toISOString()
+        };
+        setSession(newSession);
+        saveActiveDiningSession(newSession);
+        syncDiningSessionToFirestore(newSession).catch(() => {});
       }
     }
 
@@ -314,20 +331,34 @@ export const CustomerMenu: React.FC = () => {
   // 2. Real-time Listener for Active Orders in this Session
   // -------------------------------------------------------------
   useEffect(() => {
-    if (!tenantId || !session?.sessionId) {
+    if (!tenantId || (!session?.sessionId && !tableNumber)) {
       setActiveOrders([]);
       return;
     }
 
     const ordersColRef = collection(db, 'restaurants', tenantId, 'orders');
-    const q = query(ordersColRef, where('sessionId', '==', session.sessionId));
+    const cleanTableNum = String(tableNumber || session?.tableNumber || '').replace(/^TBL-/i, '');
+
+    let q = query(ordersColRef);
+    if (cleanTableNum) {
+      q = query(ordersColRef, where('tableNumber', '==', cleanTableNum));
+    } else if (session?.sessionId) {
+      q = query(ordersColRef, where('sessionId', '==', session.sessionId));
+    }
 
     const unsubActiveOrders = onSnapshot(q, (snap) => {
       const list: any[] = [];
       snap.forEach((docSnap) => {
         const data = docSnap.data();
-        if (data.status && !['COMPLETED', 'CANCELLED'].includes(data.status.toUpperCase())) {
-          list.push({ id: docSnap.id, ...data });
+        if (data.status && !['ARCHIVED', 'CANCELLED'].includes(data.status.toUpperCase())) {
+          if (
+            !session?.sessionId ||
+            data.sessionId === session.sessionId ||
+            !data.sessionId ||
+            data.sessionId === 'GUEST-SESSION'
+          ) {
+            list.push({ id: docSnap.id, ...data });
+          }
         }
       });
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -337,7 +368,12 @@ export const CustomerMenu: React.FC = () => {
     });
 
     return () => unsubActiveOrders();
-  }, [tenantId, session?.sessionId]);
+  }, [tenantId, session?.sessionId, tableNumber, session?.tableNumber]);
+
+  // Combined dining bill total for all active orders in session
+  const activeOrdersTotal = useMemo(() => {
+    return activeOrders.reduce((sum, o) => sum + (Number(o.total || o.totalAmount) || 0), 0);
+  }, [activeOrders]);
 
   // -------------------------------------------------------------
   // 3. Cart Tenant Validation Guard
@@ -595,7 +631,27 @@ export const CustomerMenu: React.FC = () => {
     setIsPlacingOrder(true);
     try {
       const resolvedBranchId = session?.branchId || 'main';
-      const resolvedTableId = session?.tableId || (tableNumber ? `TBL-${tableNumber}` : 'TBL-WALKIN');
+      const resolvedTableId = session?.tableId || (tableNumber ? (tableNumber.startsWith('TBL-') ? tableNumber : `TBL-${tableNumber}`) : '');
+
+      if (!resolvedTableId) {
+        toast.error('Please select a table to place a dine-in order.');
+        setIsPlacingOrder(false);
+        return;
+      }
+
+      // Security: Validate table existence and tenant ownership
+      const tableDocRef = doc(db, 'restaurants', tenantId, 'tables', resolvedTableId);
+      const tableSnap = await getDoc(tableDocRef);
+      if (!tableSnap.exists()) {
+        const cleanNum = (tableNumber || resolvedTableId).replace(/^TBL-/i, '');
+        const q = query(collection(db, 'restaurants', tenantId, 'tables'), where('tableNumber', '==', cleanNum));
+        const qSnap = await getDocs(q);
+        if (qSnap.empty) {
+          toast.error('Invalid table context. Table not found in this restaurant.');
+          setIsPlacingOrder(false);
+          return;
+        }
+      }
 
       // Validate restaurant table session if session credentials exist
       if (session?.secureToken) {
@@ -625,6 +681,28 @@ export const CustomerMenu: React.FC = () => {
         return;
       }
 
+      // Ensure active dining session exists and has a valid sessionId
+      let currentSession = session || getActiveDiningSession(tenantId);
+      if (!currentSession || !currentSession.sessionId) {
+        currentSession = {
+          sessionId: generateSessionId(),
+          restaurantId: tenantId,
+          tenantId,
+          branchId: resolvedBranchId,
+          tableId: resolvedTableId,
+          tableNumber: tableNumber || resolvedTableId.replace(/^TBL-/i, ''),
+          tableName: `Table ${tableNumber || resolvedTableId.replace(/^TBL-/i, '')}`,
+          orderSource: searchParams.get('source') === 'qr' ? 'qr' : 'app',
+          status: 'active',
+          startedAt: new Date().toISOString()
+        };
+        setSession(currentSession);
+        saveActiveDiningSession(currentSession);
+        syncDiningSessionToFirestore(currentSession).catch(() => {});
+      }
+
+      const isAdditional = activeOrders.length > 0;
+      const orderSequence = activeOrders.length + 1;
       const orderId = generateUniqueOrderId();
       const orderRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
 
@@ -635,7 +713,10 @@ export const CustomerMenu: React.FC = () => {
         restaurantId: tenantId,
         branchId: resolvedBranchId,
         tableId: resolvedTableId,
-        tableNumber: tableNumber || 'Walk-in',
+        tableNumber: tableNumber || resolvedTableId.replace(/^TBL-/i, ''),
+        tableName: currentSession?.tableName || `Table ${tableNumber || resolvedTableId.replace(/^TBL-/i, '')}`,
+        orderType: 'dine_in',
+        orderSource: currentSession?.orderSource || (searchParams.get('source') === 'qr' ? 'qr' : 'app'),
         customerName: customerName.trim() || 'Guest Diner',
         phone: customerPhone.trim() || 'Guest Phone',
         items: cartItems,
@@ -650,7 +731,9 @@ export const CustomerMenu: React.FC = () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         specialInstructions: orderInstructions.trim(),
-        sessionId: session?.sessionId || 'GUEST-SESSION'
+        sessionId: currentSession.sessionId,
+        orderSequence,
+        isAdditionalOrder: isAdditional
       };
 
       await setDoc(orderRef, orderPayload);
@@ -858,7 +941,7 @@ export const CustomerMenu: React.FC = () => {
               {tableNumber && (
                 <div className="bg-white/15 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-xl text-xs font-bold text-white flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5 text-[#F3E8DF]" />
-                  <span>Table {tableNumber}</span>
+                  <span>Ordering at Table {tableNumber}</span>
                 </div>
               )}
               <button
@@ -872,37 +955,43 @@ export const CustomerMenu: React.FC = () => {
           </div>
         </div>
 
-        {/* 2.b. Active Order Tracker (if table has order in preparation) */}
+        {/* 2.b. Persistent Active Dining Session Component */}
         {activeOrders.length > 0 && (
-          <div className="space-y-3">
-            {activeOrders.map((order) => (
-              <div
-                key={order.id}
-                className="bg-white border border-[#C85A3F]/30 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase tracking-wider bg-[#C85A3F]/10 text-[#C85A3F] font-extrabold px-2 py-0.5 rounded-md">
-                      Live Order #{order.orderId || order.id}
-                    </span>
-                    <span className="text-xs font-bold text-[#2E8B57]">
-                      Status: {order.status || 'Received'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#756B64]">
-                    {order.items?.length || 1} items ordered · Est. Preparation:{' '}
-                    <strong className="text-[#202124]">{order.estimatedPrepTime || '15-20'} mins</strong>
-                  </p>
-                </div>
-                <button
-                  onClick={() => navigate(`/customer/restaurant/${tenantId}/order/${order.orderId || order.id}`)}
-                  className="px-4 py-2 bg-[#C85A3F] hover:bg-[#A94332] text-white text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs shrink-0"
-                >
-                  <span>Track Live Order</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+          <div className="bg-white border-2 border-emerald-500/25 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
               </div>
-            ))}
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-wider bg-emerald-100/70 text-emerald-800 font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <span>🟢</span>
+                    <span>ACTIVE ORDER</span>
+                  </span>
+                  <span className="text-xs font-bold text-[#202124]">
+                    Table {tableNumber || session?.tableNumber || '1'}
+                  </span>
+                </div>
+                <p className="text-xs text-[#756B64]">
+                  <strong className="text-[#202124]">
+                    {activeOrders.length} {activeOrders.length === 1 ? 'order' : 'orders'}
+                  </strong>
+                  {' '}• Current total:{' '}
+                  <strong className="text-emerald-700 font-extrabold">{formatPrice(activeOrdersTotal)}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => navigate(`/customer/restaurant/${tenantId}/active-order`)}
+                className="px-4 py-2.5 bg-[#202124] hover:bg-[#333] text-white text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                <span>View Active Order</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -1265,19 +1354,89 @@ export const CustomerMenu: React.FC = () => {
               </div>
             )}
 
-            {/* Empty Cart State */}
+            {/* Empty Cart State vs Active Dining Session */}
             {cartItems.length === 0 ? (
-              <div className="py-10 text-center space-y-2.5">
-                <div className="w-12 h-12 mx-auto rounded-full bg-[#FCFAF7] border border-[#E5DCD5] flex items-center justify-center text-[#756B64]">
-                  <ShoppingBag className="w-6 h-6 opacity-40" />
+              activeOrders.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="bg-emerald-50/70 border border-emerald-500/25 rounded-2xl p-4 text-left space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-800">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>ACTIVE DINING</span>
+                      </div>
+                      <span className="text-[10px] bg-white border border-emerald-200 text-emerald-800 font-extrabold px-2 py-0.5 rounded-md">
+                        Table {tableNumber || session?.tableNumber || '1'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 border-t border-emerald-100 pt-2 text-xs">
+                      <div className="flex justify-between text-[#756B64]">
+                        <span>Submitted Orders:</span>
+                        <span className="font-bold text-[#202124]">{activeOrders.length}</span>
+                      </div>
+                      <div className="flex justify-between text-[#756B64]">
+                        <span>Current Total:</span>
+                        <span className="font-extrabold text-emerald-700">{formatPrice(activeOrdersTotal)}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1">
+                      {activeOrders.slice(0, 3).map((ord, idx) => (
+                        <div key={ord.id || ord.orderId} className="text-[11px] bg-white/90 border border-emerald-100 p-2 rounded-xl flex items-center justify-between">
+                          <span className="font-bold text-[#202124]">Order #{ord.orderSequence || (activeOrders.length - idx)}</span>
+                          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                            {ord.status || 'Received'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => navigate(`/customer/restaurant/${tenantId}/active-order`)}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <span>View Active Order</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="p-3 bg-[#FCFAF7] border border-[#E5DCD5] rounded-xl text-center">
+                    <p className="text-[11px] text-[#756B64] font-medium">
+                      Select dishes from the menu to add more food to your table visit.
+                    </p>
+                  </div>
                 </div>
-                <h4 className="text-xs font-extrabold text-[#202124]">Your order is empty</h4>
-                <p className="text-[11px] text-[#756B64] max-w-[200px] mx-auto leading-relaxed">
-                  Select delicious dishes from the menu to get started.
-                </p>
-              </div>
+              ) : (
+                <div className="py-10 text-center space-y-2.5">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-[#FCFAF7] border border-[#E5DCD5] flex items-center justify-center text-[#756B64]">
+                    <ShoppingBag className="w-6 h-6 opacity-40" />
+                  </div>
+                  <h4 className="text-xs font-extrabold text-[#202124]">Your order is empty</h4>
+                  <p className="text-[11px] text-[#756B64] max-w-[200px] mx-auto leading-relaxed">
+                    Select delicious dishes from the menu to get started.
+                  </p>
+                </div>
+              )
             ) : (
               <>
+                {/* Active Dining compact reminder above Current Cart */}
+                {activeOrders.length > 0 && (
+                  <div className="bg-emerald-50/60 border border-emerald-500/20 p-2.5 rounded-xl flex items-center justify-between text-xs mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-[11px] text-emerald-800 font-bold">
+                        Table {tableNumber || session?.tableNumber}: {activeOrders.length} {activeOrders.length === 1 ? 'order' : 'orders'} ({formatPrice(activeOrdersTotal)})
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => navigate(`/customer/restaurant/${tenantId}/active-order`)}
+                      className="text-[10px] font-extrabold text-emerald-700 hover:underline cursor-pointer"
+                    >
+                      View
+                    </button>
+                  </div>
+                )}
+
                 {/* Cart Items List */}
                 <div className="space-y-3 max-h-56 overflow-y-auto pr-1 divide-y divide-[#F3E8DF]">
                   {cartItems.map((ci) => {
@@ -1393,7 +1552,13 @@ export const CustomerMenu: React.FC = () => {
                       disabled={isPlacingOrder || isCartFromDifferentRestaurant}
                       className="w-full bg-[#C85A3F] hover:bg-[#A94332] disabled:opacity-50 text-white font-extrabold text-xs py-3.5 rounded-xl shadow-md shadow-[#C85A3F]/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      {isPlacingOrder ? 'Sending to Kitchen...' : `Confirm Order • ${formatPrice(totalCartCost)}`}
+                      {isPlacingOrder 
+                        ? 'Sending to Kitchen...' 
+                        : (activeOrders.length > 0 
+                            ? `Confirm Add-on Order • ${formatPrice(totalCartCost)}` 
+                            : `Confirm Order • ${formatPrice(totalCartCost)}`
+                          )
+                      }
                     </button>
                   </div>
                 ) : (
@@ -1428,7 +1593,7 @@ export const CustomerMenu: React.FC = () => {
       </main>
 
       {/* 6. Floating Bottom Cart Bar for Mobile (< 1024px) */}
-      {totalCartCount > 0 && (
+      {totalCartCount > 0 ? (
         <div className="lg:hidden fixed bottom-4 inset-x-4 z-40 max-w-lg mx-auto">
           <button
             onClick={() => setIsMobileCartOpen(true)}
@@ -1446,7 +1611,25 @@ export const CustomerMenu: React.FC = () => {
             </div>
           </button>
         </div>
-      )}
+      ) : activeOrders.length > 0 ? (
+        <div className="lg:hidden fixed bottom-4 inset-x-4 z-40 max-w-lg mx-auto">
+          <button
+            onClick={() => navigate(`/customer/restaurant/${tenantId}/active-order`)}
+            className="w-full bg-[#202124] hover:bg-[#333] text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center justify-between font-extrabold transition-transform active:scale-[0.98] cursor-pointer border border-white/10"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs">
+                Table {tableNumber || session?.tableNumber}: {activeOrders.length} {activeOrders.length === 1 ? 'order' : 'orders'} · {formatPrice(activeOrdersTotal)}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-xs text-emerald-400">
+              <span>View Active Order</span>
+              <ChevronRight className="w-4 h-4" />
+            </div>
+          </button>
+        </div>
+      ) : null}
 
       {/* 7. Mobile Cart Drawer / Bottom Sheet */}
       {isMobileCartOpen && (

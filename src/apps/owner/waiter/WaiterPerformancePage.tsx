@@ -127,25 +127,25 @@ export const WaiterPerformancePage: React.FC = () => {
   return (
     <div className="space-y-6 text-left select-none pb-24">
       <div>
-        <h1 className="text-2xl font-display font-extrabold text-textPearl">Waiter Performance trends</h1>
-        <p className="text-xs text-mutedAsh font-semibold">Track your customer service, speed, upsells, and shift efficiency metrics.</p>
+        <h1 className="text-2xl font-display font-extrabold text-[#18201D]">Waiter Performance trends</h1>
+        <p className="text-xs text-[#5F6875] font-semibold">Track your customer service, speed, upsells, and shift efficiency metrics.</p>
       </div>
 
       {/* Main Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { label: 'Orders Delivered', value: metrics.ordersServed, desc: 'Total dining orders served', icon: <CheckCircle className="w-5 h-5 text-emerald-450" /> },
-          { label: 'Guests Served', value: metrics.guestsServed, desc: 'Total guest diners handled', icon: <Users className="w-5 h-5 text-blue-450" /> },
-          { label: 'Efficiency Rating', value: `${Math.round(metrics.efficiencyScore)}%`, desc: 'Composite service speed score', icon: <TrendingUp className="w-5 h-5 text-indigo-400" /> },
-          { label: 'Avg Delivery Speed', value: metrics.avgDeliveryTime, desc: 'Kitchen ready to served table', icon: <Clock className="w-5 h-5 text-orange-400" /> }
+          { label: 'Orders Delivered', value: metrics.ordersServed, desc: 'Total dining orders served', icon: <CheckCircle className="w-5 h-5 text-emerald-600" /> },
+          { label: 'Guests Served', value: metrics.guestsServed, desc: 'Total guest diners handled', icon: <Users className="w-5 h-5 text-blue-600" /> },
+          { label: 'Efficiency Rating', value: `${Math.round(metrics.efficiencyScore)}%`, desc: 'Composite service speed score', icon: <TrendingUp className="w-5 h-5 text-indigo-600" /> },
+          { label: 'Avg Delivery Speed', value: metrics.avgDeliveryTime, desc: 'Kitchen ready to served table', icon: <Clock className="w-5 h-5 text-orange-600" /> }
         ].map((item, idx) => (
-          <Card key={idx} className="p-5 border-slate-850 bg-slate-900/40 text-left space-y-2">
+          <Card key={idx} className="p-5 border border-[#E3DED5] bg-white rounded-2xl shadow-xs text-left space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-[10px] text-slate-500 font-extrabold uppercase">{item.label}</span>
+              <span className="text-[10px] text-[#667085] font-extrabold uppercase">{item.label}</span>
               {item.icon}
             </div>
-            <div className="text-2xl font-extrabold font-mono text-textPearl">{item.value}</div>
-            <p className="text-[10px] text-slate-500">{item.desc}</p>
+            <div className="text-2xl font-extrabold font-mono text-[#18201D]">{item.value}</div>
+            <p className="text-[10px] text-[#5F6875]">{item.desc}</p>
           </Card>
         ))}
       </div>
@@ -153,8 +153,8 @@ export const WaiterPerformancePage: React.FC = () => {
       {/* Charts & Details Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Weekly Trend Visualizer */}
-        <Card className="p-5 border-slate-855 bg-slate-900/20 text-left space-y-4 lg:col-span-2">
-          <h3 className="font-extrabold text-sm text-textPearl uppercase tracking-wider flex items-center space-x-2">
+        <Card className="p-5 border border-[#E3DED5] bg-white rounded-2xl shadow-xs text-left space-y-4 lg:col-span-2">
+          <h3 className="font-extrabold text-sm text-[#18201D] uppercase tracking-wider flex items-center space-x-2">
             <BarChart2 className="w-4 h-4 text-primary" />
             <span>Weekly Orders Productivity Trend</span>
           </h3>
@@ -163,40 +163,40 @@ export const WaiterPerformancePage: React.FC = () => {
               <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
                 <div 
                   style={{ height: `${bar.value}%` }} 
-                  className="w-full bg-gradient-to-t from-primary/20 to-primary/80 border border-primary/30 rounded-t-lg transition-all duration-500 hover:brightness-125"
+                  className="w-full bg-gradient-to-t from-primary/20 to-primary/80 border border-primary/30 rounded-t-lg transition-all duration-500 hover:brightness-110"
                 />
-                <span className="text-[10px] font-bold text-slate-550">{bar.day}</span>
+                <span className="text-[10px] font-bold text-[#667085]">{bar.day}</span>
               </div>
             ))}
           </div>
         </Card>
 
         {/* Incidents & Tips */}
-        <Card className="p-5 border-slate-855 bg-slate-900/20 text-left space-y-4">
-          <h3 className="font-extrabold text-sm text-textPearl uppercase tracking-wider flex items-center space-x-2">
-            <Heart className="w-4 h-4 text-emerald-500" />
+        <Card className="p-5 border border-[#E3DED5] bg-white rounded-2xl shadow-xs text-left space-y-4">
+          <h3 className="font-extrabold text-sm text-[#18201D] uppercase tracking-wider flex items-center space-x-2">
+            <Heart className="w-4 h-4 text-emerald-600" />
             <span>Rating & Incidents</span>
           </h3>
-          <div className="space-y-3 font-semibold text-slate-400">
-            <div className="flex justify-between border-b border-slate-800/40 pb-2">
+          <div className="space-y-3 font-semibold text-[#5F6875]">
+            <div className="flex justify-between border-b border-[#E3DED5] pb-2">
               <span>Incident Response Rate:</span>
-              <span className="font-bold text-slate-200">{metrics.incidentSuccessRate}%</span>
+              <span className="font-bold text-[#18201D]">{metrics.incidentSuccessRate}%</span>
             </div>
-            <div className="flex justify-between border-b border-slate-800/40 pb-2">
+            <div className="flex justify-between border-b border-[#E3DED5] pb-2">
               <span>Repeat Diner Satisfaction:</span>
-              <span className="font-bold text-emerald-450">{metrics.repeatCustomerSatis}</span>
+              <span className="font-bold text-emerald-700">{metrics.repeatCustomerSatis}</span>
             </div>
-            <div className="flex justify-between border-b border-slate-800/40 pb-2">
+            <div className="flex justify-between border-b border-[#E3DED5] pb-2">
               <span>Average Response Speed:</span>
-              <span className="font-bold text-slate-200">{metrics.avgResponseTime}</span>
+              <span className="font-bold text-[#18201D]">{metrics.avgResponseTime}</span>
             </div>
-            <div className="flex justify-between border-b border-slate-800/40 pb-2">
+            <div className="flex justify-between border-b border-[#E3DED5] pb-2">
               <span>Estimated Shift Tips:</span>
-              <span className="font-bold text-slate-200">{formatPrice(metrics.tipsEarned)}</span>
+              <span className="font-bold text-[#18201D]">{formatPrice(metrics.tipsEarned)}</span>
             </div>
             <div className="flex justify-between">
               <span>SLA Target Hits:</span>
-              <span className="font-bold text-slate-200">
+              <span className="font-bold text-[#18201D]">
                 {metrics.ordersServed > 0 
                   ? `${Math.round(((metrics.ordersServed - metrics.lateDeliveries) / metrics.ordersServed) * 100)}%` 
                   : '100%'}
@@ -207,15 +207,15 @@ export const WaiterPerformancePage: React.FC = () => {
       </div>
 
       {/* Recent Tables Served */}
-      <Card className="p-5 border-slate-855 bg-slate-900/20 text-left space-y-4">
-        <h3 className="font-extrabold text-sm text-textPearl uppercase tracking-wider flex items-center space-x-2">
+      <Card className="p-5 border border-[#E3DED5] bg-white rounded-2xl shadow-xs text-left space-y-4">
+        <h3 className="font-extrabold text-sm text-[#18201D] uppercase tracking-wider flex items-center space-x-2">
           <Award className="w-4 h-4 text-primary" />
           <span>Recent Tables Served History</span>
         </h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-[11px] text-slate-400 font-semibold border-collapse">
+          <table className="w-full text-[11px] text-[#5F6875] font-semibold border-collapse">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-500 text-[9px] uppercase">
+              <tr className="border-b border-[#E3DED5] text-[#667085] text-[9px] uppercase">
                 <th className="py-2 text-left">Order ID</th>
                 <th className="py-2 text-left">Table</th>
                 <th className="py-2 text-left">Guest Count</th>
@@ -224,20 +224,20 @@ export const WaiterPerformancePage: React.FC = () => {
                 <th className="py-2 text-left">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/40">
+            <tbody className="divide-y divide-[#E3DED5]">
               {metrics.waiterOrders.slice(0, 10).map((o: any) => (
-                <tr key={o.orderId} className="hover:bg-slate-950/20">
-                  <td className="py-2.5 font-mono text-slate-300">#{o.orderId.substring(0, 12)}</td>
-                  <td className="py-2.5 text-slate-200 font-bold">Table {o.tableNumber}</td>
-                  <td className="py-2.5">{o.guestsCount || 2}</td>
-                  <td className="py-2.5 text-emerald-450">{formatPrice(o.total)}</td>
+                <tr key={o.orderId} className="hover:bg-[#F7F4EE]">
+                  <td className="py-2.5 font-mono text-[#18201D]">#{o.orderId.substring(0, 12)}</td>
+                  <td className="py-2.5 text-[#18201D] font-bold">Table {o.tableNumber}</td>
+                  <td className="py-2.5 text-[#18201D]">{o.guestsCount || 2}</td>
+                  <td className="py-2.5 text-emerald-700 font-bold">{formatPrice(o.total)}</td>
                   <td className="py-2.5">{o.createdAt ? new Date(o.createdAt).toLocaleDateString() : '—'}</td>
-                  <td className="py-2.5 text-slate-350">{o.status}</td>
+                  <td className="py-2.5 text-[#18201D]">{o.status}</td>
                 </tr>
               ))}
               {metrics.waiterOrders.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-4 text-center text-slate-600">No tables served yet in this shift.</td>
+                  <td colSpan={6} className="py-4 text-center text-[#667085]">No tables served yet in this shift.</td>
                 </tr>
               )}
             </tbody>

@@ -103,39 +103,39 @@ export const KitchenTimelineTab: React.FC<IKitchenTimelineTabProps> = ({ orders 
   };
 
   return (
-    <div className="space-y-4 text-left select-none max-w-4xl mx-auto">
-      <Card className="p-4 border-slate-850 bg-slate-900/35 flex justify-between items-center">
-        <h4 className="font-extrabold text-sm text-textPearl">Kitchen Activity Log</h4>
-        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{timelineEvents.length} events logged</span>
-      </Card>
+    <div className="space-y-4 text-left select-none max-w-4xl mx-auto font-sans">
+      <div className="p-4 bg-white border border-[#E3DED5] rounded-xl shadow-[0_1px_4px_rgba(30,30,20,0.05)] flex justify-between items-center">
+        <h4 className="font-bold text-sm text-[#18201D]">Kitchen Activity Log</h4>
+        <span className="text-[11px] text-[#5F6762] font-semibold tracking-wider uppercase">{timelineEvents.length} events logged</span>
+      </div>
 
-      <Card className="p-6 border-slate-850 bg-slate-900/35">
-        <div className="relative border-l border-slate-850 pl-6 space-y-6">
+      <div className="p-6 bg-white border border-[#E3DED5] rounded-xl shadow-[0_1px_4px_rgba(30,30,20,0.05)]">
+        <div className="relative border-l border-[#E3DED5] pl-6 space-y-6">
           {timelineEvents.length === 0 ? (
-            <p className="text-slate-500 font-semibold text-center py-6">No kitchen timeline events recorded yet.</p>
+            <p className="text-[#5F6762] font-semibold text-center py-6">No kitchen timeline events recorded yet.</p>
           ) : (
             timelineEvents.slice(0, 50).map((evt) => (
               <div key={evt.id} className="relative group">
                 {/* Bullet Icon indicator */}
-                <div className="absolute -left-[35px] top-0.5 w-6 h-6 rounded-lg bg-slate-950 flex items-center justify-center border border-slate-850 group-hover:border-primary/45 transition-colors">
+                <div className="absolute -left-[35px] top-0.5 w-6 h-6 rounded-md bg-[#F7F4EE] flex items-center justify-center border border-[#E3DED5] transition-colors">
                   {getEventIcon(evt.type)}
                 </div>
 
                 {/* Event Card Info */}
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="font-extrabold text-textPearl text-xs">{evt.title}</span>
+                    <span className="font-bold text-[#18201D] text-xs">{evt.title}</span>
                     {evt.orderId && (
-                      <span className="font-mono text-[10px] text-primary/75 font-semibold">
+                      <span className="font-mono text-[10px] text-[#C84A38] font-semibold">
                         #{evt.orderId}
                       </span>
                     )}
-                    <span className="font-mono text-[9px] text-slate-550 ml-auto">
+                    <span className="font-mono text-[10px] text-[#5F6762] ml-auto">
                       {formatTimestamp(evt.timestamp)}
                     </span>
                   </div>
-                  <p className="text-slate-400 text-xs">{evt.description}</p>
-                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                  <p className="text-[#5F6762] text-xs">{evt.description}</p>
+                  <p className="text-[10px] text-[#7A817C] font-semibold uppercase tracking-wider">
                     Performed by: {evt.performedBy}
                   </p>
                 </div>
@@ -143,7 +143,7 @@ export const KitchenTimelineTab: React.FC<IKitchenTimelineTabProps> = ({ orders 
             ))
           )}
         </div>
-      </Card>
+      </div>
     </div>
   );
 };

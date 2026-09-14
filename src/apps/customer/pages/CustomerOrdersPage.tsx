@@ -460,7 +460,8 @@ export const CustomerOrdersPage: React.FC = () => {
               const targetOrderId = order.orderId || order.id;
               const rName = order.restaurantName || restaurantMeta[targetTenant]?.name || targetTenant.replace(/-/g, ' ');
               const statusInfo = getStatusDisplay(order.status);
-              const tableNum = order.tableNumber || order.tableId?.replace('TBL-', '') || 'Dine-in';
+              const rawTable = order.tableNumber || (order.tableId ? order.tableId.replace(/^TBL-/i, '') : '');
+              const tableNum = rawTable && !String(rawTable).toLowerCase().includes('walk') ? `Table #${rawTable}` : 'Walk-in';
 
               return (
                 <div
@@ -476,7 +477,7 @@ export const CustomerOrdersPage: React.FC = () => {
                           {rName}
                         </h3>
                         <span className="text-[11px] font-bold px-2 py-0.5 bg-[#F3E8DF] text-[#C85A3F] rounded-full border border-[#E5DCD5]">
-                          Table #{tableNum}
+                          {tableNum}
                         </span>
                       </div>
                       <p className="text-[11px] text-[#756B64] font-medium flex items-center gap-1">
@@ -605,13 +606,20 @@ export const CustomerOrdersPage: React.FC = () => {
               const targetOrderId = order.orderId || order.id;
               const rName = order.restaurantName || restaurantMeta[targetTenant]?.name || targetTenant.replace(/-/g, ' ');
               const statusInfo = getStatusDisplay(order.status);
-              const tableNum = order.tableNumber || order.tableId?.replace('TBL-', '') || 'Dine-in';
+              const rawTable = order.tableNumber || (order.tableId ? order.tableId.replace(/^TBL-/i, '') : '');
+              const tableNum = rawTable && !String(rawTable).toLowerCase().includes('walk') ? `Table #${rawTable}` : 'Walk-in';
               const isOrderActive = !['COMPLETED', 'CANCELLED', 'DELIVERED', 'SERVED'].includes((order.status || 'NEW').toUpperCase());
 
               return (
                 <div
                   key={targetOrderId}
-                  onClick={() => navigate(`/customer/restaurant/${targetTenant}/order/${targetOrderId}`)}
+                  onClick={() => {
+                    if (isOrderActive) {
+                      navigate(`/customer/restaurant/${targetTenant}/order/${targetOrderId}`);
+                    } else {
+                      navigate(`/customer/restaurant/${targetTenant}/order/${targetOrderId}?view=receipt`);
+                    }
+                  }}
                   className="p-4 sm:p-5 bg-white border border-[#E5DCD5] hover:border-[#C85A3F]/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs hover:shadow-sm transition-all cursor-pointer group"
                 >
                   {/* Left: Info & Items summary */}
@@ -621,7 +629,7 @@ export const CustomerOrdersPage: React.FC = () => {
                         {rName}
                       </h4>
                       <span className="text-[10px] bg-[#FCFAF7] border border-[#E5DCD5] px-2 py-0.5 rounded-full text-[#756B64] font-bold">
-                        Table #{tableNum}
+                        {tableNum}
                       </span>
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusInfo.bg}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot}`} />
@@ -672,7 +680,7 @@ export const CustomerOrdersPage: React.FC = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/customer/restaurant/${targetTenant}/order/${targetOrderId}`);
+                              navigate(`/customer/restaurant/${targetTenant}/order/${targetOrderId}?view=receipt`);
                             }}
                             className="px-3 py-1.5 bg-[#FCFAF7] border border-[#E5DCD5] hover:border-[#C85A3F]/50 text-[#202124] text-[11px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
                           >

@@ -37,24 +37,26 @@ const KitchenSettingsPage: React.FC = () => {
   ];
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl">
+    <div className="p-6 space-y-6 max-w-4xl font-sans">
       {/* Header */}
-      <div className="flex items-center space-x-3">
-        <div className="p-2.5 bg-slate-800/60 rounded-2xl border border-slate-700">
-          <Settings className="w-5 h-5 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-lg font-extrabold text-textPearl">Kitchen Settings</h1>
-          <p className="text-xs text-mutedAsh">Configure kitchen display system and operations</p>
-        </div>
+      <div className="bg-white border border-[#E3DED5] rounded-xl p-6 shadow-[0_1px_4px_rgba(30,30,20,0.05)]">
+        <span className="text-[11px] font-bold uppercase tracking-widest text-[#5F6762]">
+          KITCHEN CONFIGURATION & RULES
+        </span>
+        <h1 className="text-3xl font-serif font-semibold text-[#18201D] tracking-tight mt-0.5">
+          Kitchen Settings
+        </h1>
+        <p className="text-sm text-[#5F6762] mt-1 font-normal">
+          Configure kitchen display system layouts, SLAs, stations, and operations
+        </p>
       </div>
 
       {/* Under Construction Banner */}
-      <div className="flex items-center space-x-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
-        <Construction className="w-5 h-5 shrink-0" />
+      <div className="flex items-center space-x-3 px-5 py-4 rounded-xl bg-[#FEF5E7] border border-[#D79A24]/30 text-[#A66B00]">
+        <Construction className="w-5 h-5 shrink-0 text-[#D79A24]" />
         <div>
-          <p className="text-xs font-extrabold">Settings Module — Coming Soon</p>
-          <p className="text-[10px] opacity-70 mt-0.5">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#A66B00]">Settings Module — Coming Soon</p>
+          <p className="text-xs text-[#5F6762] mt-0.5">
             This page will allow you to customize every aspect of your Kitchen Display System. 
             Settings are currently managed through the system defaults.
           </p>
@@ -62,22 +64,22 @@ const KitchenSettingsPage: React.FC = () => {
       </div>
 
       {/* Settings Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {settingSections.map((section, idx) => (
-          <Card
+          <div
             key={idx}
-            className="p-4 bg-slate-900/50 border border-slate-800 rounded-2xl hover:border-slate-700 transition-all cursor-not-allowed opacity-60"
+            className="p-5 bg-white border border-[#E3DED5] rounded-xl shadow-[0_1px_4px_rgba(30,30,20,0.05)] cursor-not-allowed"
           >
             <div className="flex items-start space-x-3">
-              <div className="p-2 bg-slate-800/60 rounded-xl border border-slate-700/50 shrink-0">
+              <div className="p-2.5 bg-[#F7F4EE] rounded-lg border border-[#E3DED5] shrink-0">
                 {section.icon}
               </div>
               <div>
-                <h3 className="text-xs font-extrabold text-textPearl">{section.title}</h3>
-                <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{section.description}</p>
+                <h3 className="text-sm font-bold text-[#18201D]">{section.title}</h3>
+                <p className="text-xs text-[#5F6762] mt-1 leading-relaxed">{section.description}</p>
               </div>
             </div>
-          </Card>
+          </div>
         ))}
       </div>
     </div>

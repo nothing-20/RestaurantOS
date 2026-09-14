@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   doc, onSnapshot, getDoc, setDoc, collection, query, 
-  where, getDocs, addDoc, updateDoc, increment 
+  where, getDocs, addDoc, updateDoc, increment, limit 
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useCurrency } from '../../../context/CurrencyContext';
@@ -10,12 +10,14 @@ import { useAuth } from '../../../context/AuthContext';
 import { customerService } from '../../../shared/services/customerService';
 import { getMenuItemPath } from '../../../shared/firebase/collections';
 import CustomerHeader from '../../../shared/ui/navigation/CustomerHeader';
+import CustomerReceiptView from '../components/CustomerReceiptView';
+import ErrorBoundary from '../../../shared/ui/feedback/ErrorBoundary';
 
 // Icons
 import { 
   Check, 
   ArrowLeft, 
-  ArrowRight,
+  ArrowRight, 
   AlertTriangle, 
   Clock, 
   Bell, 
@@ -27,16 +29,17 @@ import {
   Heart, 
   Plus, 
   AlertCircle, 
-  Copy,
-  CheckCheck,
-  Package,
-  Store,
-  MapPin,
-  FileText,
-  ShieldCheck,
-  RefreshCw,
-  LifeBuoy,
-  Receipt
+  Copy, 
+  CheckCheck, 
+  Package, 
+  Store, 
+  MapPin, 
+  FileText, 
+  ShieldCheck, 
+  ShieldAlert, 
+  RefreshCw, 
+  LifeBuoy, 
+  Receipt 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -76,9 +79,35 @@ const DietaryBadge: React.FC<{ isVeg?: boolean }> = ({ isVeg }) => {
   );
 };
 
+// Safe timestamp ms converter supporting Firestore Timestamp (.toDate(), .seconds), ISO strings, numbers, Date
+const getTimestampMs = (val: any): number => {
+  if (!val) return Date.now();
+  if (typeof val === 'number') return val;
+  if (typeof val?.toDate === 'function') {
+    try { return val.toDate().getTime(); } catch (_) {}
+  }
+  if (typeof val?.seconds === 'number') return val.seconds * 1000;
+  const parsed = new Date(val).getTime();
+  return isNaN(parsed) ? Date.now() : parsed;
+};
+
+// Safe localized order time formatter
+const formatOrderTime = (val: any): string => {
+  if (!val) return 'Just now';
+  try {
+    const ms = getTimestampMs(val);
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? 'Just now' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return 'Just now';
+  }
+};
+
 export const OrderTracking: React.FC = () => {
   const { tenantId, orderId } = useParams<{ tenantId: string; orderId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isReceiptRequested = searchParams.get('view') === 'receipt';
   const { user } = useAuth();
   const { formatPrice, formatCurrency } = useCurrency();
 
@@ -162,12 +191,38 @@ export const OrderTracking: React.FC = () => {
     setIsLoading(true);
     setLoadError(null);
 
-    // Fetch Restaurant Details & Menu lookup
-    const fetchRestaurantInfo = async () => {
+    let isSubscribed = true;
+    let unsubOrderListener = () => {};
+    let unsubRequestsListener = () => {};
+
+    const initializeTracking = async () => {
       try {
-        let tenantDoc = await getDoc(doc(db, 'tenants', tenantId));
+        // A. Resolve Tenant / Restaurant ID (handling slugs vs document IDs)
+        let effectiveTenantId = tenantId;
+        let tenantDoc = await getDoc(doc(db, 'tenants', effectiveTenantId));
         if (!tenantDoc.exists()) {
-          tenantDoc = await getDoc(doc(db, 'restaurants', tenantId));
+          tenantDoc = await getDoc(doc(db, 'restaurants', effectiveTenantId));
+        }
+
+        // If not found directly, check by slug
+        if (!tenantDoc.exists()) {
+          try {
+            const qSlug = query(collection(db, 'tenants'), where('slug', '==', tenantId), limit(1));
+            const snapSlug = await getDocs(qSlug);
+            if (!snapSlug.empty) {
+              tenantDoc = snapSlug.docs[0];
+              effectiveTenantId = tenantDoc.id;
+            } else {
+              const qRestSlug = query(collection(db, 'restaurants'), where('slug', '==', tenantId), limit(1));
+              const snapRestSlug = await getDocs(qRestSlug);
+              if (!snapRestSlug.empty) {
+                tenantDoc = snapRestSlug.docs[0];
+                effectiveTenantId = tenantDoc.id;
+              }
+            }
+          } catch (slugErr) {
+            console.warn('[OrderTracking] Slug lookup warning:', slugErr);
+          }
         }
 
         if (tenantDoc.exists()) {
@@ -176,17 +231,15 @@ export const OrderTracking: React.FC = () => {
           setRestaurantName(tData.restaurantName || tData.name || tData.title || 'Restaurant');
           setRestaurantImage(tData.coverImageUrl || tData.coverImage || tData.bannerImage || tData.logoUrl || tData.logo || '');
 
-          // Locality formatting
           const city = typeof tData.address === 'object' && tData.address?.city ? tData.address.city : (tData.city || '');
-          const street = typeof tData.address === 'string' ? tData.address : (tData.address?.street || tData.street || '');
-          const area = (typeof tData.address === 'object' && tData.address?.area) || tData.area || '';
-          const locationStr = [area || street, city].filter(Boolean).join(', ');
+          const street = typeof tData.address === 'string' ? tData.address : (tData.address?.street || tData.address?.area || tData.area || '');
+          const locationStr = [street, city].filter(Boolean).join(', ');
           setRestaurantLocality(locationStr || 'Hyderabad, India');
         }
 
         // Fetch menu collection once for image & dietary lookup
         try {
-          const itemsSnap = await getDocs(collection(db, getMenuItemPath(tenantId)));
+          const itemsSnap = await getDocs(collection(db, getMenuItemPath(effectiveTenantId)));
           const lookup: Record<string, any> = {};
           itemsSnap.forEach(d => {
             lookup[d.id] = d.data();
@@ -195,54 +248,118 @@ export const OrderTracking: React.FC = () => {
         } catch (menuErr) {
           console.warn('[OrderTracking] Menu items lookup warning:', menuErr);
         }
-      } catch (e) {
-        console.error('[OrderTracking] Error fetching restaurant info:', e);
+
+        // B. Real-time Order Subscription with Resilient Order ID Fallback
+        const targetOrderRef = doc(db, 'restaurants', effectiveTenantId, 'orders', orderId);
+
+        unsubOrderListener = onSnapshot(targetOrderRef, async (docSnap) => {
+          if (!isSubscribed) return;
+
+          if (docSnap.exists()) {
+            const orderData = docSnap.data();
+            setOrder({ id: docSnap.id, ...orderData });
+
+            if (orderData.createdAt) {
+              const diffMs = Date.now() - getTimestampMs(orderData.createdAt);
+              setElapsedMinutes(Math.max(0, Math.floor(diffMs / 60000)));
+            }
+
+            if ((orderData.paymentStatus || '').toLowerCase() === 'paid') {
+              setPaymentCompleted(true);
+            }
+            setIsLoading(false);
+          } else {
+            // Document not found directly: attempt fallback lookup (fuzzy, transposed chars, case-insensitive)
+            try {
+              const ordersCol = collection(db, 'restaurants', effectiveTenantId, 'orders');
+              const recentSnap = await getDocs(ordersCol);
+              let matchedDoc: any = null;
+              const targetNorm = orderId.trim().toUpperCase();
+
+              for (const d of recentSnap.docs) {
+                const curId = d.id.trim().toUpperCase();
+                const dataId = (d.data().orderId || '').trim().toUpperCase();
+
+                if (curId === targetNorm || dataId === targetNorm) {
+                  matchedDoc = d;
+                  break;
+                }
+
+                if (curId.length === targetNorm.length && curId.startsWith('ORD-')) {
+                  let diffs = 0;
+                  for (let i = 0; i < curId.length; i++) {
+                    if (curId[i] !== targetNorm[i]) diffs++;
+                  }
+                  if (diffs <= 2) {
+                    matchedDoc = d;
+                    break;
+                  }
+                }
+              }
+
+              if (matchedDoc && isSubscribed) {
+                const resolvedData = matchedDoc.data();
+                setOrder({ id: matchedDoc.id, ...resolvedData });
+                if (resolvedData.createdAt) {
+                  const diffMs = Date.now() - getTimestampMs(resolvedData.createdAt);
+                  setElapsedMinutes(Math.max(0, Math.floor(diffMs / 60000)));
+                }
+                if ((resolvedData.paymentStatus || '').toLowerCase() === 'paid') {
+                  setPaymentCompleted(true);
+                }
+                setIsLoading(false);
+                return;
+              }
+            } catch (fallbackErr) {
+              console.warn('[OrderTracking] Fallback order search warning:', fallbackErr);
+            }
+
+            if (isSubscribed) {
+              setOrder(null);
+              setIsLoading(false);
+            }
+          }
+        }, (err: any) => {
+          if (!isSubscribed) return;
+          console.error('[OrderTracking] Order subscription error:', err);
+          if (err?.code === 'permission-denied') {
+            setLoadError('Access denied: You do not have permission to view this order.');
+          } else if (err?.code === 'unavailable') {
+            setLoadError('Network connection issue. Unable to connect to restaurant order service.');
+          } else {
+            setLoadError('Unable to connect to real-time order tracking.');
+          }
+          setIsLoading(false);
+        });
+
+        // C. Subscribe to Diner Requests for active table
+        const reqColRef = collection(db, 'restaurants', effectiveTenantId, 'waiterRequests');
+        unsubRequestsListener = onSnapshot(reqColRef, (snap) => {
+          if (!isSubscribed) return;
+          const list: any[] = [];
+          snap.forEach(docSnap => {
+            list.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          list.sort((a, b) => getTimestampMs(b.createdAt) - getTimestampMs(a.createdAt));
+          setWaiterRequests(list);
+        }, (err) => {
+          console.warn('[OrderTracking] waiterRequests subscription warning:', err);
+        });
+
+      } catch (err: any) {
+        if (!isSubscribed) return;
+        console.error('[OrderTracking] Initialization error:', err);
+        setLoadError('Unable to load restaurant and order details.');
+        setIsLoading(false);
       }
     };
-    fetchRestaurantInfo();
 
-    // Subscribe to Target Order doc in real-time
-    const orderDocRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
-    const unsubOrder = onSnapshot(orderDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const orderData = docSnap.data();
-        setOrder({ id: docSnap.id, ...orderData });
-        
-        // Calculate initial elapsed minutes
-        if (orderData.createdAt) {
-          const diffMs = Date.now() - new Date(orderData.createdAt).getTime();
-          setElapsedMinutes(Math.floor(diffMs / 60000));
-        }
-
-        // Check if order has been completed/paid
-        if (orderData.paymentStatus === 'paid') {
-          setPaymentCompleted(true);
-        }
-      } else {
-        setOrder(null);
-      }
-      setIsLoading(false);
-    }, (err) => {
-      console.error('[OrderTracking] Order subscription error:', err);
-      setLoadError('Failed to connect to real-time order tracking.');
-      setIsLoading(false);
-    });
-
-    // Subscribe to Diner Requests for active table
-    const reqColRef = collection(db, 'restaurants', tenantId, 'waiterRequests');
-    const unsubRequests = onSnapshot(reqColRef, (snap) => {
-      const list: any[] = [];
-      snap.forEach(docSnap => {
-        const data = docSnap.data();
-        list.push({ id: docSnap.id, ...data });
-      });
-      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setWaiterRequests(list);
-    });
+    initializeTracking();
 
     return () => {
-      unsubOrder();
-      unsubRequests();
+      isSubscribed = false;
+      unsubOrderListener();
+      unsubRequestsListener();
     };
   }, [tenantId, orderId]);
 
@@ -250,11 +367,14 @@ export const OrderTracking: React.FC = () => {
   useEffect(() => {
     if (!order?.createdAt) return;
 
-    const timer = setInterval(() => {
-      const diffMs = Date.now() - new Date(order.createdAt).getTime();
-      setElapsedMinutes(Math.floor(diffMs / 60000));
-    }, 60000);
+    const updateElapsed = () => {
+      const ms = getTimestampMs(order.createdAt);
+      const diffMs = Date.now() - ms;
+      setElapsedMinutes(Math.max(0, Math.floor(diffMs / 60000)));
+    };
 
+    updateElapsed();
+    const timer = setInterval(updateElapsed, 60000);
     return () => clearInterval(timer);
   }, [order?.createdAt]);
 
@@ -620,6 +740,77 @@ export const OrderTracking: React.FC = () => {
     }
   };
 
+  // Active step and state computations (defensively computed at top level to obey Rules of Hooks)
+  const activeIndex = getStepIndex(order?.status || '');
+  const isCancelled = (order?.status || '').toUpperCase() === 'CANCELLED';
+
+  // Historical Bill computations from Firestore order snapshot
+  const orderSubtotal = Number(order?.subtotal ?? 0);
+  const orderTax = Number(order?.tax ?? 0);
+  const orderServiceCharge = Number(order?.serviceCharge ?? 0);
+  const orderDiscount = Number(order?.discount ?? 0);
+  const orderTip = Number(order?.tip ?? 0);
+  const orderTotal = Number(
+    order?.total ??
+    order?.totalAmount ??
+    (orderSubtotal + orderTax + orderServiceCharge - orderDiscount + orderTip)
+  );
+
+  // Scoped requests strictly for this specific order / table session (unconditional hooks)
+  const orderRequests = useMemo(() => {
+    if (!order) return [];
+    const targetOrderId = order.orderId || order.id || orderId;
+    const targetTableNumber = order.tableNumber;
+    return waiterRequests.filter(r => {
+      if (r.orderId && targetOrderId) {
+        return r.orderId === targetOrderId;
+      }
+      return targetTableNumber ? r.tableNumber === targetTableNumber : false;
+    });
+  }, [waiterRequests, orderId, order?.orderId, order?.id, order?.tableNumber]);
+
+  // Active bill request for this order (at most ONE)
+  const activeBillRequest = useMemo(() => {
+    return orderRequests.find(r => 
+      r.requestType === 'Bill Request' && isRequestActive(r.status)
+    );
+  }, [orderRequests]);
+
+  // Active service assistance requests (excluding Bill Requests)
+  const activeServiceRequests = useMemo(() => {
+    return orderRequests.filter(r => 
+      r.requestType !== 'Bill Request' && isRequestActive(r.status)
+    );
+  }, [orderRequests]);
+
+  // Placed At Formatted Timestamp (safe across all timestamp types)
+  const placedAtFormatted = order?.createdAt ? formatOrderTime(order.createdAt) : 'Just now';
+
+  // Estimated preparation time calculation
+  const estimatedTimeText = restaurantData?.avgPrepTime 
+    ? `${restaurantData.avgPrepTime}–${restaurantData.avgPrepTime + 10} minutes`
+    : '20–30 minutes';
+
+  // Customer Authorization & Tenant Isolation check
+  const isAuthorized = (() => {
+    if (!order) return true;
+    // When customer account exists and order specifies customerId
+    if (user?.uid && order.customerId && order.customerId !== 'guest-uid') {
+      return order.customerId === user.uid;
+    }
+    // Matching active dining session for walk-ins / guest table QR
+    if (session?.sessionId && order.sessionId) {
+      return order.sessionId === session.sessionId;
+    }
+    // Guest or walk-in order without customerId attached
+    if (!order.customerId || order.customerId === 'guest-uid') return true;
+    // Authenticated customer trying to access another customer's order
+    if (user?.uid && order.customerId && order.customerId !== user.uid) {
+      return false;
+    }
+    return true;
+  })();
+
   // Loading skeleton state
   if (isLoading) {
     return (
@@ -649,7 +840,7 @@ export const OrderTracking: React.FC = () => {
     );
   }
 
-  // Error state with retry
+  // Error state with retry and navigation
   if (loadError) {
     return (
       <div className="min-h-screen bg-[#FCFAF7] text-left">
@@ -661,13 +852,22 @@ export const OrderTracking: React.FC = () => {
             </div>
             <h2 className="text-lg font-extrabold text-[#202124]">Unable to load your order</h2>
             <p className="text-xs text-[#756B64]">{loadError}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#C85A3F] hover:bg-[#A94332] text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Retry</span>
-            </button>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => window.location.reload()}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#E5DCD5] hover:border-[#C85A3F] text-[#202124] text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry</span>
+              </button>
+              <button
+                onClick={() => navigate('/customer/orders')}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#C85A3F] hover:bg-[#A94332] text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to My Orders</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -687,19 +887,78 @@ export const OrderTracking: React.FC = () => {
             <div className="space-y-1.5">
               <h2 className="text-xl font-extrabold text-[#202124]">Order Not Found</h2>
               <p className="text-xs text-[#756B64] leading-relaxed">
-                This order may have been cancelled, completed long ago, or the link may be invalid.
+                We could not locate order <span className="font-mono font-bold text-[#202124]">#{orderId}</span>.
+                It may have expired or been removed.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => window.location.reload()}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#E5DCD5] hover:border-[#C85A3F] text-[#202124] text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry</span>
+              </button>
+              <button
+                onClick={() => navigate('/customer/orders')}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#C85A3F] hover:bg-[#A94332] text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to My Orders</span>
+              </button>
+              {tenantId && (
+                <button
+                  onClick={() => navigate(`/customer/restaurant/${tenantId}`)}
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-white border border-[#E5DCD5] hover:border-[#C85A3F] text-[#202124] text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer"
+                >
+                  <Store className="w-4 h-4 text-[#C85A3F]" />
+                  <span>Restaurant Page</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-[#FCFAF7] text-left">
+        <CustomerHeader />
+        <div className="max-w-[1240px] mx-auto px-4 py-16 text-center">
+          <div className="max-w-md mx-auto bg-white border border-[#E5DCD5] rounded-3xl p-8 space-y-5 shadow-sm">
+            <div className="w-14 h-14 rounded-full bg-rose-50 text-[#A94332] flex items-center justify-center mx-auto">
+              <ShieldAlert className="w-7 h-7" />
+            </div>
+            <div className="space-y-1.5">
+              <h2 className="text-xl font-extrabold text-[#202124]">Access Denied</h2>
+              <p className="text-xs text-[#756B64] leading-relaxed">
+                You don't have access to this order.
               </p>
             </div>
             <button
-              onClick={() => navigate(tenantId ? `/customer/restaurant/${tenantId}` : '/customer/explore')}
+              onClick={() => navigate('/customer/orders')}
               className="inline-flex items-center gap-1.5 px-6 py-3 bg-[#C85A3F] hover:bg-[#A94332] text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back to Restaurant</span>
+              <span>Back to My Orders</span>
             </button>
           </div>
         </div>
       </div>
+    );
+  }
+
+  // If order status is COMPLETED or receipt was explicitly requested, render CustomerReceiptView
+  const isCompleted = (order.status || '').toUpperCase() === 'COMPLETED';
+  if (isCompleted || isReceiptRequested) {
+    return (
+      <CustomerReceiptView
+        order={order}
+        restaurantData={restaurantData}
+        tenantId={tenantId}
+      />
     );
   }
 
@@ -838,54 +1097,6 @@ export const OrderTracking: React.FC = () => {
     );
   }
 
-  // Active step and state computations
-  const activeIndex = getStepIndex(order.status);
-  const isCancelled = order.status === 'CANCELLED';
-
-  // Historical Bill computations from Firestore order snapshot
-  const orderSubtotal = order.subtotal || 0;
-  const orderTax = order.tax || 0;
-  const orderServiceCharge = order.serviceCharge || 0;
-  const orderDiscount = order.discount || 0;
-  const orderTip = order.tip || 0;
-  const orderTotal = order.total || order.totalAmount || 0;
-
-  // Scoped requests strictly for this specific order / table session
-  const orderRequests = useMemo(() => {
-    if (!order) return [];
-    return waiterRequests.filter(r => {
-      if (r.orderId && orderId) {
-        return r.orderId === orderId;
-      }
-      return r.tableNumber === order.tableNumber;
-    });
-  }, [waiterRequests, orderId, order?.tableNumber]);
-
-  // Active bill request for this order (at most ONE)
-  const activeBillRequest = useMemo(() => {
-    return orderRequests.find(r => 
-      r.requestType === 'Bill Request' && isRequestActive(r.status)
-    );
-  }, [orderRequests]);
-
-  // Active service assistance requests (excluding Bill Requests)
-  const activeServiceRequests = useMemo(() => {
-    return orderRequests.filter(r => 
-      r.requestType !== 'Bill Request' && isRequestActive(r.status)
-    );
-  }, [orderRequests]);
-
-  // Placed At Formatted Timestamp
-  const placedAtFormatted = order.createdAt ? new Date(order.createdAt).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
-  }) : 'Just now';
-
-  // Estimated preparation time calculation
-  const estimatedTimeText = restaurantData?.avgPrepTime 
-    ? `${restaurantData.avgPrepTime}–${restaurantData.avgPrepTime + 10} minutes`
-    : '20–30 minutes';
-
   return (
     <div className="min-h-screen bg-[#FCFAF7] text-left select-none pb-16">
       
@@ -934,11 +1145,14 @@ export const OrderTracking: React.FC = () => {
                   <MapPin className="w-3.5 h-3.5 text-[#C85A3F]" />
                   <span>{restaurantLocality}</span>
                 </span>
-                {order.tableNumber && (
+                {(order.tableNumber || order.tableId) && (
                   <>
                     <span className="text-[#E5DCD5]">•</span>
                     <span className="font-bold text-[#202124]">
-                      {order.tableNumber.toLowerCase().includes('walk') ? order.tableNumber : `Table #${order.tableNumber}`}
+                      {(() => {
+                        const raw = String(order.tableNumber || order.tableId?.replace(/^TBL-/i, '') || '');
+                        return raw.toLowerCase().includes('walk') ? 'Walk-in' : `Table #${raw}`;
+                      })()}
                     </span>
                   </>
                 )}
@@ -1112,15 +1326,22 @@ export const OrderTracking: React.FC = () => {
                 </p>
               </div>
 
-              <button
-                onClick={() => navigate(
-                  activeIndex >= 5 ? '/customer/explore' : `/customer/restaurant/${tenantId}/menu`
-                )}
-                className="inline-flex items-center justify-center space-x-1.5 px-5 py-3 bg-[#F3E8DF] hover:bg-[#E5DCD5] text-[#C85A3F] hover:text-[#A94332] font-bold text-xs rounded-xl transition-all cursor-pointer shrink-0"
-              >
-                <span>{activeIndex >= 5 ? 'Explore Restaurants' : 'View Menu'}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  onClick={() => navigate(`/customer/restaurant/${tenantId}/active-order`)}
+                  className="inline-flex items-center justify-center space-x-1.5 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Active Dining Session</span>
+                </button>
+                <button
+                  onClick={() => navigate(`/customer/restaurant/${tenantId}/menu`)}
+                  className="inline-flex items-center justify-center space-x-1.5 px-4 py-2.5 bg-[#F3E8DF] hover:bg-[#E5DCD5] text-[#C85A3F] hover:text-[#A94332] font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  <span>Order More Food</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
           </div>
@@ -1142,39 +1363,47 @@ export const OrderTracking: React.FC = () => {
 
               {/* Items List */}
               <div className="space-y-3 divide-y divide-[#E5DCD5]/60 max-h-64 overflow-y-auto pr-1">
-                {order.items?.map((item: any, idx: number) => {
-                  const lookup = menuLookup[item.itemId] || {};
-                  const thumb = item.image || item.imageUrl || lookup.imageUrl || lookup.image;
-                  const isVegItem = item.isVeg ?? item.veg ?? lookup.isVeg ?? lookup.veg;
+                {order.items && order.items.length > 0 ? (
+                  order.items.map((item: any, idx: number) => {
+                    const lookup = menuLookup[item.itemId] || {};
+                    const thumb = item.image || item.imageUrl || lookup.imageUrl || lookup.image;
+                    const isVegItem = item.isVeg ?? item.veg ?? lookup.isVeg ?? lookup.veg;
+                    const qty = Number(item.count || item.quantity || 1);
+                    const unitPrice = Number(item.pricePerUnit || item.price || 0);
 
-                  return (
-                    <div key={idx} className="flex items-center justify-between pt-3 first:pt-0 gap-3">
-                      <div className="flex items-center space-x-2.5 min-w-0">
-                        <ItemThumbnail src={thumb} alt={item.name} />
-                        <div className="min-w-0 space-y-0.5">
-                          <div className="flex items-center space-x-1.5">
-                            <DietaryBadge isVeg={isVegItem} />
-                            <h4 className="text-xs font-bold text-[#202124] truncate">
-                              {item.name}
-                            </h4>
-                          </div>
-                          <span className="text-[11px] font-semibold text-[#756B64] block">
-                            Qty: ×{item.count}
-                          </span>
-                          {item.notes && (
-                            <span className="text-[10px] text-[#C85A3F] font-medium block truncate max-w-[150px]">
-                              "{item.notes}"
+                    return (
+                      <div key={idx} className="flex items-center justify-between pt-3 first:pt-0 gap-3">
+                        <div className="flex items-center space-x-2.5 min-w-0">
+                          <ItemThumbnail src={thumb} alt={item.name || 'Dish'} />
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center space-x-1.5">
+                              <DietaryBadge isVeg={isVegItem} />
+                              <h4 className="text-xs font-bold text-[#202124] truncate">
+                                {item.name || item.itemName || 'Dish'}
+                              </h4>
+                            </div>
+                            <span className="text-[11px] font-semibold text-[#756B64] block">
+                              Qty: ×{qty}
                             </span>
-                          )}
+                            {item.notes && (
+                              <span className="text-[10px] text-[#C85A3F] font-medium block truncate max-w-[150px]">
+                                "{item.notes}"
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      <span className="text-xs font-extrabold text-[#202124] shrink-0 font-mono">
-                        {formatPrice(item.pricePerUnit * item.count)}
-                      </span>
-                    </div>
-                  );
-                })}
+                        <span className="text-xs font-extrabold text-[#202124] shrink-0 font-mono">
+                          {formatPrice(unitPrice * qty)}
+                        </span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="py-4 text-center text-xs text-[#756B64]">
+                    No items recorded for this order.
+                  </div>
+                )}
               </div>
 
               {/* Price Calculations Breakdown (from historical order snapshot) */}
@@ -1341,7 +1570,7 @@ export const OrderTracking: React.FC = () => {
                       <div className="space-y-0.5">
                         <span className="font-bold text-[#202124] block">{req.requestType}</span>
                         <span className="text-[9.5px] text-[#756B64] block">
-                          {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatOrderTime(req.createdAt)}
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -1562,4 +1791,24 @@ export const OrderTracking: React.FC = () => {
   );
 };
 
-export default OrderTracking;
+export const OrderTrackingWrapper: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const isReceiptRequested = searchParams.get('view') === 'receipt';
+
+  return (
+    <ErrorBoundary
+      fallbackTitle={isReceiptRequested ? "Unable to load your receipt" : "Unable to load order tracking"}
+      fallbackSubtitle={
+        isReceiptRequested
+          ? "An unexpected issue occurred while rendering your receipt. Please return to your orders or try again."
+          : "An unexpected issue occurred while rendering your live order tracking. Please check back shortly."
+      }
+      onReset={() => navigate('/customer/orders')}
+    >
+      <OrderTracking />
+    </ErrorBoundary>
+  );
+};
+
+export default OrderTrackingWrapper;

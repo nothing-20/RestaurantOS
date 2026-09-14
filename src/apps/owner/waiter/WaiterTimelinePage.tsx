@@ -94,20 +94,20 @@ export const WaiterTimelinePage: React.FC = () => {
       case 'COMPLETED':
       case 'PAID':
       case 'PAYMENT_COMPLETED':
-        return { ring: 'ring-emerald-500/20', bg: 'bg-emerald-500', text: 'text-emerald-450' };
+        return { ring: 'ring-emerald-500/20', bg: 'bg-emerald-600', text: 'text-emerald-700 font-extrabold' };
       case 'READY':
       case 'PICKED_UP':
-        return { ring: 'ring-blue-500/20', bg: 'bg-blue-500', text: 'text-blue-400 font-extrabold' };
+        return { ring: 'ring-blue-500/20', bg: 'bg-blue-600', text: 'text-blue-700 font-extrabold' };
       case 'PREPARING':
       case 'ACCEPTED':
-        return { ring: 'ring-orange-500/20', bg: 'bg-orange-500', text: 'text-orange-400 font-extrabold' };
+        return { ring: 'ring-orange-500/20', bg: 'bg-orange-600', text: 'text-orange-700 font-extrabold' };
       case 'PLACED':
       case 'SENT_TO_KITCHEN':
-        return { ring: 'ring-yellow-500/20', bg: 'bg-yellow-550', text: 'text-yellow-450' };
+        return { ring: 'ring-amber-500/20', bg: 'bg-amber-600', text: 'text-amber-800 font-extrabold' };
       case 'CANCELLED':
-        return { ring: 'ring-rose-500/20', bg: 'bg-rose-500', text: 'text-rose-400' };
+        return { ring: 'ring-rose-500/20', bg: 'bg-rose-600', text: 'text-rose-700 font-extrabold' };
       default:
-        return { ring: 'ring-slate-500/20', bg: 'bg-slate-550', text: 'text-slate-400' };
+        return { ring: 'ring-slate-500/20', bg: 'bg-slate-600', text: 'text-[#18201D] font-extrabold' };
     }
   };
 
@@ -132,24 +132,24 @@ export const WaiterTimelinePage: React.FC = () => {
     <div className="space-y-6 text-left select-none pb-24">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-slate-800 rounded-xl border border-slate-700">
+          <div className="p-2 bg-white rounded-xl border border-[#E3DED5] shadow-xs">
             <Activity className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-display font-extrabold text-textPearl">Kitchen Timeline</h1>
-            <p className="text-xs text-mutedAsh font-semibold">Real-time chronologies of KDS operational stages, handovers, and pickup statuses.</p>
+            <h1 className="text-2xl font-display font-extrabold text-[#18201D]">Kitchen Timeline</h1>
+            <p className="text-xs text-[#5F6875] font-semibold">Real-time chronologies of KDS operational stages, handovers, and pickup statuses.</p>
           </div>
         </div>
       </div>
 
       {/* Filters Toolbar */}
-      <Card className="p-4 bg-slate-900/40 border-slate-850 grid grid-cols-1 sm:grid-cols-4 gap-3">
+      <Card className="p-4 bg-white border border-[#E3DED5] grid grid-cols-1 sm:grid-cols-4 gap-3 rounded-2xl shadow-xs">
         <div className="space-y-1">
-          <label className="text-[10px] text-slate-500 font-extrabold uppercase">Event Status</label>
+          <label className="text-[10px] text-[#667085] font-extrabold uppercase">Event Status</label>
           <select
             value={selectedStatus}
             onChange={e => setSelectedStatus(e.target.value)}
-            className="w-full bg-slate-955 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 outline-none animate-none"
+            className="w-full bg-[#F7F4EE] border border-[#E3DED5] rounded-xl p-2 text-xs text-[#18201D] outline-none focus:border-primary"
           >
             <option value="all">All Events</option>
             {uniqueStatuses.map(s => (
@@ -159,11 +159,11 @@ export const WaiterTimelinePage: React.FC = () => {
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] text-slate-500 font-extrabold uppercase">Waiter</label>
+          <label className="text-[10px] text-[#667085] font-extrabold uppercase">Waiter</label>
           <select
             value={selectedWaiter}
             onChange={e => setSelectedWaiter(e.target.value)}
-            className="w-full bg-slate-955 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 outline-none"
+            className="w-full bg-[#F7F4EE] border border-[#E3DED5] rounded-xl p-2 text-xs text-[#18201D] outline-none focus:border-primary"
           >
             <option value="all">All Waiters</option>
             {uniqueWaiters.map(w => (
@@ -173,11 +173,11 @@ export const WaiterTimelinePage: React.FC = () => {
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] text-slate-500 font-extrabold uppercase">Chef</label>
+          <label className="text-[10px] text-[#667085] font-extrabold uppercase">Chef</label>
           <select
             value={selectedChef}
             onChange={e => setSelectedChef(e.target.value)}
-            className="w-full bg-slate-955 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 outline-none"
+            className="w-full bg-[#F7F4EE] border border-[#E3DED5] rounded-xl p-2 text-xs text-[#18201D] outline-none focus:border-primary"
           >
             <option value="all">All Chefs</option>
             {uniqueChefs.map(c => (
@@ -187,11 +187,11 @@ export const WaiterTimelinePage: React.FC = () => {
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] text-slate-500 font-extrabold uppercase">Time Period</label>
+          <label className="text-[10px] text-[#667085] font-extrabold uppercase">Time Period</label>
           <select
             value={dateFilter}
             onChange={e => setDateFilter(e.target.value)}
-            className="w-full bg-slate-955 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 outline-none"
+            className="w-full bg-[#F7F4EE] border border-[#E3DED5] rounded-xl p-2 text-xs text-[#18201D] outline-none focus:border-primary"
           >
             <option value="all">All Time</option>
             <option value="today">Today</option>
@@ -201,36 +201,36 @@ export const WaiterTimelinePage: React.FC = () => {
       </Card>
 
       {filteredEvents.length === 0 ? (
-        <Card className="p-12 text-center border-slate-850 bg-slate-900/10 text-slate-500 rounded-3xl">
-          <AlertCircle className="w-10 h-10 text-slate-700 mx-auto mb-3" />
+        <Card className="p-12 text-center border border-dashed border-[#E3DED5] bg-white text-[#5F6875] rounded-3xl">
+          <AlertCircle className="w-10 h-10 text-[#8D9B95] mx-auto mb-3" />
           <p className="text-sm font-semibold">No operational timeline events match the filters.</p>
         </Card>
       ) : (
-        <Card className="p-6 border-slate-850 bg-slate-900/20 rounded-2xl">
-          <div className="relative border-l border-slate-805 ml-3.5 space-y-6">
+        <Card className="p-6 border border-[#E3DED5] bg-white rounded-2xl shadow-xs">
+          <div className="relative border-l border-[#E3DED5] ml-3.5 space-y-6">
             {filteredEvents.slice(0, 50).map((event, idx) => {
               const colors = getEventColors(event.type);
               return (
                 <div key={idx} className="relative pl-6 text-xs group">
                   {/* Color-coded Node */}
-                  <span className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full ${colors.bg} border-2 border-slate-900 ring-2 ${colors.ring} group-hover:scale-125 transition-transform`} />
+                  <span className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full ${colors.bg} border-2 border-white ring-2 ${colors.ring} group-hover:scale-125 transition-transform`} />
                   
                   <div className="space-y-1">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <span className="text-[10px] text-slate-500 font-extrabold flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-slate-550" />
+                      <span className="text-[10px] text-[#667085] font-extrabold flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-[#8D9B95]" />
                         {formatTime(event.timestamp)}
                       </span>
-                      <span className="text-[9px] text-slate-500 font-mono">
-                        Order: <strong className="text-slate-400">#{event.orderId.substring(0, 12)}</strong> · Table {event.tableNumber}
+                      <span className="text-[9px] text-[#667085] font-mono">
+                        Order: <strong className="text-[#18201D]">#{event.orderId.substring(0, 12)}</strong> · Table {event.tableNumber}
                       </span>
                     </div>
                     <h4 className={`font-extrabold text-sm ${colors.text} leading-tight`}>{event.title}</h4>
                     {event.description && (
-                      <p className="text-slate-400 text-[11px] leading-relaxed">{event.description}</p>
+                      <p className="text-[#5F6875] text-[11px] leading-relaxed">{event.description}</p>
                     )}
-                    <div className="text-[9px] text-slate-550">
-                      Performed by: <strong className="text-slate-455 font-bold">{event.performedBy}</strong>
+                    <div className="text-[9px] text-[#667085]">
+                      Performed by: <strong className="text-[#18201D] font-bold">{event.performedBy}</strong>
                     </div>
                   </div>
                 </div>

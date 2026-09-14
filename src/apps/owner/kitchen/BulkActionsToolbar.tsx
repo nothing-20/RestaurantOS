@@ -5,14 +5,14 @@ import { CheckSquare, Square, X } from 'lucide-react';
 
 const BulkBtn: React.FC<{
   label: string;
-  color: string;
+  className: string;
   onClick: () => void;
   disabled?: boolean;
-}> = ({ label, color, onClick, disabled = false }) => (
+}> = ({ label, className, onClick, disabled = false }) => (
   <button
     onClick={onClick}
     disabled={disabled}
-    className={`px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider border transition-all flex items-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${color}`}
+    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${className}`}
   >
     <span>{label}</span>
   </button>
@@ -32,7 +32,7 @@ interface IBulkActionsToolbarProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const BulkActionsToolbar: React.FC<IBulkActionsToolbarProps> = ({
+export const BulkActionsToolbar: React.FC<IBulkActionsToolbarProps> = ({
   selectedCount,
   totalVisible,
   allSelected,
@@ -44,17 +44,17 @@ const BulkActionsToolbar: React.FC<IBulkActionsToolbarProps> = ({
 
   return (
     // Fixed floating bar pinned to bottom of viewport
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-max max-w-[calc(100vw-2rem)]">
-      <div className="flex items-center space-x-2 bg-slate-900/95 backdrop-blur-xl border border-slate-700 shadow-2xl shadow-black/50 rounded-2xl px-4 py-3">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-max max-w-[calc(100vw-2rem)] font-sans select-none">
+      <div className="flex items-center space-x-3 bg-[#13241F] border border-[#1E3B33] shadow-2xl rounded-xl px-4 py-2.5 text-white">
 
         {/* Selection count + select-all toggle */}
         <button
           onClick={allSelected ? onClearSelection : onSelectAll}
-          className="flex items-center space-x-1.5 text-xs font-extrabold text-textPearl hover:text-primary transition-colors pr-3 border-r border-slate-700"
+          className="flex items-center space-x-2 text-xs font-bold text-white hover:text-[#D79A24] transition-colors pr-3 border-r border-[#1E3B33]"
         >
           {allSelected
-            ? <CheckSquare className="w-4 h-4 text-primary" />
-            : <Square className="w-4 h-4 text-slate-400" />
+            ? <CheckSquare className="w-4 h-4 text-[#287A55]" />
+            : <Square className="w-4 h-4 text-[#8D9B95]" />
           }
           <span>
             {selectedCount} of {totalVisible} selected
@@ -65,22 +65,22 @@ const BulkActionsToolbar: React.FC<IBulkActionsToolbarProps> = ({
         <div className="flex items-center space-x-2">
           <BulkBtn
             label="Accept"
-            color="bg-purple-500/10 border-purple-500/30 text-purple-300 hover:bg-purple-500/20"
+            className="bg-[#1A312B] hover:bg-[#23423A] text-white border border-[#2B5248]"
             onClick={() => onRequestAction('ACCEPTED', 'Accept')}
           />
           <BulkBtn
-            label="Preparing"
-            color="bg-orange-500/10 border-orange-500/30 text-orange-300 hover:bg-orange-500/20"
-            onClick={() => onRequestAction('PREPARING', 'Mark Preparing')}
+            label="Start Cooking"
+            className="bg-[#C84A38] hover:bg-[#B23F2F] text-white shadow-sm"
+            onClick={() => onRequestAction('PREPARING', 'Start Cooking')}
           />
           <BulkBtn
             label="Mark Ready"
-            color="bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20"
+            className="bg-[#287A55] hover:bg-[#206345] text-white shadow-sm"
             onClick={() => onRequestAction('READY', 'Mark Ready')}
           />
           <BulkBtn
             label="Archive"
-            color="bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700"
+            className="bg-[#1A312B] hover:bg-[#23423A] text-[#8D9B95] hover:text-white border border-[#2B5248]"
             onClick={() => onRequestAction('ARCHIVED', 'Archive')}
           />
         </div>
@@ -88,7 +88,7 @@ const BulkActionsToolbar: React.FC<IBulkActionsToolbarProps> = ({
         {/* Cancel */}
         <button
           onClick={onClearSelection}
-          className="ml-1 p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
+          className="ml-1 p-1 rounded-lg text-[#8D9B95] hover:text-white hover:bg-[#1A312B] transition-all"
           title="Cancel selection"
         >
           <X className="w-4 h-4" />

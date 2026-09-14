@@ -14,6 +14,13 @@ import {
   AlertCircle, ExternalLink, ChevronRight, X, ShieldAlert, Flame
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import TableSelectionModal, { ITableData } from '../components/TableSelectionModal';
+import { 
+  generateSessionId, 
+  getActiveDiningSession, 
+  saveActiveDiningSession, 
+  syncDiningSessionToFirestore 
+} from '../../../shared/utils/diningSession';
 
 interface IRestaurantInfo {
   id: string;
@@ -83,6 +90,50 @@ export const RestaurantDetails: React.FC = () => {
 
   // Item details modal
   const [selectedItem, setSelectedItem] = useState<IMenuItemData | null>(null);
+
+  // Table selection modal for Dine-In ordering
+  const [isTableModalOpen, setIsTableModalOpen] = useState(false);
+
+  const handleOrderNow = () => {
+    if (!restaurant) return;
+    const existingSession = getActiveDiningSession(restaurant.id);
+    if (existingSession && (existingSession.tableId || existingSession.tableNumber)) {
+      navigate(`/customer/restaurant/${restaurant.id}/menu${existingSession.tableNumber ? `?table=${existingSession.tableNumber}` : ''}`);
+      return;
+    }
+    setIsTableModalOpen(true);
+  };
+
+  const handleSelectTable = (table: ITableData) => {
+    if (!restaurant) return;
+    const cleanNum = String(table.tableNumber || table.number || '').replace(/^TBL-/i, '');
+    const tableId = table.tableId || table.id;
+    
+    // Check if there's already an active session for this restaurant & table
+    const existingSession = getActiveDiningSession(restaurant.id);
+    let session = existingSession;
+    if (!session || (session.tableNumber !== cleanNum && session.tableId !== tableId)) {
+      const sessionId = generateSessionId();
+      session = {
+        sessionId,
+        restaurantId: restaurant.id,
+        tenantId: restaurant.id,
+        branchId: table.branchId || 'main',
+        tableId: tableId,
+        tableNumber: cleanNum,
+        tableName: table.tableName || `Table ${cleanNum}`,
+        orderSource: 'app',
+        isLocked: false,
+        status: 'active',
+        startedAt: new Date().toISOString()
+      };
+      saveActiveDiningSession(session);
+      syncDiningSessionToFirestore(session).catch(() => {});
+    }
+
+    setIsTableModalOpen(false);
+    navigate(`/customer/restaurant/${restaurant.id}/menu?table=${session.tableNumber}`);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -386,7 +437,7 @@ export const RestaurantDetails: React.FC = () => {
             <Calendar className="w-3.5 h-3.5 text-[#E85D3F]" /> Book Table
           </Button>
           <Button 
-            onClick={() => navigate(`/customer/restaurant/${restaurant.id}/menu`)}
+            onClick={handleOrderNow}
             className="px-5 py-2.5 bg-[#E85D3F] hover:bg-[#D04B2F] text-white font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-all text-xs shadow-xs cursor-pointer"
           >
             <Coffee className="w-3.5 h-3.5" /> Order Now
@@ -585,7 +636,7 @@ export const RestaurantDetails: React.FC = () => {
                           onClick={(e) => {
                             e.stopPropagation();
                             if (item.isAvailable) {
-                              navigate(`/customer/restaurant/${restaurant.id}/menu`);
+                              handleOrderNow();
                             }
                           }}
                           disabled={!item.isAvailable}
@@ -761,7 +812,7 @@ export const RestaurantDetails: React.FC = () => {
                 <button
                   onClick={() => {
                     setSelectedItem(null);
-                    navigate(`/customer/restaurant/${restaurant.id}/menu`);
+                    handleOrderNow();
                   }}
                   className="w-full py-3 bg-[#E85D3F] hover:bg-[#D04B2F] text-white font-extrabold rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
@@ -777,6 +828,17 @@ export const RestaurantDetails: React.FC = () => {
             </div>
           </div>
         </Modal>
+      )}
+
+      {restaurant && (
+        <TableSelectionModal
+          isOpen={isTableModalOpen}
+          onClose={() => setIsTableModalOpen(false)}
+          tenantId={restaurant.id}
+          restaurantName={restaurant.name}
+          branchId="main"
+          onSelectTable={handleSelectTable}
+        />
       )}
 
     </div>

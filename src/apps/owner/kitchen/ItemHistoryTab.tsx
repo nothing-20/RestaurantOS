@@ -134,91 +134,107 @@ export const ItemHistoryTab: React.FC<IItemHistoryTabProps> = ({ orders, menuIte
   };
 
   return (
-    <div className="space-y-4 text-left select-none">
-      {/* Action Header */}
-      <Card className="p-4 border-slate-850 bg-slate-900/35 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="space-y-4 text-left select-none font-sans">
+      {/* Search & Counter Surface */}
+      <div className="p-4 bg-white border border-[#E3DED5] rounded-xl shadow-[0_1px_4px_rgba(30,30,20,0.05)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5F6762]" />
           <input
             type="text"
             placeholder="Search menu items..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs bg-slate-955 border border-slate-850 rounded-xl text-textPearl outline-none focus:border-primary/50"
+            className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-[#E3DED5] rounded-lg text-[#18201D] placeholder:text-[#7A817C] outline-none focus:border-[#13241F]"
           />
         </div>
-        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-          {filteredMetrics.length} total items tracked
+        <span className="text-[11px] text-[#5F6762] font-semibold tracking-wider">
+          {filteredMetrics.length} TOTAL ITEMS TRACKED
         </span>
-      </Card>
+      </div>
 
-      {/* Grid view / Table */}
-      <Card className="border-slate-850 bg-slate-900/35 overflow-hidden">
+      {/* Table Surface */}
+      <div className="bg-white border border-[#E3DED5] rounded-lg shadow-[0_1px_4px_rgba(30,30,20,0.05)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-950 border-b border-slate-850 text-slate-400 font-extrabold uppercase tracking-widest text-[9px]">
+            <thead className="bg-[#13241F] border-b border-[#1E3B33] text-[#FFFFFF] font-semibold uppercase tracking-[0.05em] text-[11px]">
               <tr>
-                <th className="px-4 py-3.5">Menu Item Name</th>
-                <th className="px-4 py-3.5 text-center">Type</th>
-                <th className="px-4 py-3.5 text-center">Total Orders</th>
-                <th className="px-4 py-3.5 text-center">Qty Served</th>
-                <th className="px-4 py-3.5 text-center">Avg Prep Time</th>
-                <th className="px-4 py-3.5 text-center">Batch Prepared</th>
-                <th className="px-4 py-3.5 text-center">Batch Consumed</th>
-                <th className="px-4 py-3.5 text-center text-red-400">Waste</th>
-                <th className="px-4 py-3.5 text-center">Current Stock</th>
-                <th className="px-4 py-3.5 text-center">Peak Hour</th>
-                <th className="px-4 py-3.5">Last Prepared</th>
+                <th className="px-4 py-3.5 text-[#FFFFFF]">Menu Item Name</th>
+                <th className="px-4 py-3.5 text-center text-[#FFFFFF]">Type</th>
+                <th className="px-4 py-3.5 text-center text-[#FFFFFF]">Total Orders</th>
+                <th className="px-4 py-3.5 text-center text-[#FFFFFF]">Qty Served</th>
+                <th className="px-4 py-3.5 text-center text-[#FFFFFF]">Avg Prep Time</th>
+                <th className="px-4 py-3.5 text-center text-[#DDE5E0]">Batch Prepared</th>
+                <th className="px-4 py-3.5 text-center text-[#DDE5E0]">Batch Consumed</th>
+                <th className="px-4 py-3.5 text-center text-[#DDE5E0]">Waste</th>
+                <th className="px-4 py-3.5 text-center text-[#FFFFFF]">Current Stock</th>
+                <th className="px-4 py-3.5 text-center text-[#FFFFFF]">Peak Hour</th>
+                <th className="px-4 py-3.5 text-[#FFFFFF]">Last Prepared</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-850">
+            <tbody className="divide-y divide-[#E3DED5]">
               {filteredMetrics.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center text-slate-500 font-semibold">
+                  <td colSpan={11} className="py-12 text-center text-[#5F6762] font-semibold bg-white">
                     No matching items found.
                   </td>
                 </tr>
               ) : (
-                filteredMetrics.map(item => (
-                  <tr key={item.id} className="hover:bg-slate-900/25 transition-colors">
-                    <td className="px-4 py-4 font-bold text-textPearl">
-                      {item.name}
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${
-                        item.isBatch
-                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-450'
-                          : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                      }`}>
-                        {item.isBatch ? 'Batch Prep' : 'On Demand'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-center font-bold text-slate-300">{item.totalOrders}</td>
-                    <td className="px-4 py-4 text-center font-bold text-slate-350">{item.totalQty}</td>
-                    <td className="px-4 py-4 text-center font-mono font-bold text-primary">
-                      {item.avgPrepTime > 0 ? `${item.avgPrepTime.toFixed(1)}m` : '—'}
-                    </td>
-                    <td className="px-4 py-4 text-center font-mono text-slate-400">
-                      {item.isBatch ? `+${item.batchPrepared}` : '—'}
-                    </td>
-                    <td className="px-4 py-4 text-center font-mono text-slate-400">
-                      {item.isBatch ? `-${item.batchConsumed}` : '—'}
-                    </td>
-                    <td className="px-4 py-4 text-center font-mono text-red-400 font-semibold">
-                      {item.isBatch && item.waste > 0 ? `-${item.waste}` : '—'}
-                    </td>
-                    <td className="px-4 py-4 text-center font-mono font-extrabold text-slate-300">
-                      {item.isBatch ? `${item.currentStock} portions` : '—'}
-                    </td>
-                    <td className="px-4 py-4 text-center font-medium text-slate-400">{item.peakHour}</td>
-                    <td className="px-4 py-4 font-mono text-[10px] text-slate-450">{formatTimestamp(item.lastPreparedAt)}</td>
-                  </tr>
-                ))
+                filteredMetrics.map((item, idx) => {
+                  const isLow = item.currentStock > 0 && item.currentStock <= 10;
+                  const isOut = item.currentStock === 0;
+
+                  return (
+                    <tr 
+                      key={item.id} 
+                      className={`transition-colors hover:bg-[#F3EFE8] ${
+                        idx % 2 === 0 ? 'bg-white' : 'bg-[#FBF9F5]'
+                      }`}
+                    >
+                      <td className="px-4 py-4 font-semibold text-[#18201D]">
+                        {item.name}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
+                          item.isBatch
+                            ? 'bg-[#E8F5EE] border-[#287A55]/30 text-[#287A55]'
+                            : 'bg-[#E8F3ED] border-[#CFE5D8] text-[#287A55]'
+                        }`}>
+                          {item.isBatch ? 'Batch Prep' : 'On Demand'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-center font-semibold text-[#18201D]">{item.totalOrders}</td>
+                      <td className="px-4 py-4 text-center font-semibold text-[#39423D]">{item.totalQty}</td>
+                      <td className="px-4 py-4 text-center font-mono font-bold text-[#A66B00]">
+                        {item.avgPrepTime > 0 ? `${item.avgPrepTime.toFixed(1)}m` : '—'}
+                      </td>
+                      <td className="px-4 py-4 text-center font-mono text-[#39423D]">
+                        {item.isBatch ? `+${item.batchPrepared}` : '—'}
+                      </td>
+                      <td className="px-4 py-4 text-center font-mono text-[#5F6762]">
+                        {item.isBatch ? `-${item.batchConsumed}` : '—'}
+                      </td>
+                      <td className="px-4 py-4 text-center font-mono text-[#C7463A] font-semibold">
+                        {item.isBatch && item.waste > 0 ? `-${item.waste}` : '—'}
+                      </td>
+                      <td className="px-4 py-4 text-center font-mono font-semibold">
+                        {item.isBatch ? (
+                          <span className={isOut ? 'text-[#C7463A]' : isLow ? 'text-[#D79A24]' : 'text-[#287A55]'}>
+                            {item.currentStock} portions
+                          </span>
+                        ) : (
+                          <span className="text-[#5F6762]">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-center font-medium text-[#5F6762]">{item.peakHour}</td>
+                      <td className="px-4 py-4 font-mono text-[11px] text-[#5F6762]">{formatTimestamp(item.lastPreparedAt)}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
-      </Card>
+      </div>
     </div>
   );
 };

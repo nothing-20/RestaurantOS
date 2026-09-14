@@ -3,61 +3,69 @@ import { IKdsOrder, TPriority } from '../../../features/kitchen-dashboard/types'
 import {
   getElapsedSeconds,
   formatElapsedSeconds,
-  getElapsedColor,
 } from '../../../features/kitchen-dashboard/utils/kitchenMetrics';
 import OrderTimeline from './OrderTimeline';
-import Card from '../../../components/ui/Card/Card';
-import { Check, Timer, ChevronDown, ChevronUp, User, Clock, MapPin, Truck, UtensilsCrossed, AlertTriangle } from 'lucide-react';
+import { 
+  Check, 
+  ChevronDown, 
+  ChevronUp, 
+  User, 
+  Clock, 
+  MapPin, 
+  Truck, 
+  UtensilsCrossed, 
+  AlertTriangle,
+  Flame,
+  Pause,
+  RotateCcw
+} from 'lucide-react';
 
-// ─── Status Configuration ─────────────────────────────────────────────────────
+// ─── Status Configuration (Restrained Semantic System) ─────────────────────────
 
-export const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  NEW:           { label: 'New',       color: 'border-blue-500/40 bg-blue-950/20 text-blue-400',      dot: 'bg-blue-500' },
-  PLACED:        { label: 'New',       color: 'border-blue-500/40 bg-blue-950/20 text-blue-400',      dot: 'bg-blue-500' },
-  ACCEPTED:      { label: 'Accepted',  color: 'border-purple-500/40 bg-purple-950/20 text-purple-400', dot: 'bg-purple-500' },
-  CHEF_ASSIGNED: { label: 'Chef Assigned', color: 'border-violet-500/40 bg-violet-950/20 text-violet-400', dot: 'bg-violet-500' },
-  PREPARING:     { label: 'Preparing', color: 'border-orange-500/40 bg-orange-950/20 text-orange-400', dot: 'bg-orange-500 animate-pulse' },
-  PAUSED:        { label: 'Paused',    color: 'border-amber-500/40 bg-amber-950/20 text-amber-500',   dot: 'bg-amber-500' },
-  READY:         { label: 'Ready',     color: 'border-emerald-500/40 bg-emerald-950/20 text-emerald-400', dot: 'bg-emerald-500' },
-  PICKED_UP:     { label: 'Picked Up', color: 'border-indigo-500/40 bg-indigo-950/20 text-indigo-400', dot: 'bg-indigo-500' },
-  DELIVERED:     { label: 'Delivered', color: 'border-teal-500/40 bg-teal-950/20 text-teal-400',      dot: 'bg-teal-500' },
-  SERVED:        { label: 'Delivered', color: 'border-teal-500/40 bg-teal-950/20 text-teal-400',      dot: 'bg-teal-500' },
-  COMPLETED:     { label: 'Completed', color: 'border-slate-700 bg-slate-900/20 text-slate-400',      dot: 'bg-slate-600' },
-  ARCHIVED:      { label: 'Archived',  color: 'border-slate-800 bg-slate-955/20 text-slate-600',      dot: 'bg-slate-700' },
-  CANCELLED:     { label: 'Cancelled', color: 'border-red-800 bg-red-955/20 text-red-600',           dot: 'bg-red-700' },
+export const STATUS_CONFIG: Record<string, { label: string; dot: string; text: string; bg: string; topBorder: string }> = {
+  NEW:           { label: 'NORMAL',    dot: 'bg-[#287A55]', text: 'text-[#287A55]', bg: 'bg-[#E8F3ED]', topBorder: 'border-t-[3px] border-t-[#287A55]' },
+  PLACED:        { label: 'NORMAL',    dot: 'bg-[#287A55]', text: 'text-[#287A55]', bg: 'bg-[#E8F3ED]', topBorder: 'border-t-[3px] border-t-[#287A55]' },
+  ACCEPTED:      { label: 'ACCEPTED',  dot: 'bg-[#D79A24]', text: 'text-[#D79A24]', bg: 'bg-[#F8EED8]', topBorder: 'border-t-[3px] border-t-[#D79A24]' },
+  CHEF_ASSIGNED: { label: 'ASSIGNED',  dot: 'bg-[#D79A24]', text: 'text-[#D79A24]', bg: 'bg-[#F8EED8]', topBorder: 'border-t-[3px] border-t-[#D79A24]' },
+  PREPARING:     { label: 'PREPARING', dot: 'bg-[#D79A24] animate-pulse', text: 'text-[#D79A24]', bg: 'bg-[#F8EED8]', topBorder: 'border-t-[3px] border-t-[#D79A24]' },
+  PAUSED:        { label: 'PAUSED',    dot: 'bg-[#D79A24]', text: 'text-[#D79A24]', bg: 'bg-[#F8EED8]', topBorder: 'border-t-[3px] border-t-[#D79A24]' },
+  READY:         { label: 'READY',     dot: 'bg-[#287A55]', text: 'text-[#287A55]', bg: 'bg-[#E8F3ED]', topBorder: 'border-t-[3px] border-t-[#287A55]' },
+  PICKED_UP:     { label: 'ON WAY',    dot: 'bg-[#18201D]', text: 'text-[#18201D]', bg: 'bg-[#F7F4EE]', topBorder: 'border-t-[3px] border-t-[#18201D]' },
+  DELIVERED:     { label: 'SERVED',    dot: 'bg-[#287A55]', text: 'text-[#287A55]', bg: 'bg-[#E8F3ED]', topBorder: 'border-t-[3px] border-t-[#287A55]' },
+  SERVED:        { label: 'SERVED',    dot: 'bg-[#287A55]', text: 'text-[#287A55]', bg: 'bg-[#E8F3ED]', topBorder: 'border-t-[3px] border-t-[#287A55]' },
+  COMPLETED:     { label: 'COMPLETED', dot: 'bg-[#5F6762]', text: 'text-[#5F6762]', bg: 'bg-[#F7F4EE]', topBorder: 'border-t-[3px] border-t-[#5F6762]' },
+  ARCHIVED:      { label: 'ARCHIVED',  dot: 'bg-[#5F6762]', text: 'text-[#5F6762]', bg: 'bg-[#F7F4EE]', topBorder: 'border-t-[3px] border-t-[#5F6762]' },
+  CANCELLED:     { label: 'CANCELLED', dot: 'bg-[#C7463A]', text: 'text-[#C7463A]', bg: 'bg-[#F9E8E4]', topBorder: 'border-t-[3px] border-t-[#C7463A]' },
 };
 
 /**
- * Smart Order Lifecycle — Single next action for each status.
- * The button label and next status are derived from the current order state.
+ * Smart Order Lifecycle — Primary operational actions
  */
-export const NEXT_STATUS: Record<string, { label: string; next: string; bg: string; hover: string } | null> = {
-  NEW:           { label: 'Accept Order',   next: 'ACCEPTED',  bg: 'bg-blue-600',    hover: 'hover:bg-blue-700' },
-  PLACED:        { label: 'Accept Order',   next: 'ACCEPTED',  bg: 'bg-blue-600',    hover: 'hover:bg-blue-700' },
-  ACCEPTED:      { label: 'Start Cooking',  next: 'PREPARING', bg: 'bg-purple-600',  hover: 'hover:bg-purple-700' },
-  CHEF_ASSIGNED: { label: 'Start Cooking',  next: 'PREPARING', bg: 'bg-purple-600',  hover: 'hover:bg-purple-700' },
-  PREPARING:     { label: 'Mark Ready ✓',   next: 'READY',     bg: 'bg-orange-600',  hover: 'hover:bg-orange-700' },
-  READY:         { label: 'Hand to Waiter', next: 'PICKED_UP', bg: 'bg-emerald-600', hover: 'hover:bg-emerald-700' },
-  PICKED_UP:     { label: 'Mark Delivered', next: 'SERVED',    bg: 'bg-indigo-600',  hover: 'hover:bg-indigo-700' },
-  SERVED:        { label: 'Complete Order', next: 'COMPLETED', bg: 'bg-teal-600',    hover: 'hover:bg-teal-700' },
-  DELIVERED:     { label: 'Complete Order', next: 'COMPLETED', bg: 'bg-teal-600',    hover: 'hover:bg-teal-700' },
+export const NEXT_STATUS: Record<string, { label: string; next: string; bg: string; hover: string; text: string } | null> = {
+  NEW:           { label: 'Accept Order',   next: 'ACCEPTED',  bg: 'bg-[#13241F]', hover: 'hover:bg-[#1A312B]', text: 'text-white' },
+  PLACED:        { label: 'Accept Order',   next: 'ACCEPTED',  bg: 'bg-[#13241F]', hover: 'hover:bg-[#1A312B]', text: 'text-white' },
+  ACCEPTED:      { label: '▶ Start Cooking',  next: 'PREPARING', bg: 'bg-[#C84A38]', hover: 'hover:bg-[#B23F2F]', text: 'text-white' },
+  CHEF_ASSIGNED: { label: '▶ Start Cooking',  next: 'PREPARING', bg: 'bg-[#C84A38]', hover: 'hover:bg-[#B23F2F]', text: 'text-white' },
+  PREPARING:     { label: '✓ Mark Ready',   next: 'READY',     bg: 'bg-[#D79A24]', hover: 'hover:bg-[#BF881F]', text: 'text-white' },
+  READY:         { label: '✓ Hand to Waiter', next: 'PICKED_UP', bg: 'bg-[#287A55]', hover: 'hover:bg-[#206345]', text: 'text-white' },
+  PICKED_UP:     { label: 'Mark Delivered', next: 'SERVED',    bg: 'bg-[#13241F]', hover: 'hover:bg-[#1A312B]', text: 'text-white' },
+  SERVED:        { label: 'Complete Order', next: 'COMPLETED', bg: 'bg-[#287A55]', hover: 'hover:bg-[#206345]', text: 'text-white' },
+  DELIVERED:     { label: 'Complete Order', next: 'COMPLETED', bg: 'bg-[#287A55]', hover: 'hover:bg-[#206345]', text: 'text-white' },
   PAUSED:        null,
   COMPLETED:     null,
   ARCHIVED:      null,
   CANCELLED:     null,
 };
 
-// ─── Customer Type Badge ──────────────────────────────────────────────────────
-
-const CUSTOMER_TYPE_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  'dine-in':  { label: 'Dine-In',  icon: <UtensilsCrossed className="w-2.5 h-2.5" />, color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
-  'takeaway': { label: 'Takeaway', icon: <MapPin className="w-2.5 h-2.5" />,           color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
-  'delivery': { label: 'Delivery', icon: <Truck className="w-2.5 h-2.5" />,            color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
+const CUSTOMER_TYPE_CONFIG: Record<string, { label: string; icon: React.ReactNode }> = {
+  'dine-in':  { label: 'Dine-In',  icon: <UtensilsCrossed className="w-2.5 h-2.5" /> },
+  'takeaway': { label: 'Takeaway', icon: <MapPin className="w-2.5 h-2.5" /> },
+  'delivery': { label: 'Delivery', icon: <Truck className="w-2.5 h-2.5" /> },
 };
 
-// ─── Enhanced Live Timer ──────────────────────────────────────────────────────
+// ─── Calm Operational Timer ───────────────────────────────────────────────────
 
-const EnhancedTimer: React.FC<{ createdAt: string; estimatedMinutes: number }> = ({ createdAt, estimatedMinutes }) => {
+const OperationalTimer: React.FC<{ createdAt: string; estimatedMinutes: number }> = ({ createdAt, estimatedMinutes }) => {
   const [seconds, setSeconds] = useState(getElapsedSeconds(createdAt));
 
   useEffect(() => {
@@ -67,53 +75,24 @@ const EnhancedTimer: React.FC<{ createdAt: string; estimatedMinutes: number }> =
 
   const elapsedMinutes = seconds / 60;
   const remainingSeconds = Math.max(0, (estimatedMinutes * 60) - seconds);
-  const remainingMinutes = remainingSeconds / 60;
-  const estimatedFinish = new Date(new Date(createdAt).getTime() + estimatedMinutes * 60000);
-  const slaPct = estimatedMinutes > 0 ? (elapsedMinutes / estimatedMinutes) * 100 : 0;
-
-  // SLA color coding
-  let slaColor = 'text-emerald-400';    // Green — within SLA
-  let slaBg = 'bg-emerald-500/10';
-  let slaLabel = 'On Time';
-  if (slaPct > 100) {
-    slaColor = 'text-red-400';           // Red — delayed
-    slaBg = 'bg-red-500/10';
-    slaLabel = 'Delayed';
-  } else if (slaPct > 80) {
-    slaColor = 'text-yellow-400';        // Yellow — approaching
-    slaBg = 'bg-yellow-500/10';
-    slaLabel = 'At Risk';
-  }
-
-  const elapsedColor = getElapsedColor(seconds);
+  const remainingMinutes = Math.ceil(remainingSeconds / 60);
+  const isOverdue = elapsedMinutes > estimatedMinutes;
 
   return (
-    <div className="flex flex-col items-end space-y-0.5">
-      {/* Elapsed */}
-      <span className={`font-mono font-extrabold text-xs tabular-nums ${elapsedColor}`}>
+    <div className="flex flex-col items-end text-right">
+      <span className="font-mono font-bold text-sm text-[#18201D] tracking-tight tabular-nums">
         {formatElapsedSeconds(seconds)}
       </span>
-      {/* Remaining */}
       {remainingSeconds > 0 ? (
-        <span className="text-[9px] text-slate-500 flex items-center space-x-0.5">
-          <Clock className="w-2.5 h-2.5" />
-          <span>{Math.floor(remainingMinutes)}m left</span>
+        <span className="text-[11px] text-[#6F746F] font-medium">
+          {remainingMinutes} min left
         </span>
       ) : (
-        <span className="text-[9px] text-red-400 flex items-center space-x-0.5 font-bold">
-          <AlertTriangle className="w-2.5 h-2.5" />
-          <span>Overdue</span>
+        <span className="text-[11px] text-[#C7463A] font-bold flex items-center space-x-1">
+          <AlertTriangle className="w-3 h-3" />
+          <span>Delayed</span>
         </span>
       )}
-      {/* Est. Finish */}
-      <span className="text-[9px] text-slate-500 flex items-center space-x-0.5">
-        <Timer className="w-2.5 h-2.5" />
-        <span>ETA {estimatedFinish.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-      </span>
-      {/* SLA Badge */}
-      <span className={`text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded border ${slaColor} ${slaBg} border-current/20`}>
-        {slaLabel}
-      </span>
     </div>
   );
 };
@@ -139,7 +118,7 @@ interface IKitchenTicketProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const KitchenTicket: React.FC<IKitchenTicketProps> = React.memo(({
+export const KitchenTicket: React.FC<IKitchenTicketProps> = React.memo(({
   order,
   isSelected,
   onToggleSelect,
@@ -162,100 +141,114 @@ const KitchenTicket: React.FC<IKitchenTicketProps> = React.memo(({
   const priority = order.priority || 'normal';
   const estimatedPrep = order.estimatedPrepTime || order.items.length * 5;
   const hasTimeline = (order.timeline?.length ?? 0) > 0;
-  const isNew = order.status === 'NEW' || order.status === 'PLACED';
-  const customerType = (order as any).customerType || 'dine-in';
+  const rawType = (order as any).customerType || (order as any).orderType || 'dine-in';
+  const customerType = rawType === 'dine_in' ? 'dine-in' : rawType;
   const customerTypeConf = CUSTOMER_TYPE_CONFIG[customerType] || CUSTOMER_TYPE_CONFIG['dine-in'];
 
-  // Determine if chef needs assignment before "Start Cooking"
+  // Needs chef assignment before cooking
   const needsChefAssignment = (order.status === 'ACCEPTED' || order.status === 'CHEF_ASSIGNED') && !order.assignedChefName;
 
   return (
-    <Card
-      className={`flex flex-col justify-between border ${statusConf.color} rounded-2xl p-0 overflow-hidden transition-all hover:brightness-110 ${
-        isNew ? 'ring-1 ring-blue-500/30 shadow-lg shadow-blue-500/5' : ''
-      } ${isSelected ? 'ring-2 ring-primary/60 brightness-110' : ''}`}
+    <div
+      className={`bg-white border border-[#E3DED5] rounded-xl shadow-[0_2px_10px_rgba(30,30,20,0.06)] overflow-hidden flex flex-col justify-between transition-all text-left font-sans hover:border-[#D1C9BC] ${
+        statusConf.topBorder
+      } ${isSelected ? 'ring-2 ring-[#C84A38]' : ''}`}
     >
       {/* ── Header ────────────────────────────────────────────────────── */}
-      <div className="p-4 pb-3 border-b border-current border-opacity-10">
-        <div className="flex items-start justify-between gap-1.5">
-          <div className="flex items-start space-x-2.5">
+      <div className="p-4 pb-3 border-b border-[#E3DED5] bg-white">
+        <div className="flex items-start justify-between gap-2">
+          
+          <div className="flex items-start space-x-2.5 min-w-0">
             {showBulkSelect && (
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleSelect(order.orderId); }}
                 className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${
                   isSelected
-                    ? 'bg-primary border-primary text-slate-955'
-                    : 'bg-transparent border-slate-600 hover:border-primary'
+                    ? 'bg-[#13241F] border-[#13241F] text-white'
+                    : 'bg-white border-[#D1C9BC] hover:border-[#13241F]'
                 }`}
+                title="Select Ticket"
               >
                 {isSelected && <Check className="w-2.5 h-2.5" strokeWidth={3} />}
               </button>
             )}
-            <div>
-              {/* Table + Customer Type */}
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-extrabold text-textPearl tracking-tight">
-                  Table {order.tableNumber}
+
+            <div className="min-w-0">
+              {/* Table Number & Order Type */}
+              <div className="flex flex-wrap items-center gap-1.5 leading-none">
+                <span className="font-serif font-bold text-base text-[#18201D] tracking-tight">
+                  Table {order.tableNumber || (order.tableId ? order.tableId.replace(/^TBL-/i, '') : 'Walk-in')}
                 </span>
-                <span className={`inline-flex items-center space-x-0.5 px-1.5 py-0.5 rounded border text-[8px] font-extrabold uppercase tracking-wider ${customerTypeConf.color}`}>
+                
+                <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-[#F7F4EE] border border-[#E3DED5] text-[10px] font-semibold text-[#6F746F]">
                   {customerTypeConf.icon}
                   <span>{customerTypeConf.label}</span>
                 </span>
-              </div>
 
-              {/* Order ID + Waiter */}
-              <div className="flex flex-wrap gap-x-2 items-center text-[10px] text-slate-400 mt-1">
-                {order.waiterName && (
-                  <span className="font-semibold text-slate-300">
-                    🤵 {order.waiterName}
+                {((order as any).isAdditionalOrder || ((order as any).orderSequence && (order as any).orderSequence > 1)) && (
+                  <span className="inline-flex items-center space-x-0.5 px-1.5 py-0.5 rounded bg-[#FEF7EC] border border-[#D79A24]/30 text-[#D79A24] text-[9px] font-bold uppercase tracking-wider">
+                    <span>⚡ Add-on #{((order as any).orderSequence) || 2}</span>
                   </span>
                 )}
-                <span>·</span>
-                <span className="font-mono text-slate-500 text-[9px] font-bold">ID: {order.orderId}</span>
               </div>
 
-              {/* Priority Selector */}
-              <select
-                value={priority}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  onUpdatePriority(order.orderId, e.target.value as TPriority);
-                }}
-                className="text-[9px] uppercase font-extrabold tracking-widest bg-slate-950/80 border border-slate-800 rounded px-1.5 py-0.5 text-slate-300 outline-none cursor-pointer focus:border-primary/50 mt-1"
-              >
-                <option value="critical">💥 Critical</option>
-                <option value="high">🔴 High</option>
-                <option value="normal">🟡 Normal</option>
-                <option value="low">⚪ Low</option>
-              </select>
-
-              {/* Status Badge */}
-              <div className="flex items-center space-x-1.5 mt-1">
-                <span className={`w-1.5 h-1.5 rounded-full ${statusConf.dot}`} />
-                <span className="text-[10px] font-bold text-current opacity-70">{statusConf.label}</span>
-                <span className="text-[10px] text-slate-600">·</span>
-                <span className="text-[10px] text-slate-500 font-mono">#{(order.orderId || '').substring(0, 8)}</span>
+              {/* Order ID */}
+              <div className="text-[11px] font-mono text-[#6F746F] mt-1 truncate">
+                # {order.orderId}
               </div>
             </div>
           </div>
 
-          {/* ── Enhanced Timer ─────────────────────────────────────────── */}
-          <EnhancedTimer createdAt={order.createdAt} estimatedMinutes={estimatedPrep} />
+          {/* Time & Duration */}
+          <OperationalTimer createdAt={order.createdAt} estimatedMinutes={estimatedPrep} />
         </div>
 
-        {/* ── Chef Assignment Section ─────────────────────────────────── */}
-        <div className="mt-2.5 pt-2.5 border-t border-current border-opacity-10">
+        {/* Status Line + Priority + Waiter */}
+        <div className="flex items-center justify-between flex-wrap gap-2 mt-3 pt-2.5 border-t border-[#F7F4EE]">
+          <div className="flex items-center space-x-1.5">
+            <span className={`w-2 h-2 rounded-full ${statusConf.dot}`} />
+            <span className={`text-[11px] font-bold tracking-wider uppercase ${statusConf.text}`}>
+              {statusConf.label}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2 text-[11px]">
+            {order.waiterName && (
+              <span className="text-[#6F746F] font-medium truncate max-w-[90px]" title={`Waiter: ${order.waiterName}`}>
+                🤵 {order.waiterName}
+              </span>
+            )}
+
+            {/* Priority Selector */}
+            <select
+              value={priority}
+              onChange={(e) => {
+                e.stopPropagation();
+                onUpdatePriority(order.orderId, e.target.value as TPriority);
+              }}
+              className="text-[10px] font-semibold text-[#18201D] bg-[#F7F4EE] border border-[#E3DED5] rounded px-1.5 py-0.5 outline-none cursor-pointer hover:border-[#D1C9BC]"
+            >
+              <option value="critical">💥 Critical</option>
+              <option value="high">🔴 High</option>
+              <option value="normal">Normal</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Assigned Chef Indicator / Selector */}
+        <div className="mt-2 text-[11px]">
           {order.assignedChefName ? (
-            <div className="flex items-center justify-between text-[10px] bg-slate-950/40 border border-slate-850 rounded-xl px-2.5 py-1">
-              <div className="flex items-center space-x-1 text-slate-300 font-semibold truncate max-w-[70%]">
-                <User className="w-3 h-3 text-primary shrink-0" />
-                <span className="truncate">{order.assignedChefName}</span>
+            <div className="flex items-center justify-between bg-[#F7F4EE] px-2 py-1 rounded-md border border-[#E3DED5]">
+              <div className="flex items-center space-x-1 text-[#18201D] font-medium truncate">
+                <User className="w-3 h-3 text-[#6F746F]" />
+                <span>Chef {order.assignedChefName}</span>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); onUnassignChef(order.orderId); }}
-                className="text-[9px] text-red-400 hover:text-red-300 font-extrabold uppercase px-1 py-0.5 shrink-0"
+                className="text-[10px] text-[#C7463A] hover:underline font-bold uppercase"
               >
-                Unassign
+                Change
               </button>
             </div>
           ) : (
@@ -265,7 +258,7 @@ const KitchenTicket: React.FC<IKitchenTicketProps> = React.memo(({
                 const chef = employees.find(emp => emp.id === e.target.value);
                 if (chef) onAssignChef(order.orderId, chef.id, chef.fullName);
               }}
-              className="w-full text-[10px] bg-slate-950/60 border border-slate-850 rounded-xl px-2 py-1 text-slate-400 outline-none cursor-pointer focus:border-primary/50"
+              className="w-full text-[11px] bg-[#F7F4EE] border border-[#E3DED5] rounded px-2 py-1 text-[#6F746F] outline-none cursor-pointer"
             >
               <option value="" disabled>Assign Chef...</option>
               {employees.map(emp => (
@@ -282,93 +275,75 @@ const KitchenTicket: React.FC<IKitchenTicketProps> = React.memo(({
           const menuItem = menuItems?.find(mi => mi.id === item.itemId);
           const isBatch = menuItem?.preparationMethod === 'batch' || menuItem?.productionMode === 'Batch Production';
           const available = menuItem?.availableServings ?? 0;
-          const defaultBatchSize = menuItem?.defaultBatchSize ?? 50;
-
-          const percentage = defaultBatchSize > 0 ? (available / defaultBatchSize) * 100 : 100;
-          
-          let portionBadge = null;
-          let needNewBatch = false;
-
-          if (isBatch) {
-            if (available === 0) {
-              portionBadge = <span className="ml-1.5 px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] font-extrabold uppercase animate-pulse">Sold Out</span>;
-              needNewBatch = true;
-            } else if (available < item.count) {
-              portionBadge = <span className="ml-1.5 px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] font-extrabold uppercase">Insufficient ({available} left)</span>;
-              needNewBatch = true;
-            } else if (percentage < 15) {
-              portionBadge = <span className="ml-1.5 px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20 text-[9px] font-bold">{available} portions</span>;
-            } else if (percentage < 30) {
-              portionBadge = <span className="ml-1.5 px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-[9px] font-bold">{available} portions</span>;
-            } else {
-              portionBadge = <span className="ml-1.5 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 text-[9px] font-medium">{available} portions</span>;
-            }
-          }
 
           return (
             <div key={idx} className="flex flex-col space-y-0.5">
-              <div className="flex items-start space-x-2 text-xs">
-                <span className="font-extrabold text-textPearl min-w-[20px]">×{item.count}</span>
-                <div className="flex-1">
-                  <span className="font-semibold text-slate-300">{item.name}</span>
-                  {isBatch && <span className="ml-1 text-[8px] px-1 py-0.5 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 font-bold uppercase">Batch</span>}
-                  {portionBadge}
+              <div className="flex items-start text-xs text-[#18201D]">
+                {/* Quantity: Small light warm box */}
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-[#FBF9F5] border border-[#E3DED5] font-bold text-xs text-[#18201D] shrink-0 mr-2.5 mt-0.5 shadow-none">
+                  {item.count}
+                </span>
+
+                {/* Name & details */}
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold text-[#18201D] text-[13px] leading-tight">
+                    {item.name}
+                  </span>
+                  
+                  {isBatch && (
+                    <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded bg-[#F8EED8] text-[#D79A24] border border-[#D79A24]/30 font-bold uppercase tracking-wider">
+                      Batch ({available} left)
+                    </span>
+                  )}
+
                   {item.notes && (
-                    <p className="text-[10px] text-amber-400 italic mt-0.5">"{item.notes}"</p>
+                    <p className="text-xs text-[#D79A24] italic mt-0.5">
+                      "{item.notes}"
+                    </p>
                   )}
                 </div>
               </div>
-              {needNewBatch && (
-                <div className="ml-7 text-[10px] font-extrabold text-rose-500 flex items-center space-x-1 animate-pulse">
-                  <span>⚠️ Need New Batch</span>
-                </div>
-              )}
             </div>
           );
         })}
 
-        {/* ── Notes Segment ──────────────────────────────────────────── */}
-        <div className="mt-3 pt-2.5 border-t border-current border-opacity-10 text-[10px] space-y-1 text-left">
+        {/* ── Subtle Information Section (Notes & Timeline) ────────────── */}
+        <div className="mt-3 pt-2.5 border-t border-[#E3DED5] text-[11px] space-y-1">
           {order.notes && (
-            <div className="text-amber-300 italic">
-              <strong>Special Instructions:</strong> {order.notes}
+            <div className="text-[#D79A24] italic">
+              <span className="text-[#5F6762] font-medium">Customer Note:</span> {order.notes}
             </div>
           )}
-          {order.customerNotes && (
-            <div className="text-blue-300 italic">
-              <strong>Customer Notes:</strong> {order.customerNotes}
-            </div>
-          )}
-          
-          {/* Kitchen Notes */}
-          <div className="flex items-start justify-between gap-1 py-0.5 group/note">
-            <div className="flex-1">
-              <strong className="text-slate-400">Kitchen Note:</strong>{' '}
-              <span className="text-slate-300">{order.kitchenNotes || '—'}</span>
-            </div>
+
+          {/* Kitchen Note */}
+          <div className="flex items-baseline justify-between group/note">
+            <span className="truncate pr-2">
+              <span className="text-[#5F6762] font-semibold">Kitchen Note — </span>
+              <span className="text-[#39423D]">{order.kitchenNotes || '—'}</span>
+            </span>
             <button
               onClick={() => {
                 const note = prompt('Enter Internal Kitchen Note:', order.kitchenNotes || '');
                 if (note !== null) onUpdateNotes(order.orderId, 'kitchen', note);
               }}
-              className="text-[9px] text-primary opacity-0 group-hover/note:opacity-100 font-extrabold hover:underline"
+              className="text-[10px] text-[#C84A38] opacity-0 group-hover/note:opacity-100 font-bold hover:underline shrink-0"
             >
               Edit
             </button>
           </div>
 
-          {/* Chef Notes */}
-          <div className="flex items-start justify-between gap-1 py-0.5 group/chefnote">
-            <div className="flex-1">
-              <strong className="text-slate-400">Chef Note:</strong>{' '}
-              <span className="text-slate-300">{order.chefNotes || '—'}</span>
-            </div>
+          {/* Chef Note */}
+          <div className="flex items-baseline justify-between group/chefnote">
+            <span className="truncate pr-2">
+              <span className="text-[#5F6762] font-semibold">Chef Note — </span>
+              <span className="text-[#39423D]">{order.chefNotes || '—'}</span>
+            </span>
             <button
               onClick={() => {
                 const note = prompt('Enter Internal Chef Note:', order.chefNotes || '');
                 if (note !== null) onUpdateNotes(order.orderId, 'chef', note);
               }}
-              className="text-[9px] text-primary opacity-0 group-hover/chefnote:opacity-100 font-extrabold hover:underline"
+              className="text-[10px] text-[#C84A38] opacity-0 group-hover/chefnote:opacity-100 font-bold hover:underline shrink-0"
             >
               Edit
             </button>
@@ -380,95 +355,84 @@ const KitchenTicket: React.FC<IKitchenTicketProps> = React.memo(({
       <div className="px-4">
         <button
           onClick={() => setTimelineOpen(o => !o)}
-          className="w-full flex items-center justify-between py-2 text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors border-t border-current border-opacity-10"
+          className="w-full flex items-center justify-between py-2 text-[11px] font-medium text-[#5F6762] hover:text-[#18201D] transition-colors border-t border-[#E3DED5]"
         >
           <span>
             {hasTimeline
-              ? `Timeline (${order.timeline!.length} events)`
+              ? `${order.timeline!.length} events in timeline`
               : 'Timeline (no events yet)'}
           </span>
-          {timelineOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {timelineOpen ? <ChevronUp className="w-3 h-3 text-[#5F6762]" /> : <ChevronDown className="w-3 h-3 text-[#5F6762]" />}
         </button>
 
         {timelineOpen && (
-          <div className="pb-3 pt-1">
+          <div className="pb-3 pt-1 border-t border-[#F7F4EE]">
             <OrderTimeline timeline={order.timeline || []} compact />
           </div>
         )}
       </div>
 
-      {/* ── Smart Action Button — ONE primary action per status ────────── */}
-      <div className="px-4 pb-4">
-        {/* PAUSED state — show reason + Resume button */}
+      {/* ── Operational Action Buttons ─────────────────────────────────── */}
+      <div className="p-4 pt-2 bg-[#F7F4EE]/50 border-t border-[#E3DED5]">
         {order.status === 'PAUSED' ? (
           <div className="flex flex-col gap-2">
-            <div className="bg-amber-950/20 border border-amber-500/20 text-amber-400 rounded-xl p-2.5 text-[10px] italic text-left">
+            <div className="bg-[#FEF7EC] border border-[#D79A24]/30 text-[#D79A24] rounded-lg p-2 text-xs italic">
               ⏸️ PAUSED: {order.pauseReason || 'No reason specified'}
-              {order.pausedAt && (
-                <span className="block text-[9px] text-slate-500 mt-0.5">
-                  at {new Date(order.pausedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              )}
             </div>
             <button
               onClick={() => onResumeOrder(order.orderId)}
-              className="w-full py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 transition-all"
+              className="w-full h-10 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#287A55] hover:bg-[#206345] text-white transition-all flex items-center justify-center space-x-1.5 shadow-sm"
             >
-              ▶️ Resume Cooking
+              <span>▶ Resume Cooking</span>
             </button>
           </div>
 
-        /* ACCEPTED/CHEF_ASSIGNED without chef — show "Assign Chef" */
         ) : needsChefAssignment ? (
           <div className="flex flex-col gap-2">
             <select
               value=""
               onChange={(e) => {
                 const chef = employees.find(emp => emp.id === e.target.value);
-                if (chef) {
-                  onAssignChef(order.orderId, chef.id, chef.fullName);
-                }
+                if (chef) onAssignChef(order.orderId, chef.id, chef.fullName);
               }}
-              className="w-full py-2.5 rounded-xl text-xs font-extrabold bg-violet-600/20 border border-violet-500/30 text-violet-300 outline-none cursor-pointer px-3"
+              className="w-full h-10 rounded-lg text-xs font-bold bg-[#FEF7EC] border border-[#D79A24]/40 text-[#D79A24] px-3 outline-none cursor-pointer"
             >
-              <option value="" disabled>👨‍🍳 Select Chef to Assign...</option>
+              <option value="" disabled>Select Chef to Assign...</option>
               {employees
                 .filter(emp => emp.role === 'chef' || emp.role === 'kitchen_staff' || emp.role === 'kitchen')
                 .map(emp => (
                   <option key={emp.id} value={emp.id}>{emp.fullName}</option>
-                ))
-              }
+                ))}
             </select>
-            {/* Allow starting without assignment */}
             <button
               onClick={() => onStatusUpdate(order.orderId, 'PREPARING')}
-              className="w-full py-2 rounded-xl text-[10px] font-extrabold uppercase tracking-wider border border-slate-700 bg-slate-800/50 hover:bg-slate-800 text-slate-400 transition-all"
+              className="w-full py-1.5 rounded-lg text-[11px] font-semibold text-[#6F746F] hover:text-[#18201D] bg-white border border-[#E3DED5] transition-all"
             >
               Skip Assignment → Start Cooking
             </button>
           </div>
 
-        /* Primary single action button */
         ) : nextConf ? (
           <div className="flex flex-col gap-2">
+            {/* Primary Action Button */}
             <button
               onClick={() => onStatusUpdate(order.orderId, nextConf.next)}
-              className={`w-full py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider ${nextConf.bg} ${nextConf.hover} text-white transition-all flex items-center justify-center space-x-1.5 border border-white/10`}
+              className={`w-full h-10 rounded-lg text-xs font-bold uppercase tracking-wider ${nextConf.bg} ${nextConf.hover} ${nextConf.text} transition-all flex items-center justify-center space-x-1.5 shadow-sm active:scale-[0.99]`}
             >
-              <Check className="w-3.5 h-3.5" />
+              <Check className="w-4 h-4" strokeWidth={2.5} />
               <span>{nextConf.label}</span>
             </button>
 
-            {/* Secondary actions */}
+            {/* Secondary Actions */}
             {order.status === 'PREPARING' && (
               <button
                 onClick={() => {
                   const reason = prompt('Enter reason to Pause cooking this order:', 'Waiting for ingredients');
                   if (reason !== null) onPauseOrder(order.orderId, reason || 'General Pause');
                 }}
-                className="w-full py-2 rounded-xl text-[10px] font-extrabold uppercase tracking-wider border border-orange-500/30 bg-orange-500/10 hover:bg-orange-500/25 text-orange-400 transition-all"
+                className="w-full py-2 rounded-lg text-[11px] font-semibold text-[#18201D] bg-white hover:bg-[#F7F4EE] border border-[#E3DED5] transition-all"
               >
-                ⏸ Pause Cooking
+                Ⅱ Pause Cooking
               </button>
             )}
 
@@ -478,24 +442,23 @@ const KitchenTicket: React.FC<IKitchenTicketProps> = React.memo(({
                   const reason = prompt('Enter return reason to recall order:', 'Needs Garnish');
                   if (reason !== null) onRecallOrder(order.orderId, reason || 'Needs Attention');
                 }}
-                className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-extrabold rounded-xl transition-all uppercase tracking-wider"
+                className="w-full py-2 rounded-lg text-[11px] font-bold text-[#C7463A] bg-[#F9E8E4] hover:bg-[#F2D7D2] border border-[#E3DED5] transition-all tracking-wider flex items-center justify-center space-x-1"
               >
-                ⚠️ Recall to Preparing
+                <span>⚠ Recall to Preparing</span>
               </button>
             )}
           </div>
 
-        /* Terminal state — disabled button */
         ) : (
           <button
             disabled
-            className="w-full py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider bg-slate-800 text-slate-500 cursor-not-allowed transition-all flex items-center justify-center space-x-1.5 border border-slate-700/50"
+            className="w-full h-10 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#F7F4EE] text-[#6F746F] border border-[#E3DED5] cursor-not-allowed flex items-center justify-center space-x-1.5"
           >
             <span>Completed</span>
           </button>
         )}
       </div>
-    </Card>
+    </div>
   );
 });
 

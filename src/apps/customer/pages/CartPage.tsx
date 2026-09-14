@@ -3,10 +3,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCart } from '../../../context/CartContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useCurrency } from '../../../context/CurrencyContext';
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { generateUniqueOrderId } from '../../../shared/utils/orderUtils';
 import { getMenuItemPath } from '../../../shared/firebase/collections';
+import TableSelectionModal, { ITableData } from '../components/TableSelectionModal';
+import { 
+  getActiveDiningSession, 
+  saveActiveDiningSession, 
+  generateSessionId, 
+  syncDiningSessionToFirestore 
+} from '../../../shared/utils/diningSession';
 import { 
   ShoppingBag, Trash2, ArrowLeft, ArrowRight, Minus, Plus, 
   Tag, Check, Sparkles, ShieldCheck, Utensils, Heart, 
@@ -88,6 +95,31 @@ export const CartPage: React.FC = () => {
   const [couponError, setCouponError] = useState('');
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [waiterTip, setWaiterTip] = useState<number>(0);
+
+  // Table selection modal state for Dine-In ordering
+  const [isChangeTableOpen, setIsChangeTableOpen] = useState(false);
+
+  const handleTableChange = (table: ITableData) => {
+    const tNum = String(table.tableNumber || table.number || '').replace(/^TBL-/i, '');
+    const tId = table.tableId || table.id;
+    const newSession = {
+      restaurantId: activeTenantId,
+      tenantId: activeTenantId,
+      branchId: table.branchId || 'main',
+      tableId: tId,
+      tableNumber: tNum,
+      tableName: table.tableName || `Table ${tNum}`,
+      orderSource: 'app',
+      isLocked: false,
+      startedAt: new Date().toISOString()
+    };
+    setSession(newSession);
+    setTableNumber(tNum);
+    sessionStorage.setItem('restaurantos_dining_session', JSON.stringify(newSession));
+    localStorage.setItem('restaurantos_dining_session', JSON.stringify(newSession));
+    setIsChangeTableOpen(false);
+    toast.success(`Table updated to Table ${tNum}`);
+  };
 
   // 1. Initial Tenant, Table & Session Resolution
   useEffect(() => {
@@ -251,11 +283,86 @@ export const CartPage: React.FC = () => {
     }
 
     const tenantId = activeTenantId || 'bawarchi-restaurant';
+    const resolvedBranchId = session?.branchId || 'main';
+    const resolvedTableId = session?.tableId || (tableNumber ? (tableNumber.startsWith('TBL-') ? tableNumber : `TBL-${tableNumber}`) : '');
+
+    if (!resolvedTableId || !tableNumber) {
+      toast.error('Please select your table before placing a dine-in order.');
+      setIsChangeTableOpen(true);
+      return;
+    }
+
     setIsPlacingOrder(true);
     try {
+      // Security: Validate table existence and tenant ownership
+      const tableRef = doc(db, 'restaurants', tenantId, 'tables', resolvedTableId);
+      const tableSnap = await getDoc(tableRef);
+      let tableData: any = null;
+
+      if (tableSnap.exists()) {
+        tableData = tableSnap.data();
+      } else {
+        const cleanNum = tableNumber.replace(/^TBL-/i, '');
+        const q = query(collection(db, 'restaurants', tenantId, 'tables'), where('tableNumber', '==', cleanNum));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          tableData = qSnap.docs[0].data();
+        }
+      }
+
+      if (!tableData) {
+        toast.error('Table verification failed. The selected table does not belong to this restaurant.');
+        setIsPlacingOrder(false);
+        return;
+      }
+
+      if (tableData.isActive === false || String(tableData.status).toLowerCase() === 'disabled') {
+        toast.error('The selected table is currently disabled. Please choose another table.');
+        setIsChangeTableOpen(true);
+        setIsPlacingOrder(false);
+        return;
+      }
+
+      // Ensure active dining session exists and has a valid sessionId
+      let currentSession = session || getActiveDiningSession(tenantId);
+      if (!currentSession || !currentSession.sessionId) {
+        currentSession = {
+          sessionId: generateSessionId(),
+          restaurantId: tenantId,
+          tenantId,
+          branchId: resolvedBranchId,
+          tableId: resolvedTableId,
+          tableNumber: tableNumber,
+          tableName: session?.tableName || `Table ${tableNumber}`,
+          orderSource: session?.orderSource || 'app',
+          status: 'active',
+          startedAt: new Date().toISOString()
+        };
+        setSession(currentSession);
+        saveActiveDiningSession(currentSession);
+        syncDiningSessionToFirestore(currentSession).catch(() => {});
+      }
+
+      // Check existing active orders count for this table to assign orderSequence
+      let existingCount = 0;
+      try {
+        const cleanTNum = tableNumber.replace(/^TBL-/i, '');
+        const qExisting = query(
+          collection(db, 'restaurants', tenantId, 'orders'),
+          where('tableNumber', '==', cleanTNum)
+        );
+        const existingSnap = await getDocs(qExisting);
+        existingSnap.forEach(d => {
+          const od = d.data();
+          if (od.status && !['ARCHIVED', 'CANCELLED'].includes(od.status.toUpperCase())) {
+            existingCount++;
+          }
+        });
+      } catch (_) {}
+
+      const orderSequence = existingCount + 1;
+      const isAdditional = existingCount > 0;
       const orderId = generateUniqueOrderId();
-      const resolvedBranchId = session?.branchId || 'main';
-      const resolvedTableId = session?.tableId || (tableNumber ? `TBL-${tableNumber}` : 'TBL-WALKIN');
 
       const orderPayload = {
         id: orderId,
@@ -267,7 +374,10 @@ export const CartPage: React.FC = () => {
         restaurantId: tenantId,
         branchId: resolvedBranchId,
         tableId: resolvedTableId,
-        tableNumber: tableNumber || 'Walk-in',
+        tableNumber: tableNumber,
+        tableName: currentSession?.tableName || `Table ${tableNumber}`,
+        orderType: 'dine_in',
+        orderSource: currentSession?.orderSource || 'app',
         items: cartItems.map(item => ({
           itemId: item.itemId,
           name: item.name,
@@ -287,7 +397,9 @@ export const CartPage: React.FC = () => {
         status: 'NEW',
         paymentStatus: 'pending',
         specialInstructions: specialInstructions.trim(),
-        sessionId: session?.sessionId || 'GUEST-SESSION',
+        sessionId: currentSession.sessionId,
+        orderSequence,
+        isAdditionalOrder: isAdditional,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -439,7 +551,7 @@ export const CartPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Restaurant & Table Context Badges (Displayed ONLY when real data exists) */}
+        {/* Restaurant & Table Context Badges */}
         <div className="flex flex-wrap items-center gap-2">
           {restaurantName && (
             <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#F3E8DF] border border-[#E5DCD5] rounded-full text-xs font-bold text-[#202124]">
@@ -447,10 +559,35 @@ export const CartPage: React.FC = () => {
               <span>Ordering from: <strong className="text-[#C85A3F]">{restaurantName}</strong></span>
             </div>
           )}
-          {tableNumber && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full text-xs font-bold text-[#2E8B57]">
+          {tableNumber ? (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full text-xs font-bold text-[#2E8B57]">
               <MapPin className="w-3.5 h-3.5 text-[#2E8B57]" />
               <span>Ordering at Table {tableNumber}</span>
+              {session?.orderSource === 'qr' || session?.isLocked ? (
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md font-extrabold uppercase tracking-wider">
+                  QR
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsChangeTableOpen(true)}
+                  className="text-[11px] font-extrabold text-[#C85A3F] hover:underline cursor-pointer ml-0.5"
+                >
+                  [Change Table]
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-full text-xs font-bold text-rose-800">
+              <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+              <span>No Table Selected</span>
+              <button
+                type="button"
+                onClick={() => setIsChangeTableOpen(true)}
+                className="text-[11px] font-extrabold text-rose-700 underline cursor-pointer"
+              >
+                Select Table
+              </button>
             </div>
           )}
         </div>
@@ -864,6 +1001,18 @@ export const CartPage: React.FC = () => {
           <span>Support Local Restaurants</span>
         </div>
       </div>
+
+      {activeTenantId && (
+        <TableSelectionModal
+          isOpen={isChangeTableOpen}
+          onClose={() => setIsChangeTableOpen(false)}
+          tenantId={activeTenantId}
+          restaurantName={restaurantName}
+          branchId={session?.branchId || 'main'}
+          currentTableId={session?.tableId}
+          onSelectTable={handleTableChange}
+        />
+      )}
 
     </div>
   );

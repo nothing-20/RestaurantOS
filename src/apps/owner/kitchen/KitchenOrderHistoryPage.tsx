@@ -7,11 +7,16 @@ export const KitchenOrderHistoryPage: React.FC = () => {
   const { allOrders, employees, isLoading } = useKitchenData();
 
   return (
-    <div className="space-y-5 text-left select-none pb-24">
-      <div>
-        <h1 className="text-2xl font-display font-extrabold text-textPearl">Order History</h1>
-        <p className="text-xs text-mutedAsh font-semibold">
-          Search and audit all completed, delivered, and cancelled orders
+    <div className="space-y-6 text-left select-none pb-24 font-sans">
+      <div className="bg-white border border-[#E3DED5] rounded-xl p-6 shadow-[0_1px_4px_rgba(30,30,20,0.05)]">
+        <span className="text-[11px] font-bold uppercase tracking-widest text-[#6F746F]">
+          KITCHEN AUDIT & LOGS
+        </span>
+        <h1 className="text-3xl font-serif font-bold text-[#18201D] tracking-tight mt-0.5">
+          Order History
+        </h1>
+        <p className="text-xs text-[#6F746F] mt-1 font-normal">
+          Search, filter, and audit all completed, delivered, and cancelled kitchen orders.
         </p>
       </div>
 

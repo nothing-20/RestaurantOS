@@ -77,6 +77,7 @@ const PaymentPage = React.lazy(() => import('../apps/customer/pages/PaymentPage'
 const ProfilePage = React.lazy(() => import('../apps/customer/pages/ProfilePage'));
 const CustomerOrdersPage = React.lazy(() => import('../apps/customer/pages/CustomerOrdersPage'));
 const DiscoverPage = React.lazy(() => import('../apps/customer/pages/DiscoverPage'));
+const ActiveDiningSessionPage = React.lazy(() => import('../apps/customer/pages/ActiveDiningSessionPage'));
 
 // Guard / wrapper for root customer page
 const CustomerWelcomeRoute: React.FC = () => {
@@ -214,6 +215,9 @@ export const AppRoutes: React.FC = () => {
         <Route path="/customer/dashboard" element={<Navigate to="/customer/home" replace />} />
         <Route path="/customer/restaurant/:tenantId/menu" element={<CustomerMenu />} />
         <Route path="/customer/restaurant/:tenantId/order/:orderId" element={<OrderTracking />} />
+        <Route path="/customer/restaurant/:tenantId/active-order" element={<ActiveDiningSessionPage />} />
+        <Route path="/customer/restaurant/:tenantId/session" element={<ActiveDiningSessionPage />} />
+        <Route path="/customer/active-order" element={<ActiveDiningSessionPage />} />
         <Route path="/customer/login" element={<CustomerLogin />} />
         <Route path="/customer/register" element={<CustomerRegister />} />
         {/* Staff activation — public, no auth guard needed (employee activates before they have an account) */}

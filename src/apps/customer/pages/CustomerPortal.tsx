@@ -19,6 +19,12 @@ import { formatPrice } from '../../../utils/format';
 import { useAuth } from '../../../context/AuthContext';
 import { customerService } from '../../../shared/services/customerService';
 import { generateUniqueOrderId } from '../../../shared/utils/orderUtils';
+import { 
+  generateSessionId, 
+  getActiveDiningSession, 
+  saveActiveDiningSession, 
+  syncDiningSessionToFirestore 
+} from '../../../shared/utils/diningSession';
 
 // UI Kit components
 import Button from '../../../components/ui/Button/Button';
@@ -40,6 +46,7 @@ import {
   Clock, 
   AlertTriangle,
   CheckCircle2,
+  Check,
   User,
   Coffee,
   Star,
@@ -95,6 +102,9 @@ export const CustomerPortal: React.FC = () => {
   const [tableNumber, setTableNumber] = useState(
     tableId ? tableId.replace(/^TBL-/i, '') : ''
   );
+  const [tableError, setTableError] = useState<string>('');
+  const [showQrWelcome, setShowQrWelcome] = useState<boolean>(true);
+  const [verifiedBranchId, setVerifiedBranchId] = useState<string>('main');
 
   const resolvedTableId = tableId
     ? (tableId.startsWith('TBL-') ? tableId : `TBL-${tableId}`)
@@ -194,61 +204,91 @@ export const CustomerPortal: React.FC = () => {
       setIsLoading(false);
     });
 
-    // 3. Handle QR Table seating check-in
-    const checkInTable = async () => {
-      if (!tableId) return;
+    // 3. Verify Table and Lock QR Context (non-destructive)
+    const verifyAndLockTable = async () => {
+      if (!tableId || !tenantId) return;
       try {
-        const tableRef = doc(db, 'restaurants', tenantId, 'tables', tableId);
-        const tableSnap = await getDoc(tableRef);
-        
-        let existingOrderId = '';
-        let tableNeedsUpdate = true;
-        
-        if (tableSnap.exists()) {
-          const tableData = tableSnap.data();
-          if (tableData.status?.toLowerCase() === 'occupied' && tableData.activeOrderId) {
-            existingOrderId = tableData.activeOrderId;
-            tableNeedsUpdate = false;
+        let tableData: any = null;
+        const directTableRef = doc(db, 'restaurants', tenantId, 'tables', tableId);
+        const directSnap = await getDoc(directTableRef);
+        if (directSnap.exists()) {
+          tableData = { ...directSnap.data(), id: directSnap.id };
+        } else {
+          // Fallback search by tableNumber/number
+          const cleanNum = tableId.replace(/^TBL-/i, '');
+          const q1 = query(collection(db, 'restaurants', tenantId, 'tables'), where('tableNumber', '==', cleanNum));
+          let querySnap = await getDocs(q1);
+          if (querySnap.empty) {
+            const q2 = query(collection(db, 'restaurants', tenantId, 'tables'), where('number', '==', cleanNum));
+            querySnap = await getDocs(q2);
+          }
+          if (!querySnap.empty) {
+            tableData = { ...querySnap.docs[0].data(), id: querySnap.docs[0].id };
           }
         }
 
-        if (tableNeedsUpdate) {
-          const orderId = generateUniqueOrderId();
-          
-          // Initial blank order payload
-          const orderRef = doc(db, 'restaurants', tenantId, 'orders', orderId);
-          await setDoc(orderRef, {
-            id: orderId,
-            orderId,
-            customerId: user?.uid || 'guest-uid',
-            customerName: customerName || user?.displayName || 'Diner',
-            tableNumber: tableId ? tableId.replace(/^TBL-/i, '') : 'Bar',
-            tableId: tableId,
-            tenantId: tenantId,
-            items: [],
-            status: 'ACCEPTED',
-            subtotal: 0,
-            total: 0,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          });
-
-          // Seating table registration
-          await setDoc(tableRef, {
-            status: 'occupied',
-            activeOrderId: orderId,
-            seatingTime: new Date().toISOString(),
-            guestsCount: 2,
-            updatedAt: new Date().toISOString()
-          }, { merge: true });
-
-          console.log(`[QR Check-In] Table ${tableId} set to occupied. Session order ${orderId} initialized.`);
+        if (!tableData) {
+          setIsInvalidSession(true);
+          setTableError('Table not found or does not belong to this restaurant.');
+          return;
         }
-      } catch (err) {
-        console.error('[QR Check-In] Failed to seat table:', err);
+
+        if (tableData.isActive === false || tableData.status === 'Disabled') {
+          setIsInvalidSession(true);
+          setTableError('This table is currently disabled. Please contact restaurant staff.');
+          return;
+        }
+
+        const tNum = String(tableData.tableNumber || tableData.number || tableId.replace(/^TBL-/i, ''));
+        const tId = tableData.id || tableId;
+        const bId = tableData.branchId || 'main';
+        const tName = tableData.tableName || `Table ${tNum}`;
+
+        setTableNumber(tNum);
+        setVerifiedBranchId(bId);
+
+        // Check for existing active session for this table or establish a new one
+        const existingSession = getActiveDiningSession(tenantId);
+        let qrSession = existingSession;
+
+        if (!qrSession || (qrSession.tableNumber !== tNum && qrSession.tableId !== tId)) {
+          const sessionId = generateSessionId();
+          qrSession = {
+            sessionId,
+            restaurantId: tenantId,
+            tenantId,
+            branchId: bId,
+            tableId: tId,
+            tableNumber: tNum,
+            tableName: tName,
+            orderSource: 'qr',
+            isLocked: true,
+            status: 'active',
+            startedAt: new Date().toISOString()
+          };
+          saveActiveDiningSession(qrSession);
+          syncDiningSessionToFirestore(qrSession).catch(() => {});
+        } else {
+          // Refresh locked QR source
+          qrSession.orderSource = 'qr';
+          qrSession.isLocked = true;
+          saveActiveDiningSession(qrSession);
+        }
+
+        // Log non-blocking QR scan event
+        customerService.logCustomerEvent(tenantId, 'QR Scanned', `QR verified for ${tName}`, {
+          tenantId,
+          tableId: tId,
+          tableNumber: tNum,
+          branchId: bId
+        }).catch(() => {});
+      } catch (err: any) {
+        console.error('[CustomerPortal] Table verification error:', err);
+        setIsInvalidSession(true);
+        setTableError('Failed to verify table context.');
       }
     };
-    checkInTable();
+    verifyAndLockTable();
 
     return () => {
       unsubMenu();
@@ -347,9 +387,12 @@ export const CustomerPortal: React.FC = () => {
         phone: phoneNumber,
         restaurantId: tenantId,
         tenantId,
-        branchId: 'main',
+        branchId: verifiedBranchId || 'main',
         tableId: orderTableId,
         tableNumber,
+        tableName: `Table ${tableNumber}`,
+        orderType: 'dine_in',
+        orderSource: 'qr',
         items: itemsList,
         subtotal: cartSubtotal,
         tax: gstCharge + serviceCharge,
@@ -469,7 +512,7 @@ export const CustomerPortal: React.FC = () => {
           <div className="space-y-2">
             <h2 className="text-lg font-display font-extrabold text-white">Table Session Unavailable</h2>
             <p className="text-xs text-slate-400 leading-relaxed font-semibold">
-              We couldn't verify your restaurant or table session. Please scan your table QR code again or browse available restaurants.
+              {tableError || "We couldn't verify your restaurant or table session. Please scan your table QR code again or browse available restaurants."}
             </p>
           </div>
           <div className="space-y-2">
@@ -489,6 +532,49 @@ export const CustomerPortal: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <LoadingSpinner label="Fetching restaurant menu..." />
+      </div>
+    );
+  }
+
+  // QR Welcome Hero (Requirement 30: Scan QR -> Restaurant -> Ordering at Table X -> Explore Menu)
+  if (showQrWelcome) {
+    return (
+      <div className="min-h-screen bg-[#FCFAF7] flex items-center justify-center p-4 text-center">
+        <div className="max-w-md w-full bg-white border border-[#E5DCD5] p-8 rounded-3xl shadow-xl space-y-6">
+          <div className="w-16 h-16 bg-[#FFF8F2] border border-[#E5DCD5] rounded-2xl flex items-center justify-center mx-auto text-[#C85A3F] shadow-xs">
+            <Coffee className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800">
+              <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+              <span>QR Verified Table</span>
+            </div>
+            <h1 className="text-2xl font-display font-extrabold text-[#202124]">
+              {restaurantName}
+            </h1>
+            <p className="text-xl font-black text-[#C85A3F]">
+              Ordering at Table {tableNumber || tableId?.replace(/^TBL-/i, '')}
+            </p>
+            <p className="text-xs text-[#756B64] leading-relaxed max-w-xs mx-auto">
+              Welcome! Your table is verified and locked. Browse our freshly prepared menu and order directly to your table.
+            </p>
+          </div>
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={() => navigate(`/customer/restaurant/${tenantId}/menu?table=${tableNumber || tableId?.replace(/^TBL-/i, '')}&source=qr`)}
+              className="w-full py-4 bg-[#C85A3F] hover:bg-[#A94332] text-white font-extrabold text-sm rounded-xl transition-all shadow-md shadow-[#C85A3F]/20 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>Explore Menu</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowQrWelcome(false)}
+              className="w-full py-2.5 text-xs font-bold text-[#756B64] hover:text-[#202124] transition-all cursor-pointer"
+            >
+              Stay in quick portal
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

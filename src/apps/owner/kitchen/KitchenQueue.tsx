@@ -179,6 +179,13 @@ export const KitchenQueue: React.FC = () => {
   const [peakQueue, setPeakQueue] = useState(0);
   const [reservations, setReservations] = useState<any[]>([]);
 
+  // ── Live Clock Ticker for Header ──────────────────────────────────────────
+  const [currentTime, setCurrentTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // ── Realtime Reservations subscription for KDS Reservation Feed ───────────
   useEffect(() => {
     if (!user?.tenantId) return;
@@ -1016,8 +1023,8 @@ export const KitchenQueue: React.FC = () => {
 
     if (cats.length === 0) {
       return (
-        <div className="h-64 flex flex-col items-center justify-center text-slate-500 border border-dashed border-slate-850 rounded-3xl">
-          <LayoutGrid className="w-10 h-10 text-slate-700 mb-3" />
+        <div className="h-64 flex flex-col items-center justify-center text-[#6F746F] border border-dashed border-[#E3DED5] rounded-xl bg-white">
+          <LayoutGrid className="w-10 h-10 text-[#6F746F]/40 mb-3" />
           <p className="text-sm font-semibold">No items match the selected category filters.</p>
         </div>
       );
@@ -1026,29 +1033,29 @@ export const KitchenQueue: React.FC = () => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {cats.map(([cat, entries]) => (
-          <Card key={cat} className="p-0 border-slate-850 overflow-hidden rounded-2xl">
-            <div className="px-4 py-3 bg-slate-900/50 border-b border-slate-850 flex items-center space-x-2">
-              <UtensilsCrossed className="w-3.5 h-3.5 text-primary" />
-              <span className="text-xs font-extrabold text-textPearl uppercase tracking-wider">{cat}</span>
-              <span className="ml-auto text-[10px] font-bold bg-slate-800 px-2 py-0.5 rounded-full text-slate-400">
+          <div key={cat} className="bg-white border border-[#E3DED5] rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(30,30,20,0.05)]">
+            <div className="px-4 py-3 bg-[#F7F4EE] border-b border-[#E3DED5] flex items-center space-x-2">
+              <UtensilsCrossed className="w-3.5 h-3.5 text-[#C84A38]" />
+              <span className="text-xs font-bold text-[#18201D] uppercase tracking-wider">{cat}</span>
+              <span className="ml-auto text-[10px] font-bold bg-white border border-[#E3DED5] px-2 py-0.5 rounded-full text-[#6F746F]">
                 {entries.reduce((s, e) => s + e.item.count, 0)} items
               </span>
             </div>
             <div className="p-3 space-y-2">
               {entries.map((entry, idx) => (
-                <div key={idx} className="flex items-center justify-between text-xs bg-slate-900/40 px-3 py-2 rounded-xl">
+                <div key={idx} className="flex items-center justify-between text-xs bg-[#F7F4EE]/60 border border-[#E3DED5]/60 px-3 py-2 rounded-lg">
                   <div>
-                    <span className="font-bold text-slate-300">×{entry.item.count}</span>
-                    <span className="ml-2 text-textPearl font-semibold">{entry.item.name}</span>
+                    <span className="font-bold text-[#18201D]">×{entry.item.count}</span>
+                    <span className="ml-2 text-[#18201D] font-medium">{entry.item.name}</span>
                     {entry.item.notes && (
-                      <span className="ml-1.5 text-amber-400 italic text-[10px]">"{entry.item.notes}"</span>
+                      <span className="ml-1.5 text-[#D79A24] italic text-[10px]">"{entry.item.notes}"</span>
                     )}
                   </div>
-                  <span className="text-[10px] font-extrabold text-primary">T{entry.tableNumber}</span>
+                  <span className="text-[10px] font-extrabold text-[#C84A38]">T{entry.tableNumber}</span>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
         ))}
       </div>
     );
@@ -1081,8 +1088,8 @@ export const KitchenQueue: React.FC = () => {
 
     if (stationsToShow.length === 0) {
       return (
-        <div className="h-64 flex flex-col items-center justify-center text-slate-500 border border-dashed border-slate-850 rounded-3xl">
-          <Layers className="w-10 h-10 text-slate-700 mb-3" />
+        <div className="h-64 flex flex-col items-center justify-center text-[#6F746F] border border-dashed border-[#E3DED5] rounded-xl bg-white">
+          <Layers className="w-10 h-10 text-[#6F746F]/40 mb-3" />
           <p className="text-sm font-semibold">No items at the selected stations.</p>
         </div>
       );
@@ -1093,32 +1100,30 @@ export const KitchenQueue: React.FC = () => {
         {stationsToShow.map(([station, entries]) => {
           const totalItems = entries.reduce((s, e) => s + e.item.count, 0);
           return (
-            <Card key={station} className="p-0 border-slate-850 overflow-hidden rounded-2xl">
-              <div className="px-4 py-3 bg-slate-900/50 border-b border-slate-850 flex items-center space-x-2">
-                {STATION_ICONS[station] || <ChefHat className="w-4 h-4 text-slate-400" />}
-                <span className="text-xs font-extrabold text-textPearl uppercase tracking-wider">{station}</span>
-                <span className="ml-auto text-[10px] font-bold bg-slate-800 px-2 py-0.5 rounded-full text-slate-400">
+            <div key={station} className="bg-white border border-[#E3DED5] rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(30,30,20,0.05)]">
+              <div className="px-4 py-3 bg-[#F7F4EE] border-b border-[#E3DED5] flex items-center space-x-2">
+                {STATION_ICONS[station] || <ChefHat className="w-4 h-4 text-[#6F746F]" />}
+                <span className="text-xs font-bold text-[#18201D] uppercase tracking-wider">{station}</span>
+                <span className="ml-auto text-[10px] font-bold bg-white border border-[#E3DED5] px-2 py-0.5 rounded-full text-[#6F746F]">
                   {totalItems} total
                 </span>
               </div>
               <div className="p-3 space-y-2">
                 {entries.map((entry, idx) => {
-                  const statusConf = STATUS_CONFIG[entry.status] || STATUS_CONFIG['NEW'];
                   return (
-                    <div key={idx} className={`flex items-center justify-between text-xs px-3 py-2 rounded-xl border ${statusConf.color}`}>
+                    <div key={idx} className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-[#F7F4EE]/70 border border-[#E3DED5]">
                       <div className="flex items-center space-x-2">
-                        <span className="font-extrabold">×{entry.item.count}</span>
-                        <span className="font-semibold">{entry.item.name}</span>
+                        <span className="font-extrabold text-[#18201D]">×{entry.item.count}</span>
+                        <span className="font-medium text-[#18201D]">{entry.item.name}</span>
                       </div>
                       <div className="flex items-center space-x-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${statusConf.dot}`} />
-                        <span className="text-[9px] font-extrabold opacity-70">T{entry.tableNumber}</span>
+                        <span className="text-[10px] font-extrabold text-[#C84A38] bg-white border border-[#E3DED5] px-1.5 py-0.5 rounded">T{entry.tableNumber}</span>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </Card>
+            </div>
           );
         })}
       </div>
@@ -1148,8 +1153,8 @@ export const KitchenQueue: React.FC = () => {
 
     if (queueEntries.length === 0) {
       return (
-        <div className="h-64 flex flex-col items-center justify-center text-slate-500 border border-dashed border-slate-850 rounded-3xl">
-          <ListOrdered className="w-10 h-10 text-slate-700 mb-3" />
+        <div className="h-64 flex flex-col items-center justify-center text-[#6F746F] border border-dashed border-[#E3DED5] rounded-xl bg-white">
+          <ListOrdered className="w-10 h-10 text-[#6F746F]/40 mb-3" />
           <p className="text-sm font-semibold">No pending items to batch cook.</p>
         </div>
       );
@@ -1158,34 +1163,34 @@ export const KitchenQueue: React.FC = () => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {queueEntries.map(([itemName, data]) => (
-          <Card key={itemName} className="p-4 border-slate-850 bg-slate-900/30 rounded-2xl space-y-3">
+          <div key={itemName} className="p-4 border border-[#E3DED5] bg-white rounded-xl shadow-[0_1px_4px_rgba(30,30,20,0.05)] space-y-3">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="font-extrabold text-base text-textPearl">{itemName}</h3>
-                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                <h3 className="font-serif font-bold text-base text-[#18201D]">{itemName}</h3>
+                <p className="text-[11px] text-[#6F746F] font-medium">
                   {data.tables.length} table{data.tables.length > 1 ? 's' : ''} · {data.count} total
                 </p>
               </div>
               <div className="text-right">
-                <span className="text-3xl font-extrabold text-primary tabular-nums">{data.count}</span>
-                <p className="text-[9px] text-slate-500 font-bold uppercase">Pending</p>
+                <span className="text-3xl font-serif font-bold text-[#18201D] tabular-nums">{data.count}</span>
+                <p className="text-[9px] text-[#6F746F] font-bold uppercase tracking-wider">Pending</p>
               </div>
             </div>
             <div>
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Tables</p>
+              <p className="text-[10px] font-bold text-[#6F746F] uppercase tracking-wider mb-1.5">Tables</p>
               <div className="flex flex-wrap gap-1.5">
                 {data.tables.map(t => (
-                  <span key={t} className="text-[10px] font-extrabold bg-slate-800 text-slate-355 px-2 py-0.5 rounded-lg border border-slate-700">
+                  <span key={t} className="text-[11px] font-bold bg-[#F7F4EE] text-[#18201D] px-2 py-0.5 rounded border border-[#E3DED5]">
                     T{t}
                   </span>
                 ))}
               </div>
             </div>
-            <button className="w-full py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-all flex items-center justify-center space-x-1.5">
+            <button className="w-full py-2 rounded-lg text-xs font-bold border border-[#13241F] bg-[#13241F] text-white hover:bg-[#1a332c] transition-all flex items-center justify-center space-x-1.5">
               <ChefHat className="w-3.5 h-3.5" />
               <span>Cook All Together</span>
             </button>
-          </Card>
+          </div>
         ))}
       </div>
     );
@@ -1194,8 +1199,8 @@ export const KitchenQueue: React.FC = () => {
   const renderQueueView = () => {
     if (queueWithTimings.length === 0) {
       return (
-        <div className="h-64 flex flex-col items-center justify-center text-slate-500 border border-dashed border-slate-850 rounded-3xl">
-          <ListOrdered className="w-10 h-10 text-slate-700 mb-3" />
+        <div className="h-64 flex flex-col items-center justify-center text-[#6F746F] border border-dashed border-[#E3DED5] rounded-xl bg-white">
+          <ListOrdered className="w-10 h-10 text-[#6F746F]/40 mb-3" />
           <p className="text-sm font-semibold">No active cooking tickets in the queue.</p>
         </div>
       );
@@ -1203,35 +1208,34 @@ export const KitchenQueue: React.FC = () => {
 
     return (
       <div className="space-y-4">
-        <div className="bg-slate-900/40 border border-slate-850 rounded-2xl p-4">
+        <div className="bg-white border border-[#E3DED5] rounded-xl p-4 shadow-[0_1px_4px_rgba(30,30,20,0.05)]">
           <div className="flex items-center space-x-2 mb-3">
-            <ListOrdered className="w-4 h-4 text-primary" />
-            <h3 className="text-xs font-extrabold text-textPearl uppercase tracking-widest">
+            <ListOrdered className="w-4 h-4 text-[#C84A38]" />
+            <h3 className="text-xs font-bold text-[#18201D] uppercase tracking-wider">
               Queue Timeline Flow
             </h3>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
             {queueWithTimings.map((order, idx) => {
               const smartPrio = calculateSmartPriority(order);
-              const statusConf = STATUS_CONFIG[order.status] || STATUS_CONFIG['NEW'];
               return (
                 <div key={order.orderId} className="flex items-center shrink-0">
-                  <div className="bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-left space-y-0.5">
+                  <div className="bg-[#F7F4EE] border border-[#E3DED5] rounded-lg px-3 py-2 text-left space-y-0.5">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-extrabold text-slate-400 font-mono">#{idx + 1}</span>
-                      <span className="text-[11px] font-bold text-textPearl">Table {order.tableNumber}</span>
+                      <span className="text-[10px] font-bold text-[#6F746F] font-mono">#{idx + 1}</span>
+                      <span className="text-[11px] font-bold text-[#18201D]">Table {order.tableNumber}</span>
                     </div>
-                    <div className="text-[9px] text-slate-500">
-                      Est. Start: <span className="text-slate-300 font-mono">{order.estimatedStartStr}</span>
+                    <div className="text-[10px] text-[#6F746F]">
+                      Est: <span className="text-[#18201D] font-mono font-medium">{order.estimatedStartStr}</span>
                     </div>
-                    <div className="flex items-center gap-1 text-[8px] uppercase tracking-wider text-slate-600">
+                    <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-[#6F746F]">
                       <span className="font-semibold">{smartPrio}</span>
                       <span>·</span>
-                      <span className="text-primary">{statusConf.label}</span>
+                      <span className="text-[#287A55] font-bold">{order.status}</span>
                     </div>
                   </div>
                   {idx < queueWithTimings.length - 1 && (
-                    <span className="text-slate-700 px-1 font-bold">→</span>
+                    <span className="text-[#6F746F] px-1 font-bold">→</span>
                   )}
                 </div>
               );
@@ -1242,16 +1246,16 @@ export const KitchenQueue: React.FC = () => {
         <div className="flex justify-end">
           <button
             onClick={handleAutoSortQueue}
-            className="px-4 py-2 bg-primary/10 hover:bg-primary border border-primary/20 hover:border-primary text-primary hover:text-slate-950 text-xs font-extrabold rounded-xl transition-all uppercase tracking-wider"
+            className="px-4 py-2 bg-white hover:bg-[#F7F4EE] border border-[#E3DED5] text-[#18201D] text-xs font-bold rounded-lg transition-all"
           >
             ⚡ Auto-Sort Queue by Priority
           </button>
         </div>
 
-        <div className="bg-slate-900/20 border border-slate-850 rounded-2xl overflow-hidden">
+        <div className="bg-white border border-[#E3DED5] rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(30,30,20,0.05)]">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/50 border-b border-slate-855 text-slate-400 font-extrabold uppercase tracking-widest text-[9px]">
+              <thead className="bg-[#F7F4EE] border-b border-[#E3DED5] text-[#6F746F] font-bold uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="px-4 py-3 text-center w-12">Pos</th>
                   <th className="px-4 py-3">Order info</th>
@@ -1262,53 +1266,53 @@ export const KitchenQueue: React.FC = () => {
                   <th className="px-4 py-3 text-center w-28">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-850">
+              <tbody className="divide-y divide-[#E3DED5]">
                 {queueWithTimings.map((order, idx) => {
                   const smartPrio = calculateSmartPriority(order);
                   const prepTime = order.estimatedPrepTime || order.items.length * 5;
                   
                   return (
-                    <tr key={order.orderId} className="hover:bg-slate-900/40 transition-colors">
-                      <td className="px-4 py-4 text-center font-mono font-extrabold text-slate-450 text-sm">
+                    <tr key={order.orderId} className="hover:bg-[#F7F4EE]/60 transition-colors">
+                      <td className="px-4 py-4 text-center font-mono font-bold text-[#6F746F] text-sm">
                         {idx + 1}
                       </td>
                       
                       <td className="px-4 py-4">
-                        <div className="font-bold text-textPearl text-sm">Table {order.tableNumber}</div>
-                        <div className="text-[10px] text-slate-500 font-mono mt-0.5">#{order.orderId.substring(0, 8)}</div>
-                        <div className="text-[10px] text-slate-400 mt-1">
+                        <div className="font-bold text-[#18201D] text-sm">Table {order.tableNumber}</div>
+                        <div className="text-[10px] text-[#6F746F] font-mono mt-0.5">#{order.orderId.substring(0, 10)}</div>
+                        <div className="text-[11px] text-[#6F746F] mt-1">
                           {order.items.map(i => `${i.count}x ${i.name}`).join(', ')}
                         </div>
                       </td>
 
                       <td className="px-4 py-4">
                         {order.assignedChefName ? (
-                          <span className="bg-slate-955 px-2.5 py-1 rounded-lg text-slate-350 font-semibold border border-slate-850">
+                          <span className="bg-[#F7F4EE] px-2.5 py-1 rounded text-[#18201D] font-medium border border-[#E3DED5]">
                             👨‍🍳 {order.assignedChefName}
                           </span>
                         ) : (
-                          <span className="text-slate-600 italic">Unassigned</span>
+                          <span className="text-[#6F746F] italic">Unassigned</span>
                         )}
                       </td>
 
                       <td className="px-4 py-4">
-                        <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded border ${
-                          smartPrio === 'critical' ? 'bg-red-955/20 text-red-400 border-red-500/30' :
-                          smartPrio === 'high' ? 'bg-orange-955/20 text-orange-400 border-orange-500/30' :
-                          smartPrio === 'normal' ? 'bg-yellow-955/20 text-yellow-400 border-yellow-500/30' :
-                          'bg-slate-850 text-slate-400 border-slate-700'
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
+                          smartPrio === 'critical' ? 'bg-[#FDEEEC] text-[#C7463A] border-[#C7463A]/30' :
+                          smartPrio === 'high' ? 'bg-[#FEF5E7] text-[#D79A24] border-[#D79A24]/30' :
+                          smartPrio === 'normal' ? 'bg-[#EBF7EE] text-[#287A55] border-[#287A55]/30' :
+                          'bg-[#F7F4EE] text-[#6F746F] border-[#E3DED5]'
                         }`}>
                           {smartPrio}
                         </span>
                       </td>
 
-                      <td className="px-4 py-4 text-center font-mono text-slate-355">
+                      <td className="px-4 py-4 text-center font-mono text-[#18201D]">
                         {prepTime}m
                       </td>
 
                       <td className="px-4 py-4 text-center font-mono">
-                        <div className="text-textPearl font-bold text-[11px]">{order.estimatedStartStr} - {order.estimatedFinishStr}</div>
-                        <div className="text-[9px] text-slate-500 mt-0.5">({prepTime}m duration)</div>
+                        <div className="text-[#18201D] font-bold text-[11px]">{order.estimatedStartStr} - {order.estimatedFinishStr}</div>
+                        <div className="text-[10px] text-[#6F746F] mt-0.5">({prepTime}m duration)</div>
                       </td>
 
                       <td className="px-4 py-4 text-center">
@@ -1316,7 +1320,7 @@ export const KitchenQueue: React.FC = () => {
                           <button
                             disabled={idx === 0}
                             onClick={() => handleMoveQueue(idx, 'up')}
-                            className="p-1.5 bg-slate-950 border border-slate-800 text-slate-400 hover:text-textPearl rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-900 transition-colors font-bold"
+                            className="p-1.5 bg-white border border-[#E3DED5] text-[#18201D] hover:bg-[#F7F4EE] rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold"
                             title="Move Up"
                           >
                             ▲
@@ -1324,7 +1328,7 @@ export const KitchenQueue: React.FC = () => {
                           <button
                             disabled={idx === queueWithTimings.length - 1}
                             onClick={() => handleMoveQueue(idx, 'down')}
-                            className="p-1.5 bg-slate-955 border border-slate-800 text-slate-400 hover:text-textPearl rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-900 transition-colors font-bold"
+                            className="p-1.5 bg-white border border-[#E3DED5] text-[#18201D] hover:bg-[#F7F4EE] rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold"
                             title="Move Down"
                           >
                             ▼
@@ -1343,38 +1347,43 @@ export const KitchenQueue: React.FC = () => {
   };
 
   return (
-    <div className="space-y-5 text-left select-none pb-24">
+    <div className="space-y-6 text-left select-none pb-24 font-sans">
 
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-display font-extrabold text-textPearl">Kitchen Display System</h1>
-          <p className="text-xs text-mutedAsh font-semibold">
-            Live order feed · Real-time metrics · Bulk operations
-          </p>
-        </div>
+      {/* ── Main Editorial Dashboard Header ───────────────────────────── */}
+      <div className="relative overflow-hidden rounded-xl bg-white border border-[#E3DED5] p-5 md:p-6 shadow-[0_2px_10px_rgba(30,30,20,0.06)]">
+        {/* Subtle authentic restaurant background element */}
+        <div 
+          className="absolute inset-0 pointer-events-none opacity-[0.04] bg-cover bg-center mix-blend-multiply"
+          style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1600&auto=format&fit=crop&q=80)' }}
+        />
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-[#5F6762]">
+              KITCHEN DISPLAY SYSTEM
+            </span>
+            <h1 className="font-serif text-3xl md:text-4xl font-bold text-[#18201D] tracking-tight mt-0.5">
+              Live Kitchen Orders
+            </h1>
+            <p className="text-xs md:text-sm text-[#5F6762] mt-1 font-normal font-sans">
+              Fresh orders. Real-time updates. Better food, happier guests.
+            </p>
+          </div>
 
-        <div className="flex items-center space-x-2 text-xs font-bold flex-wrap gap-y-2">
-          <div className="flex items-center space-x-1.5 bg-blue-955/20 border border-blue-500/20 px-3 py-1.5 rounded-xl">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-            <span className="text-blue-400">{newCount} New</span>
-          </div>
-          <div className="flex items-center space-x-1.5 bg-orange-955/20 border border-orange-500/20 px-3 py-1.5 rounded-xl">
-            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
-            <span className="text-orange-400">{prepCount} Cooking</span>
-          </div>
-          <div className="flex items-center space-x-1.5 bg-emerald-955/20 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span className="text-emerald-400">{readyCount} Ready</span>
-          </div>
-          {metrics.delayedOrders > 0 && (
-            <div className="flex items-center space-x-1.5 bg-red-955/20 border border-red-500/30 px-3 py-1.5 rounded-xl animate-pulse">
-              <AlertTriangle className="w-3 h-3 text-red-400" />
-              <span className="text-red-400">{metrics.delayedOrders} Delayed</span>
+          <div className="flex items-center space-x-4 shrink-0 bg-[#F7F4EE] px-4 py-3 rounded-xl border border-[#E3DED5]">
+            <div className="text-right">
+              <div className="text-xs font-medium text-[#5F6762]">
+                {currentTime.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+              </div>
+              <div className="text-lg font-serif font-bold text-[#18201D] tracking-tight leading-none mt-0.5">
+                {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+              </div>
             </div>
-          )}
-          <div className="flex items-center space-x-1 text-slate-500 bg-slate-900/40 border border-slate-850 px-2.5 py-1.5 rounded-xl">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[10px] uppercase tracking-wider">Live</span>
+            <div className="h-7 w-[1px] bg-[#E3DED5]" />
+            <div className="flex items-center space-x-1.5 text-xs font-bold text-[#287A55]">
+              <span className="w-2 h-2 rounded-full bg-[#287A55] animate-pulse" />
+              <span>Kitchen Live</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1401,34 +1410,34 @@ export const KitchenQueue: React.FC = () => {
             <KitchenInsightsPanel metrics={metrics} orders={allOrders} />
 
             {/* Chef Availability */}
-            <Card className="p-4 border-slate-850 bg-slate-900/30">
+            <div className="p-4 border border-[#E3DED5] bg-white rounded-xl shadow-[0_1px_4px_rgba(30,30,20,0.05)]">
               <ChefAvailabilityPanel employees={employees} orders={allOrders} />
-            </Card>
+            </div>
 
             {/* Shift Management */}
-            <Card className="p-4 border-slate-850 bg-slate-900/30">
+            <div className="p-4 border border-[#E3DED5] bg-white rounded-xl shadow-[0_1px_4px_rgba(30,30,20,0.05)]">
               <ShiftManagementPanel employees={employees} />
-            </Card>
+            </div>
 
             {/* Ingredient Alerts */}
-            <Card className="p-4 border-slate-850 bg-slate-900/30">
+            <div className="p-4 border border-[#E3DED5] bg-white rounded-xl shadow-[0_1px_4px_rgba(30,30,20,0.05)]">
               <IngredientAlertsPanel menuItems={menuItems} />
-            </Card>
+            </div>
 
             {/* Smart Batch Prediction */}
-            <Card className="p-4 border-slate-850 bg-slate-900/30">
+            <div className="p-4 border border-[#E3DED5] bg-white rounded-xl shadow-[0_1px_4px_rgba(30,30,20,0.05)]">
               <SmartBatchPrediction menuItems={menuItems} orders={allOrders} onPrepareBatch={handlePrepareBatch} />
-            </Card>
+            </div>
             
             {/* Prepared Batch Panel */}
-            <Card className="p-4 border-slate-850 bg-slate-900/30 space-y-3.5">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-850/60">
-                <h4 className="text-xs font-bold text-textPearl uppercase tracking-wider">Prepared Batches</h4>
-                <span className="text-[9px] text-slate-550 font-extrabold uppercase bg-slate-900 px-1.5 py-0.5 rounded">Portions</span>
+            <div className="p-4 border border-[#E3DED5] bg-white rounded-xl shadow-[0_1px_4px_rgba(30,30,20,0.05)] space-y-3.5">
+              <div className="flex justify-between items-center pb-2 border-b border-[#E3DED5]">
+                <h4 className="text-xs font-bold text-[#18201D] uppercase tracking-wider">Prepared Batches</h4>
+                <span className="text-[9px] text-[#6F746F] font-bold uppercase bg-[#F7F4EE] border border-[#E3DED5] px-1.5 py-0.5 rounded">Portions</span>
               </div>
               
               {menuItems.filter(i => i.preparationMethod === 'batch').length === 0 ? (
-                <p className="text-[10px] text-slate-500 font-semibold py-2 text-center">No batch prepared items configured.</p>
+                <p className="text-[10px] text-[#6F746F] font-semibold py-2 text-center">No batch prepared items configured.</p>
               ) : (
                 <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                   {menuItems.filter(i => i.preparationMethod === 'batch').map(item => {
@@ -1439,16 +1448,16 @@ export const KitchenQueue: React.FC = () => {
                     const isLow = servings <= threshold;
 
                     return (
-                      <div key={item.id} className="bg-slate-950/40 p-2.5 border border-slate-855 rounded-xl space-y-2 text-[10px]">
+                      <div key={item.id} className="bg-[#F7F4EE] p-2.5 border border-[#E3DED5] rounded-lg space-y-2 text-[10px]">
                         <div className="flex justify-between items-start">
                           <div>
-                            <span className="font-bold text-textPearl block leading-tight text-left">{item.name}</span>
-                            <span className="text-[8px] text-slate-550 font-bold block mt-0.5 text-left">Threshold: {threshold}</span>
+                            <span className="font-bold text-[#18201D] block leading-tight text-left">{item.name}</span>
+                            <span className="text-[8px] text-[#6F746F] font-bold block mt-0.5 text-left">Threshold: {threshold}</span>
                           </div>
                           <div className="text-right">
-                            <span className="font-bold text-textPearl font-mono block leading-none">{servings} / {total}</span>
-                            <span className={`inline-block text-[7.5px] font-extrabold px-1 py-0.2 rounded mt-1 uppercase ${
-                              isOut ? 'bg-red-500/10 text-red-400 border border-red-500/20' : isLow ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            <span className="font-bold text-[#18201D] font-mono block leading-none">{servings} / {total}</span>
+                            <span className={`inline-block text-[7.5px] font-bold px-1 py-0.2 rounded mt-1 uppercase ${
+                              isOut ? 'bg-[#FDEEEC] text-[#C7463A] border border-[#C7463A]/20' : isLow ? 'bg-[#FEF5E7] text-[#D79A24] border border-[#D79A24]/20' : 'bg-[#EBF7EE] text-[#287A55] border border-[#287A55]/20'
                             }`}>
                               {isOut ? 'Sold Out' : isLow ? 'Low' : 'Healthy'}
                             </span>
@@ -1456,7 +1465,7 @@ export const KitchenQueue: React.FC = () => {
                         </div>
                         <button
                           onClick={() => handlePrepareBatch(item)}
-                          className="w-full text-center py-1 bg-slate-800 hover:bg-slate-700/80 font-bold text-textPearl rounded-lg border border-slate-750 transition-all text-[9.5px]"
+                          className="w-full text-center py-1 bg-white hover:bg-[#F7F4EE] font-bold text-[#18201D] rounded border border-[#E3DED5] transition-all text-[9.5px]"
                         >
                           Prepare New Batch
                         </button>
@@ -1465,33 +1474,33 @@ export const KitchenQueue: React.FC = () => {
                   })}
                 </div>
               )}
-            </Card>
+            </div>
           </div>
         )}
 
         <div className="flex-1 min-w-0 space-y-4">
 
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center space-x-1 p-1 bg-slate-900/30 border border-slate-850 rounded-2xl flex-wrap gap-y-1">
+            <div className="flex items-center space-x-1 p-1 bg-white border border-[#E3DED5] rounded-xl flex-wrap gap-y-1 shadow-[0_1px_3px_rgba(30,30,20,0.04)]">
               {([
-                { id: 'table',            label: 'Table View',         Icon: LayoutGrid,      activeColor: 'bg-blue-500/10 border-blue-500/30 text-blue-300',         iconColor: 'text-blue-400' },
-                { id: 'category',         label: 'Category View',      Icon: UtensilsCrossed, activeColor: 'bg-green-500/10 border-green-500/30 text-green-300',     iconColor: 'text-green-400' },
-                { id: 'station',          label: 'Station View',       Icon: Layers,          activeColor: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300',   iconColor: 'text-yellow-400' },
-                { id: 'item-queue',       label: 'Item Queue',         Icon: ListOrdered,     activeColor: 'bg-red-500/10 border-red-500/30 text-red-300',            iconColor: 'text-red-400' },
-                { id: 'queue',            label: 'Cooking Queue',      Icon: ListOrdered,     activeColor: 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300',   iconColor: 'text-indigo-400' },
-                { id: 'inventory',        label: 'Prepared Inventory', Icon: Package,         activeColor: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300', iconColor: 'text-emerald-455' },
-                { id: 'reservations',     label: 'Reservation Feed',   Icon: Calendar,        activeColor: 'bg-amber-500/10 border-amber-500/30 text-amber-300',     iconColor: 'text-amber-400' },
-              ] as const).map(({ id, label, Icon, activeColor, iconColor }) => (
+                { id: 'table',            label: 'Table View',         Icon: LayoutGrid },
+                { id: 'category',         label: 'Category View',      Icon: UtensilsCrossed },
+                { id: 'station',          label: 'Station View',       Icon: Layers },
+                { id: 'item-queue',       label: 'Item Queue',         Icon: ListOrdered },
+                { id: 'queue',            label: 'Cooking Queue',      Icon: ListOrdered },
+                { id: 'inventory',        label: 'Prepared Inventory', Icon: Package },
+                { id: 'reservations',     label: 'Reservation Feed',   Icon: Calendar },
+              ] as const).map(({ id, label, Icon }) => (
                 <button
                   key={id}
                   onClick={() => setActiveTab(id)}
-                  className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all border outline-none ${
+                  className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all outline-none ${
                     activeTab === id
-                      ? `${activeColor} border`
-                      : 'text-slate-400 border-transparent hover:text-textPearl hover:bg-slate-900/40'
+                      ? 'bg-[#13241F] text-white shadow-sm'
+                      : 'text-[#6F746F] hover:text-[#18201D] hover:bg-[#F7F4EE]'
                   }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 ${activeTab === id ? '' : iconColor}`} />
+                  <Icon className="w-3.5 h-3.5" />
                   <span>{label}</span>
                 </button>
               ))}
@@ -1500,10 +1509,10 @@ export const KitchenQueue: React.FC = () => {
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => setShowInsights(s => !s)}
-                className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-extrabold border transition-all ${
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                   showInsights
-                    ? 'bg-primary/10 border-primary/30 text-primary'
-                    : 'bg-slate-900/40 border-slate-850 text-slate-400 hover:text-textPearl'
+                    ? 'bg-[#13241F] border-[#13241F] text-white'
+                    : 'bg-white border-[#E3DED5] text-[#6F746F] hover:text-[#18201D] hover:bg-[#F7F4EE]'
                 }`}
                 title="Toggle insights panel"
               >
@@ -1513,10 +1522,10 @@ export const KitchenQueue: React.FC = () => {
 
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-extrabold border transition-all ${
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                   showFilters
-                    ? 'bg-primary/10 border-primary/30 text-primary'
-                    : 'bg-slate-900/40 border-slate-850 text-slate-400 hover:text-textPearl'
+                    ? 'bg-[#13241F] border-[#13241F] text-white'
+                    : 'bg-white border-[#E3DED5] text-[#6F746F] hover:text-[#18201D] hover:bg-[#F7F4EE]'
                 }`}
               >
                 <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -1526,16 +1535,16 @@ export const KitchenQueue: React.FC = () => {
           </div>
 
           {showFilters && (
-            <Card className="p-4 border-slate-850 bg-slate-900/20">
+            <div className="p-4 border border-[#E3DED5] bg-white rounded-xl shadow-[0_1px_4px_rgba(30,30,20,0.05)]">
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
                 <div className="col-span-2 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6F746F] pointer-events-none" />
                   <input
                     type="text"
                     placeholder="Search table, order, customer, dish..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 text-xs bg-slate-950/40 border border-slate-850 rounded-xl text-textPearl outline-none focus:border-primary/50"
+                    className="w-full pl-8 pr-3 py-2 text-xs bg-[#F7F4EE] border border-[#E3DED5] rounded-lg text-[#18201D] placeholder:text-[#6F746F]/70 outline-none focus:border-[#13241F]"
                   />
                 </div>
                 <Select
@@ -1592,13 +1601,13 @@ export const KitchenQueue: React.FC = () => {
                 />
               </div>
 
-              <div className="flex items-center flex-wrap gap-3 mt-3 pt-3 border-t border-slate-850">
+              <div className="flex items-center flex-wrap gap-3 mt-3 pt-3 border-t border-[#E3DED5]">
                 <button
                   onClick={() => setShowDelayedOnly(d => !d)}
-                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                     showDelayedOnly
-                      ? 'bg-red-500/10 border-red-500/30 text-red-400'
-                      : 'bg-slate-900/40 border-slate-850 text-slate-400 hover:text-textPearl'
+                      ? 'bg-[#FDEEEC] border-[#C7463A] text-[#C7463A]'
+                      : 'bg-white border-[#E3DED5] text-[#6F746F] hover:text-[#18201D]'
                   }`}
                 >
                   <AlertTriangle className="w-3 h-3" />
@@ -1606,17 +1615,17 @@ export const KitchenQueue: React.FC = () => {
                 </button>
 
                 <div className="flex items-center space-x-2">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                  <span className="text-[10px] text-[#6F746F] font-bold uppercase tracking-wider">
                     Target:
                   </span>
                   {[10, 15, 20, 30].map(m => (
                     <button
                       key={m}
                       onClick={() => setTargetPrepMinutes(m)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold border transition-all ${
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold border transition-all ${
                         targetPrepMinutes === m
-                          ? 'bg-primary/10 border-primary/30 text-primary'
-                          : 'bg-slate-900/40 border-slate-850 text-slate-400 hover:text-textPearl'
+                          ? 'bg-[#13241F] border-[#13241F] text-white'
+                          : 'bg-white border-[#E3DED5] text-[#6F746F] hover:text-[#18201D]'
                       }`}
                     >
                       {m}m
@@ -1624,11 +1633,11 @@ export const KitchenQueue: React.FC = () => {
                   ))}
                 </div>
 
-                <span className="ml-auto text-[10px] text-slate-500 font-bold">
+                <span className="ml-auto text-[11px] text-[#6F746F] font-medium">
                   {filteredOrders.length} orders shown
                 </span>
               </div>
-            </Card>
+            </div>
           )}
 
           {isLoading ? (
@@ -1659,43 +1668,43 @@ export const KitchenQueue: React.FC = () => {
       />
 
       {bulkDialog.isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#18201D]/50 backdrop-blur-sm">
+          <div className="bg-white border border-[#E3DED5] rounded-xl p-6 w-full max-w-sm mx-4 shadow-xl">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h2 className="text-base font-extrabold text-textPearl">Confirm Bulk Action</h2>
-                <p className="text-xs text-mutedAsh mt-0.5">This will update {bulkDialog.count} orders.</p>
+                <h2 className="font-serif text-lg font-bold text-[#18201D]">Confirm Bulk Action</h2>
+                <p className="text-xs text-[#6F746F] mt-0.5">This will update {bulkDialog.count} orders.</p>
               </div>
               <button
                 onClick={() => setBulkDialog(d => ({ ...d, isOpen: false }))}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-textPearl hover:bg-slate-800 transition-all"
+                className="p-1.5 rounded-lg text-[#6F746F] hover:text-[#18201D] hover:bg-[#F7F4EE] transition-all"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="bg-slate-950/50 border border-slate-880 rounded-xl p-4 mb-5 space-y-1">
-              <p className="text-xs text-slate-400 font-semibold">
-                Action: <span className="text-textPearl font-extrabold">{bulkDialog.action}</span>
+            <div className="bg-[#F7F4EE] border border-[#E3DED5] rounded-lg p-4 mb-5 space-y-1">
+              <p className="text-xs text-[#6F746F] font-medium">
+                Action: <span className="text-[#18201D] font-bold">{bulkDialog.action}</span>
               </p>
-              <p className="text-xs text-slate-400 font-semibold">
-                New Status: <span className="text-primary font-extrabold">{bulkDialog.nextStatus}</span>
+              <p className="text-xs text-[#6F746F] font-medium">
+                New Status: <span className="text-[#287A55] font-bold">{bulkDialog.nextStatus}</span>
               </p>
-              <p className="text-xs text-slate-400 font-semibold">
-                Orders: <span className="text-textPearl font-extrabold">{bulkDialog.count} tickets</span>
+              <p className="text-xs text-[#6F746F] font-medium">
+                Orders: <span className="text-[#18201D] font-bold">{bulkDialog.count} tickets</span>
               </p>
             </div>
 
             <div className="flex space-x-3">
               <button
                 onClick={() => setBulkDialog(d => ({ ...d, isOpen: false }))}
-                className="flex-1 py-2.5 rounded-xl text-xs font-extrabold border border-slate-700 text-slate-400 hover:text-textPearl hover:bg-slate-800 transition-all"
+                className="flex-1 py-2 rounded-lg text-xs font-bold border border-[#E3DED5] text-[#6F746F] hover:text-[#18201D] hover:bg-[#F7F4EE] transition-all"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleBulkStatusUpdate(bulkDialog.nextStatus)}
-                className="flex-1 py-2.5 rounded-xl text-xs font-extrabold bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 transition-all flex items-center justify-center space-x-1.5"
+                className="flex-1 py-2 rounded-lg text-xs font-bold bg-[#13241F] text-white hover:bg-[#1a332c] transition-all flex items-center justify-center space-x-1.5"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>Confirm</span>

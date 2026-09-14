@@ -117,21 +117,21 @@ export const WaiterOrderHistoryPage: React.FC = () => {
   return (
     <div className="space-y-6 text-left select-none pb-24">
       <div>
-        <h1 className="text-2xl font-display font-extrabold text-textPearl">Order History</h1>
-        <p className="text-xs text-mutedAsh font-semibold">Search, audit, and inspect timelines of all customer orders.</p>
+        <h1 className="text-2xl font-display font-extrabold text-[#18201D]">Order History</h1>
+        <p className="text-xs text-[#5F6875] font-semibold">Search, audit, and inspect timelines of all customer orders.</p>
       </div>
 
       {/* Filters Toolbar */}
-      <Card className="p-4 bg-slate-900/40 border-slate-850 space-y-4">
+      <Card className="p-4 bg-white border border-[#E3DED5] space-y-4 rounded-2xl shadow-xs">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
           <div className="relative col-span-1 md:col-span-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#667085]" />
             <input
               type="text"
               placeholder="Search by ID, Customer, Phone, Table, Waiter..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-955 border border-slate-800 rounded-xl text-textPearl outline-none focus:border-primary/50"
+              className="w-full pl-9 pr-3 py-2 text-xs bg-[#F7F4EE] border border-[#E3DED5] rounded-xl text-[#18201D] placeholder:text-[#8D9B95] outline-none focus:border-primary"
             />
           </div>
 
@@ -139,7 +139,7 @@ export const WaiterOrderHistoryPage: React.FC = () => {
             <select
               value={selectedTable}
               onChange={e => setSelectedTable(e.target.value)}
-              className="w-full bg-slate-955 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 outline-none"
+              className="w-full bg-[#F7F4EE] border border-[#E3DED5] rounded-xl p-2 text-xs text-[#18201D] outline-none focus:border-primary"
             >
               <option value="all">All Tables</option>
               {tableNumbers.map(n => (
@@ -152,7 +152,7 @@ export const WaiterOrderHistoryPage: React.FC = () => {
             <select
               value={selectedStatus}
               onChange={e => setSelectedStatus(e.target.value)}
-              className="w-full bg-slate-955 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 outline-none"
+              className="w-full bg-[#F7F4EE] border border-[#E3DED5] rounded-xl p-2 text-xs text-[#18201D] outline-none focus:border-primary"
             >
               <option value="all">All Statuses</option>
               {uniqueStatuses.map(s => (
@@ -165,7 +165,7 @@ export const WaiterOrderHistoryPage: React.FC = () => {
             <select
               value={selectedWaiter}
               onChange={e => setSelectedWaiter(e.target.value)}
-              className="w-full bg-slate-955 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 outline-none"
+              className="w-full bg-[#F7F4EE] border border-[#E3DED5] rounded-xl p-2 text-xs text-[#18201D] outline-none focus:border-primary"
             >
               <option value="all">All Waiters</option>
               {uniqueWaiters.map(w => (
@@ -178,7 +178,7 @@ export const WaiterOrderHistoryPage: React.FC = () => {
             <select
               value={dateFilter}
               onChange={e => setDateFilter(e.target.value)}
-              className="w-full bg-slate-955 border border-slate-800 rounded-xl p-2 text-xs text-slate-300 outline-none"
+              className="w-full bg-[#F7F4EE] border border-[#E3DED5] rounded-xl p-2 text-xs text-[#18201D] outline-none focus:border-primary"
             >
               <option value="all">All Time</option>
               <option value="today">Today</option>
@@ -191,8 +191,8 @@ export const WaiterOrderHistoryPage: React.FC = () => {
 
       {/* Orders Grid */}
       {filteredOrders.length === 0 ? (
-        <Card className="p-12 text-center border-slate-850 bg-slate-900/10 rounded-3xl text-slate-500">
-          <Calendar className="w-10 h-10 text-slate-700 mx-auto mb-3" />
+        <Card className="p-12 text-center border border-dashed border-[#E3DED5] bg-white rounded-3xl text-[#5F6875]">
+          <Calendar className="w-10 h-10 text-[#8D9B95] mx-auto mb-3" />
           <p className="text-sm font-semibold">No orders matched the selected filter criteria.</p>
         </Card>
       ) : (
@@ -210,11 +210,11 @@ export const WaiterOrderHistoryPage: React.FC = () => {
             const chef = order.assignedChefName || '—';
             
             return (
-              <Card key={order.orderId} className="p-5 border-slate-850 bg-slate-900/20 rounded-2xl text-xs space-y-4">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-3 border-b border-slate-800/40">
+              <Card key={order.orderId} className="p-5 border border-[#E3DED5] bg-white rounded-2xl text-xs space-y-4 shadow-xs">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-3 border-b border-[#E3DED5]">
                   <div>
-                    <h3 className="text-sm font-extrabold text-textPearl font-mono">ID: {order.orderId}</h3>
-                    <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                    <h3 className="text-sm font-extrabold text-[#18201D] font-mono">ID: {order.orderId}</h3>
+                    <p className="text-[10px] text-[#5F6875] font-semibold mt-0.5">
                       Placed on: {new Date(order.createdAt).toLocaleString()}
                     </p>
                   </div>
@@ -230,8 +230,8 @@ export const WaiterOrderHistoryPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   {/* Items List */}
                   <div className="space-y-1.5 md:col-span-2">
-                    <strong className="text-[10px] text-slate-500 font-extrabold uppercase">Dishes Ordered:</strong>
-                    <div className="space-y-1 pl-1 text-slate-350">
+                    <strong className="text-[10px] text-[#667085] font-extrabold uppercase">Dishes Ordered:</strong>
+                    <div className="space-y-1 pl-1 text-[#18201D]">
                       {order.items?.map((it: any, idx: number) => (
                         <div key={idx} className="flex justify-between">
                           <span>{it.name} ×{it.count}</span>
@@ -243,60 +243,60 @@ export const WaiterOrderHistoryPage: React.FC = () => {
 
                   {/* Customer Info */}
                   <div className="space-y-1.5">
-                    <strong className="text-[10px] text-slate-500 font-extrabold uppercase">Customer & Staff:</strong>
-                    <div className="space-y-1 text-slate-350">
+                    <strong className="text-[10px] text-[#667085] font-extrabold uppercase">Customer & Staff:</strong>
+                    <div className="space-y-1 text-[#5F6875]">
                       <div className="flex justify-between">
                         <span>Customer Name:</span>
-                        <span className="font-bold text-slate-300">{order.customerName || 'Diner'}</span>
+                        <span className="font-bold text-[#18201D]">{order.customerName || 'Diner'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Guest Count:</span>
-                        <span className="text-slate-300">{guestCount}</span>
+                        <span className="text-[#18201D]">{guestCount}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Phone:</span>
-                        <span className="text-slate-300">{phone}</span>
+                        <span className="text-[#18201D]">{phone}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Waiter:</span>
-                        <span className="font-semibold text-slate-300">{order.waiterName || '—'}</span>
+                        <span className="font-semibold text-[#18201D]">{order.waiterName || '—'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Chef:</span>
-                        <span className="font-semibold text-slate-300">{chef}</span>
+                        <span className="font-semibold text-[#18201D]">{chef}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Financials & Invoice */}
                   <div className="space-y-1.5">
-                    <strong className="text-[10px] text-slate-500 font-extrabold uppercase">Financials:</strong>
-                    <div className="space-y-1 text-slate-350">
+                    <strong className="text-[10px] text-[#667085] font-extrabold uppercase">Financials:</strong>
+                    <div className="space-y-1 text-[#5F6875]">
                       <div className="flex justify-between">
                         <span>Invoice:</span>
-                        <span className="text-slate-300 font-mono">{invoice}</span>
+                        <span className="text-[#18201D] font-mono">{invoice}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Payment Method:</span>
-                        <span className="text-slate-300">{paymentMethod}</span>
+                        <span className="text-[#18201D]">{paymentMethod}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Subtotal:</span>
-                        <span>{formatPrice(subtotal)}</span>
+                        <span className="text-[#18201D]">{formatPrice(subtotal)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Tax (8%):</span>
-                        <span>{formatPrice(tax)}</span>
+                        <span className="text-[#18201D]">{formatPrice(tax)}</span>
                       </div>
                       {discount > 0 && (
-                        <div className="flex justify-between text-rose-400">
+                        <div className="flex justify-between text-rose-600 font-semibold">
                           <span>Discount:</span>
                           <span>-{formatPrice(discount)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between border-t border-slate-800/40 pt-1">
-                        <span className="font-bold">Grand Total:</span>
-                        <span className="font-extrabold text-emerald-450">{formatPrice(grandTotal)}</span>
+                      <div className="flex justify-between border-t border-[#E3DED5] pt-1">
+                        <span className="font-bold text-[#18201D]">Grand Total:</span>
+                        <span className="font-extrabold text-emerald-700">{formatPrice(grandTotal)}</span>
                       </div>
                     </div>
                   </div>
@@ -304,31 +304,31 @@ export const WaiterOrderHistoryPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   {/* SLA Timers */}
-                  <div className="space-y-1.5 bg-slate-955/40 p-3 rounded-xl border border-slate-850 md:col-span-2">
-                    <strong className="text-[9px] text-slate-500 font-extrabold uppercase">Service Timers:</strong>
-                    <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-400">
-                      <div className="flex justify-between items-center pr-2 border-r border-slate-800/60">
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-yellow-450" /> Kitchen Ready:</span>
-                        <span className="font-bold text-slate-200">{kitchenTime}</span>
+                  <div className="space-y-1.5 bg-[#F7F4EE] p-3 rounded-xl border border-[#E3DED5] md:col-span-2">
+                    <strong className="text-[9px] text-[#667085] font-extrabold uppercase">Service Timers:</strong>
+                    <div className="grid grid-cols-2 gap-2 text-[10px] text-[#5F6875]">
+                      <div className="flex justify-between items-center pr-2 border-r border-[#E3DED5]">
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-amber-600" /> Kitchen Ready:</span>
+                        <span className="font-bold text-[#18201D]">{kitchenTime}</span>
                       </div>
                       <div className="flex justify-between items-center pl-1">
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-orange-450" /> Serving Delivery:</span>
-                        <span className="font-bold text-slate-200">{deliveryTime}</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-orange-600" /> Serving Delivery:</span>
+                        <span className="font-bold text-[#18201D]">{deliveryTime}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Status Audit */}
-                  <div className="space-y-1.5 bg-slate-955/40 p-3 rounded-xl border border-slate-850 md:col-span-2">
-                    <strong className="text-[9px] text-slate-500 font-extrabold uppercase">Status Incidents:</strong>
-                    <div className="flex space-x-4 text-[10px] text-slate-400">
+                  <div className="space-y-1.5 bg-[#F7F4EE] p-3 rounded-xl border border-[#E3DED5] md:col-span-2">
+                    <strong className="text-[9px] text-[#667085] font-extrabold uppercase">Status Incidents:</strong>
+                    <div className="flex space-x-4 text-[10px] text-[#5F6875]">
                       <div>
                         <span>Refund Status:</span>{' '}
-                        <span className="font-bold text-slate-300">{(order as any).refundStatus || 'None'}</span>
+                        <span className="font-bold text-[#18201D]">{(order as any).refundStatus || 'None'}</span>
                       </div>
                       <div>
                         <span>Cancellation:</span>{' '}
-                        <span className={order.status === 'CANCELLED' ? 'text-red-400 font-bold' : 'text-slate-450'}>
+                        <span className={order.status === 'CANCELLED' ? 'text-red-600 font-bold' : 'text-[#18201D]'}>
                           {order.status === 'CANCELLED' ? 'Cancelled' : 'Active'}
                         </span>
                       </div>
@@ -338,17 +338,17 @@ export const WaiterOrderHistoryPage: React.FC = () => {
 
                 {/* Audit Timeline */}
                 {order.timeline && order.timeline.length > 0 && (
-                  <div className="pt-3 border-t border-slate-800/40 space-y-2">
-                    <strong className="text-[9px] text-slate-500 font-extrabold uppercase flex items-center gap-1">
+                  <div className="pt-3 border-t border-[#E3DED5] space-y-2">
+                    <strong className="text-[9px] text-[#667085] font-extrabold uppercase flex items-center gap-1">
                       <ClipboardCheck className="w-3.5 h-3.5 text-primary" />
                       Order Audit Trail Log
                     </strong>
                     <div className="flex flex-wrap gap-2.5">
                       {order.timeline.map((event: any, idx: number) => (
-                        <div key={idx} className="flex items-center space-x-1.5 bg-slate-955 border border-slate-800 px-2 py-1 rounded-lg text-[9px] text-slate-400">
-                          <span className="font-bold text-slate-300">{TIMELINE_LABELS[event.type] || event.type || event.title}</span>
-                          <span className="text-slate-600">|</span>
-                          <span className="text-[8px]">{new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <div key={idx} className="flex items-center space-x-1.5 bg-[#F7F4EE] border border-[#E3DED5] px-2 py-1 rounded-lg text-[9px] text-[#5F6875]">
+                          <span className="font-bold text-[#18201D]">{TIMELINE_LABELS[event.type] || event.type || event.title}</span>
+                          <span className="text-[#8D9B95]">|</span>
+                          <span className="text-[8px] text-[#5F6875]">{new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       ))}
                     </div>

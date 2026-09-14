@@ -1484,14 +1484,14 @@ export const WaiterMatrix: React.FC = () => {
   const renderShiftControlCard = () => {
     if (user?.role !== 'waiter') {
       return (
-        <Card className="p-6 border-slate-800 bg-slate-900/50 rounded-3xl">
+        <Card className="p-6 border-[#E3DED5] bg-white rounded-3xl shadow-sm">
           <div className="flex items-center space-x-4">
-            <div className="p-3.5 rounded-2xl bg-amber-500/10 text-amber-400">
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 text-amber-600">
               <AlertOctagon className="w-6 h-6 animate-pulse" />
             </div>
             <div className="text-left">
-              <h2 className="text-lg font-extrabold text-textPearl">Shift Command Desk (Manager View)</h2>
-              <p className="text-xs text-slate-500 font-semibold mt-0.5">
+              <h2 className="text-lg font-extrabold text-[#18201D]">Shift Command Desk (Manager View)</h2>
+              <p className="text-xs text-[#5F6875] font-semibold mt-0.5">
                 Shift active actions are disabled. Only logged-in employees with the Waiter role can start floor shifts.
               </p>
             </div>
@@ -1501,17 +1501,17 @@ export const WaiterMatrix: React.FC = () => {
     }
     const durationStr = shift.isActive ? formatDuration(getShiftWorkingTime(shift)) : '';
     return (
-      <Card className="p-6 border-slate-800 bg-slate-900/50 rounded-3xl">
+      <Card className="p-6 border-[#E3DED5] bg-white rounded-3xl shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
-            <div className={`p-3.5 rounded-2xl ${shift.isActive ? (shift.status === 'break' ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400') : 'bg-slate-800 text-slate-400'}`}>
+            <div className={`p-3.5 rounded-2xl ${shift.isActive ? (shift.status === 'break' ? 'bg-amber-500/15 text-amber-600' : 'bg-emerald-500/15 text-emerald-600') : 'bg-[#F7F4EE] text-[#5F6875]'}`}>
               <Clock className="w-6 h-6 animate-pulse" />
             </div>
             <div className="text-left">
-              <h2 className="text-lg font-extrabold text-textPearl">Shift Command Desk</h2>
-              <p className="text-xs text-slate-500 font-semibold mt-0.5">
+              <h2 className="text-lg font-extrabold text-[#18201D]">Shift Command Desk</h2>
+              <p className="text-xs text-[#5F6875] font-semibold mt-0.5">
                 {shift.isActive ? (
-                  <span>On Duty · <span className="font-mono text-emerald-400">{durationStr}</span> {shift.status === 'break' && ' (On Break)'}</span>
+                  <span>On Duty · <span className="font-mono text-emerald-600 font-bold">{durationStr}</span> {shift.status === 'break' && ' (On Break)'}</span>
                 ) : (
                   <span>Offline · Clock-in to sync tables and receive service request task cards</span>
                 )}
@@ -1523,23 +1523,23 @@ export const WaiterMatrix: React.FC = () => {
             {shift.isActive ? (
               <>
                 {shift.status === 'active' ? (
-                  <Button onClick={handleStartBreak} variant="secondary" className="flex items-center gap-1.5 text-xs font-bold py-2.5 px-4 rounded-xl border border-slate-800 bg-slate-950 text-slate-350 hover:bg-slate-900">
+                  <Button onClick={handleStartBreak} variant="secondary" className="flex items-center gap-1.5 text-xs font-bold py-2.5 px-4 rounded-xl border border-[#E3DED5] bg-white text-[#18201D] hover:bg-[#F7F4EE]">
                     <Coffee className="w-3.5 h-3.5" />
                     <span>Take Break</span>
                   </Button>
                 ) : (
-                  <Button onClick={handleEndBreak} variant="secondary" className="flex items-center gap-1.5 text-xs font-bold py-2.5 px-4 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-950">
+                  <Button onClick={handleEndBreak} variant="secondary" className="flex items-center gap-1.5 text-xs font-bold py-2.5 px-4 rounded-xl border border-amber-500/30 bg-amber-50 text-amber-700 hover:bg-amber-100">
                     <Play className="w-3.5 h-3.5" />
                     <span>Resume Duty</span>
                   </Button>
                 )}
-                <Button onClick={handleEndShiftClick} className="flex items-center gap-1.5 text-xs font-bold py-2.5 px-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-slate-955">
+                <Button onClick={handleEndShiftClick} className="flex items-center gap-1.5 text-xs font-bold py-2.5 px-4 rounded-xl bg-red-50 border border-red-200 text-red-700 hover:bg-red-600 hover:text-white">
                   <Square className="w-3.5 h-3.5" />
                   <span>End Shift</span>
                 </Button>
               </>
             ) : (
-              <Button onClick={handleStartShift} className="flex items-center gap-1.5 text-xs font-bold py-2.5 px-6 rounded-xl bg-primary text-slate-950 hover:bg-primary-hover">
+              <Button onClick={handleStartShift} className="flex items-center gap-1.5 text-xs font-bold py-2.5 px-6 rounded-xl bg-primary text-white hover:bg-primary-hover">
                 <Play className="w-3.5 h-3.5" />
                 <span>Start Active Shift</span>
               </Button>
@@ -1728,10 +1728,10 @@ export const WaiterMatrix: React.FC = () => {
               <button
                 key={opt.id}
                 onClick={() => setQueueFilter(opt.id as any)}
-                className={`px-2.5 py-1 rounded-md transition-all ${
+                className={`px-2.5 py-1 rounded-md transition-all font-bold ${
                   queueFilter === opt.id
-                    ? 'bg-slate-800 text-textPearl'
-                    : 'text-slate-500 hover:text-slate-350'
+                    ? 'bg-primary text-white shadow-xs'
+                    : 'text-[#5F6875] hover:text-[#18201D]'
                 }`}
               >
                 {opt.label}
@@ -1741,9 +1741,9 @@ export const WaiterMatrix: React.FC = () => {
         </div>
         
         {filteredTasks.length === 0 ? (
-          <Card className="p-8 text-center border-slate-850 bg-slate-900/10 rounded-2xl">
-            <CheckCircle className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-            <p className="text-xs font-bold text-slate-500">No active tasks in this category.</p>
+          <Card className="p-8 text-center border border-dashed border-[#E3DED5] bg-white rounded-2xl shadow-xs">
+            <CheckCircle className="w-8 h-8 text-[#8D9B95] mx-auto mb-2" />
+            <p className="text-xs font-bold text-[#5F6875]">No active tasks in this category.</p>
           </Card>
         ) : (
           <div className="space-y-3">
@@ -1907,16 +1907,16 @@ export const WaiterMatrix: React.FC = () => {
               <button
                 key={cat}
                 onClick={() => setActionFilter(cat)}
-                className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 font-extrabold ${
+                className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 font-extrabold text-xs ${
                   isSelected 
-                    ? 'bg-slate-800 text-textPearl border border-slate-700/50' 
-                    : 'text-slate-500 hover:text-slate-350 border border-transparent'
+                    ? 'bg-primary text-white shadow-xs' 
+                    : 'text-[#5F6875] hover:text-[#18201D] border border-transparent'
                 }`}
               >
                 <span>{cat}</span>
                 {catCount > 0 && (
                   <span className={`px-1 py-0.2 rounded-full text-[8px] font-black font-mono ${
-                    isSelected ? 'bg-primary text-slate-950' : 'bg-slate-950 text-slate-450'
+                    isSelected ? 'bg-white/20 text-white' : 'bg-[#E3DED5] text-[#5F6875]'
                   }`}>
                     {catCount}
                   </span>
@@ -2151,12 +2151,12 @@ export const WaiterMatrix: React.FC = () => {
       {/* Render incoming handovers alert overlay */}
       {renderIncomingHandoversAlert()}
 
-      {shift.isActive ? (
+      {shift.isActive || isManagerOrOwner ? (
         <div className="space-y-6">
           {/* Header Metrics overview widgets */}
           {renderCommandHeaderMetrics()}
 
-          <div className="bg-slate-900 border border-slate-800 p-1.5 rounded-2xl flex items-center space-x-1.5 self-start overflow-x-auto max-w-full">
+          <div className="bg-[#F7F4EE] border border-[#E3DED5] p-1.5 rounded-2xl flex items-center space-x-1.5 self-start overflow-x-auto max-w-full">
             {(
               [
                 { id: 'command_center', label: 'Command Queue', Icon: ListTodo },
@@ -2172,14 +2172,14 @@ export const WaiterMatrix: React.FC = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all border outline-none shrink-0 ${
                   activeTab === tab.id
-                    ? 'bg-primary/10 border-primary/20 text-primary'
-                    : 'text-slate-400 border-transparent hover:text-textPearl hover:bg-slate-900/40'
+                    ? 'bg-white border-[#E3DED5] text-primary shadow-xs'
+                    : 'text-[#5F6875] border-transparent hover:text-[#18201D] hover:bg-white/60'
                 }`}
               >
                 {tab.Icon && <tab.Icon className="w-3.5 h-3.5" />}
                 <span>{tab.label}</span>
                 {tab.count !== undefined && tab.count > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-slate-450 text-[9px] font-bold">
+                  <span className="px-1.5 py-0.2 rounded-full bg-[#ECE8E1] text-[#18201D] text-[9px] font-bold">
                     {tab.count}
                   </span>
                 )}
@@ -2313,7 +2313,7 @@ export const WaiterMatrix: React.FC = () => {
                             ) : (
                               <Button
                                 onClick={() => user?.uid && handleUpdateTableWaiter(table.id, user.uid)}
-                                className="w-full py-1 text-[9px] bg-slate-800 border border-slate-700 text-slate-400 font-bold hover:text-textPearl"
+                                className="w-full py-1 text-[9px] bg-white border border-[#E3DED5] text-[#18201D] font-bold hover:bg-[#F7F4EE]"
                               >
                                 Claim Server Role
                               </Button>
@@ -2331,24 +2331,24 @@ export const WaiterMatrix: React.FC = () => {
           {/* ───────────────── SANITIZING DUTIES VIEW ───────────────── */}
           {activeTab === 'cleaning' && (
             <div className="space-y-4 text-left">
-              <h3 className="text-sm font-extrabold text-textPearl uppercase tracking-wider">Sanitization Queue</h3>
+              <h3 className="text-sm font-extrabold text-[#18201D] uppercase tracking-wider">Sanitization Queue</h3>
               {tables.filter(t => t.status === 'cleaning' && t.assignedWaiterId === user?.uid).length === 0 ? (
-                <Card className="p-8 text-center border-slate-850 bg-slate-900/10 rounded-2xl">
-                  <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                  <h4 className="text-sm font-bold text-textPearl">All tables sanitized!</h4>
+                <Card className="p-8 text-center border border-dashed border-[#E3DED5] bg-white rounded-2xl shadow-xs">
+                  <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
+                  <h4 className="text-sm font-bold text-[#18201D]">All tables sanitized!</h4>
                 </Card>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {tables.filter(t => t.status === 'cleaning' && t.assignedWaiterId === user?.uid).map(table => (
-                    <Card key={table.id} className="p-5 border-slate-850 bg-slate-900/40 text-xs space-y-4">
+                    <Card key={table.id} className="p-5 border border-[#E3DED5] bg-white text-xs space-y-4 shadow-xs">
                       <div className="flex justify-between items-center">
-                        <strong className="text-sm text-textPearl">Table {table.number} ({table.section || 'Main Room'})</strong>
+                        <strong className="text-sm text-[#18201D]">Table {table.number} ({table.section || 'Main Room'})</strong>
                         <Badge variant="warning">Cleaning Needed</Badge>
                       </div>
-                      <p className="text-slate-400">Clear table service remnants, sanitize layout surfaces, resets placements.</p>
+                      <p className="text-[#5F6875]">Clear table service remnants, sanitize layout surfaces, resets placements.</p>
                       <Button
                         onClick={() => handleCompleteCleaningCC(table)}
-                        className="w-full py-2 bg-indigo-500 text-slate-950 font-extrabold text-xs rounded-xl uppercase tracking-wider flex items-center justify-center space-x-1"
+                        className="w-full py-2 bg-indigo-600 text-white font-extrabold text-xs rounded-xl uppercase tracking-wider flex items-center justify-center space-x-1"
                       >
                         <Check className="w-4 h-4" />
                         <span>Reset and Release Table</span>
@@ -2511,11 +2511,11 @@ export const WaiterMatrix: React.FC = () => {
 
         </div>
       ) : (
-        <Card className="p-8 text-center border-slate-855 bg-slate-900/10 rounded-3xl space-y-4">
-          <Award className="w-12 h-12 text-slate-700 mx-auto" />
+        <Card className="p-8 text-center border-[#E3DED5] bg-white rounded-3xl space-y-4 shadow-sm">
+          <Award className="w-12 h-12 text-[#8D9B95] mx-auto" />
           <div>
-            <h2 className="text-base font-extrabold text-textPearl">Shift System Offline</h2>
-            <p className="text-xs text-slate-500 mt-1">Please start your operational shift above to sync tables and operational tasks feed.</p>
+            <h2 className="text-base font-extrabold text-[#18201D]">Shift System Offline</h2>
+            <p className="text-xs text-[#5F6875] mt-1 font-medium">Please start your operational shift above to sync tables and operational tasks feed.</p>
           </div>
         </Card>
       )}

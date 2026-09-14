@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { db } from '../../../config/firebase';
 import { featureFlags } from '../../../config/featureFlags';
@@ -220,33 +221,67 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
     }
   };
 
+  const location = useLocation();
+  const isKitchen = location.pathname.startsWith('/dashboard/kitchen') || role === 'kitchen';
+  const isWaiter = location.pathname.startsWith('/dashboard/waiter') || role === 'waiter';
+  const isLightService = isKitchen || isWaiter;
+
   return (
-    <header className="h-16 border-b border-slate-800/40 bg-slate-950/40 backdrop-blur-md flex items-center justify-between px-6 z-20">
+    <header className={`h-16 flex items-center justify-between px-6 z-20 transition-colors ${
+      isLightService 
+        ? 'border-b border-[#E3DED5] bg-white text-[#18201D]' 
+        : 'border-b border-slate-800/40 bg-slate-950/40 backdrop-blur-md text-textPearl'
+    }`}>
       
       {/* Search Input trigger on left */}
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-3 flex-1 max-w-md">
         {onMenuClick && (
           <button
             onClick={onMenuClick}
-            className="p-2 -ml-2 text-slate-400 hover:text-white lg:hidden rounded-xl bg-slate-900 border border-slate-850"
+            className={`p-2 -ml-2 lg:hidden rounded-lg transition-colors ${
+              isLightService 
+                ? 'text-[#5F6762] hover:text-[#18201D] bg-[#F7F4EE] border border-[#E3DED5]' 
+                : 'text-slate-400 hover:text-white bg-slate-900 border border-slate-855'
+            }`}
             title="Open menu"
           >
             <Menu className="w-4 h-4" />
           </button>
         )}
-        <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 hidden sm:inline-block">
-          Tenant: {user?.tenantId || 'SaaS Global'}
-        </span>
-        <button 
-          onClick={() => setIsOpen(true)}
-          className="flex items-center space-x-2.5 px-3 py-1.5 rounded-full border border-slate-800 bg-slate-950/40 hover:border-slate-700/60 text-slate-400 hover:text-slate-300 text-xs font-semibold select-none transition-all duration-200"
-        >
-          <Search className="w-3.5 h-3.5" />
-          <span>Quick Search...</span>
-          <kbd className="bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded text-[9px] font-mono leading-none tracking-normal">
-            Ctrl K
-          </kbd>
-        </button>
+
+        {isLightService ? (
+          <button 
+            onClick={() => {
+              loadSearchData();
+              setIsOpen(true);
+            }}
+            className="w-full flex items-center justify-between px-3.5 py-2 rounded-lg border border-[#E3DED5] bg-white hover:bg-[#FBF9F5] hover:border-[#D1C9BC] text-[#5F6762] hover:text-[#18201D] text-xs transition-all duration-150 text-left select-none group shadow-none"
+          >
+            <div className="flex items-center space-x-2.5">
+              <Search className="w-4 h-4 text-[#5F6762] group-hover:text-[#18201D] transition-colors" />
+              <span className="text-[12px] font-medium">Search by table, order ID, item or customer name...</span>
+            </div>
+            <kbd className="bg-[#F7F4EE] border border-[#E3DED5] text-[#5F6762] px-1.5 py-0.5 rounded text-[10px] font-mono leading-none tracking-normal shadow-none font-semibold">
+              {typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.userAgent || navigator.platform) ? '⌘ K' : 'Ctrl + K'}
+            </kbd>
+          </button>
+        ) : (
+          <>
+            <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 hidden sm:inline-block">
+              Tenant: {user?.tenantId || 'SaaS Global'}
+            </span>
+            <button 
+              onClick={() => setIsOpen(true)}
+              className="flex items-center space-x-2.5 px-3 py-1.5 rounded-full border border-slate-800 bg-slate-955/40 hover:border-slate-700/60 text-slate-400 hover:text-slate-300 text-xs font-semibold select-none transition-all duration-200"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Quick Search...</span>
+              <kbd className="bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded text-[9px] font-mono leading-none tracking-normal">
+                Ctrl K
+              </kbd>
+            </button>
+          </>
+        )}
       </div>
 
       <div className="flex items-center space-x-4">
@@ -255,47 +290,69 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
         <div className="relative" ref={notificationsRef}>
           <button 
             onClick={() => setShowNotifications(!showNotifications)}
-            className="p-2 text-mutedAsh hover:text-primary transition-colors relative rounded-lg hover:bg-slate-900/60"
+            className={`p-2 transition-colors relative rounded-lg ${
+              isLightService 
+                ? 'text-[#5F6762] hover:text-[#18201D] hover:bg-[#F7F4EE]' 
+                : 'text-mutedAsh hover:text-primary hover:bg-slate-900/60'
+            }`}
           >
-            <Bell className="w-5 h-5" />
+            <Bell className="w-4 h-4" />
             {alerts.length > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${
+                isLightService ? 'bg-[#C84A38]' : 'bg-primary animate-pulse'
+              }`} />
             )}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2.5 w-80 rounded-2xl border border-slate-850 bg-slate-955/95 shadow-2xl p-4 space-y-3 z-50 text-left backdrop-blur-lg">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-850">
-                <span className="text-xs font-bold text-textPearl flex items-center gap-1.5">
-                  <Bell className="w-4 h-4 text-primary" />
+            <div className={`absolute right-0 mt-2.5 w-80 rounded-xl shadow-xl p-4 space-y-3 z-50 text-left ${
+              isLightService 
+                ? 'border border-[#E3DED5] bg-white text-[#18201D]' 
+                : 'border border-slate-855 bg-slate-955/95 shadow-2xl backdrop-blur-lg text-textPearl'
+            }`}>
+              <div className={`flex items-center justify-between pb-2 border-b ${
+                isLightService ? 'border-[#E3DED5]' : 'border-slate-855'
+              }`}>
+                <span className={`text-xs font-bold flex items-center gap-1.5 ${
+                  isLightService ? 'text-[#18201D]' : 'text-textPearl'
+                }`}>
+                  <Bell className={`w-4 h-4 ${isLightService ? 'text-[#C84A38]' : 'text-primary'}`} />
                   <span>Unread Notifications</span>
                 </span>
-                <span className="text-[9px] px-2 py-0.5 bg-slate-900 border border-slate-800 rounded-full font-mono text-slate-400">
+                <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                  isLightService ? 'bg-[#C84A38]/10 text-[#C84A38]' : 'bg-slate-900 border border-slate-800 text-slate-400'
+                }`}>
                   {alerts.length} New
                 </span>
               </div>
 
               <div className="max-h-64 overflow-y-auto space-y-2.5 scrollbar-thin">
                 {alerts.map((a) => (
-                  <div key={a.id} className="p-2.5 bg-slate-950/40 border border-slate-855 rounded-xl space-y-2 text-xs">
+                  <div key={a.id} className={`p-2.5 rounded-lg space-y-2 text-xs border ${
+                    isLightService 
+                      ? 'bg-[#F7F4EE]/80 border-[#E3DED5]' 
+                      : 'bg-slate-950/40 border border-slate-855'
+                  }`}>
                     <div className="flex justify-between items-start">
-                      <span className="font-bold text-textPearl flex items-center gap-1">
+                      <span className="font-bold flex items-center gap-1">
                         <AlertTriangle className={`w-3.5 h-3.5 ${a.severity === 'critical' ? 'text-rose-500' : 'text-amber-500'}`} />
                         {a.title}
                       </span>
                       <button 
                         onClick={() => handleDismissAlert(a.id)}
-                        className="text-slate-500 hover:text-slate-300"
+                        className="text-slate-400 hover:text-slate-600"
                         title="Dismiss alert"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <p className="text-[10px] text-slate-400 font-semibold">{a.message}</p>
+                    <p className={`text-[10px] font-semibold ${isLightService ? 'text-[#5F6762]' : 'text-slate-400'}`}>{a.message}</p>
                     <div className="flex justify-end pt-1">
                       <button
                         onClick={() => handleResolveAlert(a)}
-                        className="text-[9px] font-black text-primary hover:underline uppercase tracking-wider"
+                        className={`text-[9px] font-black uppercase tracking-wider hover:underline ${
+                          isLightService ? 'text-[#C84A38]' : 'text-primary'
+                        }`}
                       >
                         Resolve Issue
                       </button>
@@ -304,7 +361,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                 ))}
 
                 {alerts.length === 0 && (
-                  <div className="text-center py-6 text-slate-500 italic text-xs font-semibold">
+                  <div className={`text-center py-6 italic text-xs font-semibold ${isLightService ? 'text-[#5F6762]' : 'text-slate-500'}`}>
                     No active unread notifications.
                   </div>
                 )}
@@ -314,20 +371,40 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
         </div>
 
         {/* User profile details */}
-        <div className="flex items-center space-x-3 pl-2 border-l border-slate-800/60">
-          <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center border border-slate-800 text-slate-350 font-bold text-xs">
-            {user?.displayName ? user.displayName.slice(0, 2).toUpperCase() : <User className="w-4 h-4" />}
+        <div className={`flex items-center space-x-3 pl-3 border-l ${
+          isLightService ? 'border-[#E3DED5]' : 'border-slate-800/60'
+        }`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+            isLightService 
+              ? 'bg-[#13241F] text-white border border-[#13241F]' 
+              : 'bg-slate-900 border border-slate-800 text-slate-350'
+          }`}>
+            {user?.displayName 
+              ? user.displayName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() 
+              : (user?.email ? user.email.slice(0, 2).toUpperCase() : (isKitchen ? 'KS' : (isWaiter ? 'WT' : <User className="w-4 h-4" />)))}
           </div>
           <div className="hidden md:flex flex-col text-left">
-            <span className="text-xs font-bold text-textPearl truncate max-w-[120px]">{user?.displayName || 'User'}</span>
-            <span className="text-[9px] text-primary uppercase font-black tracking-widest">{role || 'staff'}</span>
+            <span className={`text-xs font-bold truncate max-w-[120px] ${
+              isLightService ? 'text-[#18201D]' : 'text-textPearl'
+            }`}>
+              {user?.displayName || user?.email?.split('@')[0] || (isKitchen ? 'Kitchen Staff' : (isWaiter ? 'Waiter' : 'User'))}
+            </span>
+            <span className={`text-[9px] uppercase font-extrabold tracking-widest ${
+              isLightService ? 'text-[#5F6762]' : 'text-primary'
+            }`}>
+              {role === 'kitchen' ? 'Head Chef' : (role === 'waiter' ? 'Waiter' : (role ? (role.charAt(0).toUpperCase() + role.slice(1)) : 'Staff'))}
+            </span>
           </div>
         </div>
 
         {/* Logout */}
         <button 
           onClick={logout} 
-          className="p-2 text-mutedAsh hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+          className={`p-2 rounded-lg transition-all ${
+            isLightService 
+              ? 'text-[#5F6762] hover:text-[#C7463A] hover:bg-[#F9E8E4]' 
+              : 'text-mutedAsh hover:text-red-500 hover:bg-red-500/10'
+          }`}
           title="Sign Out"
         >
           <LogOut className="w-4 h-4" />
@@ -336,10 +413,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
 
       {/* Global Command Palette Overlay Modal */}
       {isOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-start justify-center pt-24 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-start justify-center pt-24 px-4 backdrop-blur-sm">
           <div 
             ref={paletteRef}
-            className="w-full max-w-xl bg-slate-955 border border-slate-850 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[420px]"
+            className={`w-full max-w-xl rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[420px] ${
+              isKitchen 
+                ? 'bg-white border border-[#E3DED5] text-[#18201D]' 
+                : 'bg-slate-955 border border-slate-850 text-textPearl'
+            }`}
           >
             {/* Header Input */}
             <div className="p-4 border-b border-slate-850 flex items-center space-x-3 bg-slate-950/40">

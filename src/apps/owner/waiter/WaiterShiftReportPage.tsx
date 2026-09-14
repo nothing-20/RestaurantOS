@@ -166,20 +166,20 @@ export const WaiterShiftReportPage: React.FC = () => {
     <div className="space-y-6 text-left select-none pb-24">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-display font-extrabold text-textPearl">Daily Shift Report</h1>
-          <p className="text-xs text-mutedAsh font-semibold">Automatic shift closing summaries, orders resolved, tips earned, and revenue performance.</p>
+          <h1 className="text-2xl font-display font-extrabold text-[#18201D]">Daily Shift Report</h1>
+          <p className="text-xs text-[#5F6875] font-semibold">Automatic shift closing summaries, orders resolved, tips earned, and revenue performance.</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handlePrintReport}
-            className="p-2.5 bg-slate-900 border border-slate-800 text-slate-300 rounded-xl hover:bg-slate-800 transition-all flex items-center gap-1.5 text-xs font-bold"
+            className="p-2.5 bg-white border border-[#E3DED5] text-[#18201D] rounded-xl hover:bg-[#F7F4EE] shadow-xs transition-all flex items-center gap-1.5 text-xs font-bold"
           >
             <Printer className="w-4 h-4" />
             <span>Print Report</span>
           </button>
           <button
             onClick={handleExportCSV}
-            className="p-2.5 bg-slate-900 border border-slate-800 text-slate-300 rounded-xl hover:bg-slate-800 transition-all flex items-center gap-1.5 text-xs font-bold"
+            className="p-2.5 bg-white border border-[#E3DED5] text-[#18201D] rounded-xl hover:bg-[#F7F4EE] shadow-xs transition-all flex items-center gap-1.5 text-xs font-bold"
           >
             <Download className="w-4 h-4" />
             <span>Export CSV</span>
@@ -188,71 +188,71 @@ export const WaiterShiftReportPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <Card className="p-6 bg-slate-900/40 border-slate-850 space-y-4">
+        <Card className="p-6 bg-white border border-[#E3DED5] rounded-2xl shadow-xs space-y-4">
           <div className="flex items-center space-x-2">
-            <TrendingUp className="w-5 h-5 text-indigo-400" />
-            <h3 className="font-extrabold text-sm text-textPearl uppercase tracking-wider">Shift Revenue & Tips</h3>
+            <TrendingUp className="w-5 h-5 text-indigo-600" />
+            <h3 className="font-extrabold text-sm text-[#18201D] uppercase tracking-wider">Shift Revenue & Tips</h3>
           </div>
           <div className="space-y-3 font-semibold text-xs">
-            <div className="flex justify-between border-b border-slate-800/40 pb-2">
-              <span className="text-slate-400">Total Shift Sales:</span>
-              <span className="font-extrabold text-emerald-450 font-mono">{formatPrice(report.revenue)}</span>
+            <div className="flex justify-between border-b border-[#E3DED5] pb-2">
+              <span className="text-[#5F6875]">Total Shift Sales:</span>
+              <span className="font-extrabold text-emerald-700 font-mono">{formatPrice(report.revenue)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Estimated Tips:</span>
-              <span className="font-extrabold text-slate-200 font-mono">{formatPrice(report.tips)}</span>
+              <span className="text-[#5F6875]">Estimated Tips:</span>
+              <span className="font-extrabold text-[#18201D] font-mono">{formatPrice(report.tips)}</span>
             </div>
           </div>
         </Card>
 
         {/* Payment Breakdown */}
-        <Card className="p-6 bg-slate-900/40 border-slate-850 space-y-4">
+        <Card className="p-6 bg-white border border-[#E3DED5] rounded-2xl shadow-xs space-y-4">
           <div className="flex items-center space-x-2">
-            <DollarSign className="w-5 h-5 text-emerald-450" />
-            <h3 className="font-extrabold text-sm text-textPearl uppercase tracking-wider">Payment Breakdown</h3>
+            <DollarSign className="w-5 h-5 text-emerald-600" />
+            <h3 className="font-extrabold text-sm text-[#18201D] uppercase tracking-wider">Payment Breakdown</h3>
           </div>
           <div className="space-y-3 font-semibold text-xs">
-            <div className="flex justify-between border-b border-slate-800/40 pb-2">
-              <span className="text-slate-400">Cash Receipts:</span>
-              <span className="font-extrabold text-slate-200 font-mono">{formatPrice(report.cashTotal)}</span>
+            <div className="flex justify-between border-b border-[#E3DED5] pb-2">
+              <span className="text-[#5F6875]">Cash Receipts:</span>
+              <span className="font-extrabold text-[#18201D] font-mono">{formatPrice(report.cashTotal)}</span>
             </div>
-            <div className="flex justify-between border-b border-slate-800/40 pb-2">
-              <span className="text-slate-400">Card Receipts:</span>
-              <span className="font-extrabold text-slate-200 font-mono">{formatPrice(report.cardTotal)}</span>
+            <div className="flex justify-between border-b border-[#E3DED5] pb-2">
+              <span className="text-[#5F6875]">Card Receipts:</span>
+              <span className="font-extrabold text-[#18201D] font-mono">{formatPrice(report.cardTotal)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">UPI/QR Receipts:</span>
-              <span className="font-extrabold text-slate-200 font-mono">{formatPrice(report.upiTotal)}</span>
+              <span className="text-[#5F6875]">UPI/QR Receipts:</span>
+              <span className="font-extrabold text-[#18201D] font-mono">{formatPrice(report.upiTotal)}</span>
             </div>
           </div>
         </Card>
 
-        <Card className="p-6 bg-slate-900/40 border-slate-850 space-y-4">
+        <Card className="p-6 bg-white border border-[#E3DED5] rounded-2xl shadow-xs space-y-4">
           <div className="flex items-center space-x-2">
-            <ClipboardCheck className="w-5 h-5 text-emerald-455" />
-            <h3 className="font-extrabold text-sm text-textPearl uppercase tracking-wider">Task Allocations</h3>
+            <ClipboardCheck className="w-5 h-5 text-emerald-600" />
+            <h3 className="font-extrabold text-sm text-[#18201D] uppercase tracking-wider">Task Allocations</h3>
           </div>
           <div className="space-y-3 font-semibold text-xs">
-            <div className="flex justify-between border-b border-slate-800/40 pb-2">
-              <span className="text-slate-400">Resolved Requests:</span>
-              <span className="font-extrabold text-emerald-455">{report.completedTasks}</span>
+            <div className="flex justify-between border-b border-[#E3DED5] pb-2">
+              <span className="text-[#5F6875]">Resolved Requests:</span>
+              <span className="font-extrabold text-emerald-700">{report.completedTasks}</span>
             </div>
-            <div className="flex justify-between border-b border-slate-800/40 pb-2">
-              <span className="text-slate-400">Pending Tasks:</span>
-              <span className="font-extrabold text-slate-200">{report.pendingTasks}</span>
+            <div className="flex justify-between border-b border-[#E3DED5] pb-2">
+              <span className="text-[#5F6875]">Pending Tasks:</span>
+              <span className="font-extrabold text-[#18201D]">{report.pendingTasks}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Reported Incidents:</span>
-              <span className={report.incidents > 0 ? 'text-red-400 font-extrabold' : 'text-slate-455'}>{report.incidents}</span>
+              <span className="text-[#5F6875]">Reported Incidents:</span>
+              <span className={report.incidents > 0 ? 'text-red-700 font-extrabold' : 'text-[#18201D]'}>{report.incidents}</span>
             </div>
           </div>
         </Card>
       </div>
 
       {/* Approval Status and Close Shift Actions */}
-      <Card className="p-6 border-slate-855 bg-slate-900/10 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
+      <Card className="p-6 border border-[#E3DED5] bg-white rounded-2xl shadow-xs flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
         <div>
-          <h3 className="font-extrabold text-sm text-textPearl flex items-center gap-2 justify-center md:justify-start">
+          <h3 className="font-extrabold text-sm text-[#18201D] flex items-center gap-2 justify-center md:justify-start">
             <span>Shift Closing Checklist</span>
             {approvalRequested ? (
               <Badge variant="warning" className="font-bold">Manager Review Pending</Badge>
@@ -260,13 +260,13 @@ export const WaiterShiftReportPage: React.FC = () => {
               <Badge variant="muted" className="font-bold">Awaiting Manager Sign-off</Badge>
             )}
           </h3>
-          <p className="text-xs text-slate-500 mt-1">Please ensure all pending table invoices are checked out and manager approval is requested.</p>
+          <p className="text-xs text-[#5F6875] mt-1">Please ensure all pending table invoices are checked out and manager approval is requested.</p>
         </div>
         <div className="flex gap-2">
           {!approvalRequested && (
             <button
               onClick={handleRequestApproval}
-              className="px-5 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all"
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all"
             >
               Request Approval
             </button>
@@ -276,8 +276,8 @@ export const WaiterShiftReportPage: React.FC = () => {
             disabled={!approvalRequested}
             className={`px-5 py-2.5 font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all ${
               approvalRequested 
-                ? 'bg-primary text-slate-950 hover:bg-primary-hover' 
-                : 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                ? 'bg-primary text-white hover:bg-primary/90' 
+                : 'bg-[#E3DED5] text-[#667085] cursor-not-allowed'
             }`}
           >
             Close & Archive Shift

@@ -43,6 +43,13 @@ export interface IPaymentBreakdown {
 export interface IOrder {
   orderId: string;
   tableNumber: string;
+  tableId?: string;
+  tableName?: string;
+  tenantId?: string;
+  restaurantId?: string;
+  branchId?: string;
+  orderType?: 'dine_in' | 'takeaway' | 'delivery' | 'walk_in' | 'dine-in';
+  orderSource?: 'qr' | 'app' | 'pos' | 'waiter';
   customerName: string;
   phone: string;
   customerPhone?: string;

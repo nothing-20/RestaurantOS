@@ -120,85 +120,91 @@ export const ChefPerformanceTab: React.FC<IChefPerformanceTabProps> = ({ orders,
   }, [chefs, orders, ratingsList]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 text-left select-none">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 text-left select-none font-sans">
       {chefMetrics.map(chef => (
-        <Card key={chef.id} className="p-4 border-slate-850 bg-slate-900/30 rounded-2xl flex flex-col justify-between space-y-4">
+        <div 
+          key={chef.id} 
+          className="p-5 bg-white border border-[#E3DED5] rounded-xl shadow-[0_1px_4px_rgba(30,30,20,0.05)] flex flex-col justify-between space-y-4"
+        >
           <div>
             {/* Chef Identity */}
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 shrink-0">
-                <ChefHat className="w-5 h-5 text-primary" />
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-lg bg-[#F7F4EE] flex items-center justify-center border border-[#E3DED5] shrink-0">
+                <ChefHat className="w-5 h-5 text-[#18201D]" />
               </div>
               <div className="min-w-0">
-                <h4 className="font-extrabold text-sm text-textPearl truncate">{chef.name}</h4>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{chef.shift}</p>
+                <h4 className="font-bold text-base text-[#18201D] truncate">{chef.name}</h4>
+                <div className="flex items-center space-x-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#287A55]" />
+                  <p className="text-[11px] text-[#5F6762] font-semibold uppercase tracking-wider">{chef.shift}</p>
+                </div>
               </div>
             </div>
 
             {/* Core Stats Row */}
-            <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-              <div className="bg-slate-950/40 p-2 rounded-xl border border-slate-850/50">
-                <span className="text-lg font-black font-mono text-slate-200">{chef.completed}</span>
-                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">Completed</p>
+            <div className="grid grid-cols-3 gap-2.5 mt-4 text-center">
+              <div className="bg-[#FBF9F5] p-2.5 rounded-lg border border-[#E3DED5]">
+                <span className="text-xl font-bold font-mono text-[#287A55] block leading-none">{chef.completed}</span>
+                <p className="text-[10px] font-semibold text-[#5F6762] uppercase tracking-wider mt-1.5">Completed</p>
               </div>
-              <div className="bg-slate-950/40 p-2 rounded-xl border border-slate-850/50">
-                <span className={`text-lg font-black font-mono ${chef.delayed > 0 ? 'text-orange-400' : 'text-slate-400'}`}>
+              <div className="bg-[#FBF9F5] p-2.5 rounded-lg border border-[#E3DED5]">
+                <span className={`text-xl font-bold font-mono block leading-none ${chef.delayed > 0 ? 'text-[#C7463A]' : 'text-[#5F6762]'}`}>
                   {chef.delayed}
                 </span>
-                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">Delayed</p>
+                <p className="text-[10px] font-semibold text-[#5F6762] uppercase tracking-wider mt-1.5">Delayed</p>
               </div>
-              <div className="bg-slate-950/40 p-2 rounded-xl border border-slate-850/50">
-                <span className="text-lg font-black font-mono text-primary">{chef.efficiency}%</span>
-                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">Efficiency</p>
+              <div className="bg-[#FBF9F5] p-2.5 rounded-lg border border-[#E3DED5]">
+                <span className="text-xl font-bold font-mono text-[#287A55] block leading-none">{chef.efficiency}%</span>
+                <p className="text-[10px] font-semibold text-[#5F6762] uppercase tracking-wider mt-1.5">Efficiency</p>
               </div>
             </div>
 
             {/* Performance Parameters */}
             <div className="mt-4 space-y-2 text-xs">
-              <div className="flex justify-between items-center py-1 border-b border-slate-850/50">
-                <span className="text-slate-500 flex items-center space-x-1">
-                  <Clock className="w-3 h-3 text-slate-500" />
+              <div className="flex justify-between items-center py-2 border-b border-[#E3DED5]">
+                <span className="text-[#5F6762] flex items-center space-x-1.5">
+                  <Clock className="w-3.5 h-3.5 text-[#5F6762]" />
                   <span>Avg Cook Time:</span>
                 </span>
-                <span className="font-mono font-bold text-slate-300">
+                <span className="font-mono font-semibold text-[#18201D]">
                   {chef.avgCookTime > 0 ? `${chef.avgCookTime.toFixed(1)}m` : '—'}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center py-1 border-b border-slate-850/50">
-                <span className="text-slate-555">Fastest Order:</span>
-                <span className="font-mono font-bold text-emerald-450">
+              <div className="flex justify-between items-center py-2 border-b border-[#E3DED5]">
+                <span className="text-[#5F6762]">Fastest Order:</span>
+                <span className="font-mono font-semibold text-[#287A55]">
                   {chef.fastest > 0 ? `${chef.fastest.toFixed(1)}m` : '—'}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center py-1 border-b border-slate-850/50">
-                <span className="text-slate-555">Slowest Order:</span>
-                <span className="font-mono font-bold text-rose-500">
+              <div className="flex justify-between items-center py-2 border-b border-[#E3DED5]">
+                <span className="text-[#5F6762]">Slowest Order:</span>
+                <span className={`font-mono font-semibold ${chef.slowest > 25 ? 'text-[#C7463A]' : 'text-[#18201D]'}`}>
                   {chef.slowest > 0 ? `${chef.slowest.toFixed(1)}m` : '—'}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center py-1 border-b border-slate-850/50">
-                <span className="text-slate-555">Active Load:</span>
-                <span className="font-mono font-extrabold text-blue-400">
+              <div className="flex justify-between items-center py-2 border-b border-[#E3DED5]">
+                <span className="text-[#5F6762]">Active Load:</span>
+                <span className={`font-mono font-semibold ${chef.active === 0 ? 'text-[#287A55]' : 'text-[#D79A24]'}`}>
                   {chef.active} tickets
                 </span>
               </div>
 
-              <div className="flex justify-between items-center py-1">
-                <span className="text-slate-500 flex items-center space-x-1">
-                  <Star className="w-3 h-3 text-yellow-500" />
+              <div className="flex justify-between items-center py-2">
+                <span className="text-[#5F6762] flex items-center space-x-1.5">
+                  <Star className="w-3.5 h-3.5 text-[#D79A24]" />
                   <span>Chef Rating:</span>
                 </span>
-                <span className="font-bold text-yellow-500 flex items-center space-x-0.5">
+                <span className="font-semibold text-[#A66B00] flex items-center space-x-0.5">
                   <span>{chef.rating}</span>
-                  {chef.rating !== '—' && <Star className="w-3 h-3 fill-current" />}
+                  {chef.rating !== '—' && <Star className="w-3 h-3 fill-current text-[#D79A24]" />}
                 </span>
               </div>
             </div>
           </div>
-        </Card>
+        </div>
       ))}
     </div>
   );

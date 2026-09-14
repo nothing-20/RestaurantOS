@@ -16,6 +16,92 @@
     background-color: #0f172a !important;
     color: #e2e8f0 !important;
   }
+
+  /* Restaurant Operations Theme (Kitchen Display System & Waiter Operations) */
+  .kds-theme {
+    --color-text: 155 14% 11%;          /* #18201D primary dark charcoal */
+    --color-muted: 215 16% 47%;         /* #5F6875 secondary neutral */
+    --color-surface: 0 0% 100%;         /* #FFFFFF pure white card */
+    --color-border: 40 18% 86%;         /* #E3DED5 subtle warm border */
+    --color-background: 43 30% 95%;     /* #F7F4EE warm ivory */
+    color: #18201D;
+  }
+
+  /* Central Card styling in Restaurant Operations (KDS & Waiter) */
+  .kds-theme .card,
+  .kds-theme .kds-card {
+    background-color: #FFFFFF !important;
+    border-color: #E3DED5 !important;
+    color: #18201D;
+    box-shadow: 0 1px 4px rgba(30, 30, 20, 0.05) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Remap translucent slate backgrounds inside .kds-theme to crisp surfaces */
+  .kds-theme [class*="bg-slate-900/"],
+  .kds-theme [class*="bg-slate-900\\/"] {
+    background-color: #FFFFFF !important;
+    border-color: #E3DED5 !important;
+    color: #18201D;
+  }
+
+  /* Stat callout boxes and subtle secondary boxes (like bg-slate-955/40) */
+  .kds-theme [class*="bg-slate-955"],
+  .kds-theme [class*="bg-slate-950/"] {
+    background-color: #F7F4EE !important;
+    border-color: #E3DED5 !important;
+    color: #18201D;
+  }
+
+  /* Text color remapping inside Restaurant Operations light theme */
+  .kds-theme .text-slate-200,
+  .kds-theme .text-slate-300,
+  .kds-theme .text-slate-350 {
+    color: #18201D !important; /* primary dark charcoal */
+  }
+  .kds-theme .text-slate-400,
+  .kds-theme .text-slate-450,
+  .kds-theme .text-slate-455 {
+    color: #5F6875 !important; /* secondary neutral */
+  }
+  .kds-theme .text-slate-500,
+  .kds-theme .text-slate-550 {
+    color: #667085 !important; /* label neutral */
+  }
+
+  /* Remap slate borders inside .kds-theme */
+  .kds-theme .border-slate-800,
+  .kds-theme .border-slate-850,
+  .kds-theme .border-slate-855,
+  .kds-theme .border-slate-700,
+  .kds-theme .border-slate-900 {
+    border-color: #E3DED5 !important;
+  }
+
+  /* Remap dark muted badges inside .kds-theme */
+  .kds-theme [class*="bg-slate-800"][class*="text-slate-400"] {
+    background-color: #F7F4EE !important;
+    color: #5F6875 !important;
+    border-color: #E3DED5 !important;
+  }
+
+  /* Kitchen Display System overrides — warm restaurant theme inputs */
+  .kds-theme select,
+  .kds-theme input,
+  .kds-theme textarea {
+    color: #18201D !important;
+    background-color: #FFFFFF !important;
+    border-color: #E3DED5 !important;
+  }
+  .kds-theme input::placeholder,
+  .kds-theme textarea::placeholder {
+    color: #8D9B95 !important;
+  }
+  .kds-theme option {
+    background-color: #FFFFFF !important;
+    color: #18201D !important;
+  }
 }
 
 /* Custom Scrollbar for dashboards */
