@@ -24,9 +24,17 @@ import {
   Clock,
   ShieldAlert,
   Loader2,
-  Building
+  Building,
+  Link2
 } from 'lucide-react';
 import { getDashboardRoute } from '../../../utils/navigation';
+import { cn } from '../../../utils/cn';
+
+// Decorative food imagery
+import leftPlateImg from '../../../assets/left_food_plate.png';
+import rightPlateImg from '../../../assets/right_food_plate.png';
+import basilLeaf1 from '../../../assets/basil_leaf_1.png';
+import basilLeaf2 from '../../../assets/basil_leaf_2.png';
 
 // ─── Steps & Stages ───────────────────────────────────────────────────────────
 type Step = 'verifying' | 'email' | 'password' | 'success' | 'error';
@@ -662,26 +670,113 @@ export const StaffActivate: React.FC = () => {
   else if (step === 'success') stepIndex = 2;
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 relative overflow-hidden select-none">
-      {/* Ambient glow */}
-      <div className="absolute top-[-10%] left-[-15%] w-[600px] h-[600px] rounded-full bg-emerald-500/8 blur-[150px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-15%] w-[400px] h-[400px] rounded-full bg-primary/6 blur-[120px] pointer-events-none" />
+    <div className="min-h-screen bg-[#FCFAF7] text-[#17233D] flex flex-col justify-between relative overflow-x-hidden select-none font-sans">
+      {/* ========================================================================= */}
+      {/* 1. DECORATIVE BACKGROUND TREATMENT (Z-INDEX 0, POINTER-EVENTS NONE)       */}
+      {/* ========================================================================= */}
 
-      <div className="w-full max-w-md space-y-6 relative z-10">
+      {/* Subtle warm circular background ambient backdrops */}
+      <div className="absolute top-[14%] left-[-160px] md:left-[-120px] lg:left-[-80px] w-[500px] md:w-[580px] h-[500px] md:h-[580px] rounded-full bg-[#F3E8DF]/80 blur-[2px] pointer-events-none z-0" />
+      <div className="absolute bottom-[6%] right-[-160px] md:right-[-120px] lg:right-[-80px] w-[500px] md:w-[580px] h-[500px] md:h-[580px] rounded-full bg-[#F3E8DF]/80 blur-[2px] pointer-events-none z-0" />
 
-        {/* Brand */}
-        <div className="flex flex-col items-center text-center space-y-3">
-          <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center shadow-lg">
-            <UserCheck className="w-6 h-6 text-emerald-400" />
+      {/* LEFT SIDE: Food plate entering from left edge */}
+      <div className="hidden sm:block absolute left-[-240px] md:left-[-220px] lg:left-[-190px] xl:left-[-150px] top-[18%] md:top-[20%] w-[420px] md:w-[480px] lg:w-[540px] pointer-events-none select-none z-0">
+        <img 
+          src={leftPlateImg} 
+          alt="Artisanal Dining Dish" 
+          className="w-full h-auto drop-shadow-xl transform -rotate-12"
+        />
+      </div>
+
+      {/* Left side: Floating basil garnish */}
+      <div className="hidden md:block absolute left-[220px] lg:left-[270px] top-[28%] w-10 h-10 pointer-events-none select-none z-0 transform rotate-45 opacity-90 drop-shadow-sm">
+        <img src={basilLeaf2} alt="Fresh Basil Leaf" className="w-full h-full object-contain" />
+      </div>
+
+      {/* Left side: Handwritten style decorative brand phrase */}
+      <div className="hidden lg:flex flex-col items-start absolute left-8 xl:left-14 bottom-20 xl:bottom-28 pointer-events-none select-none z-0 -rotate-6">
+        <span className="font-serif italic text-2xl xl:text-3xl text-[#7E746A] tracking-tight leading-tight">
+          Fresh Beginnings
+        </span>
+        <span className="font-serif italic text-2xl xl:text-3xl text-[#7E746A] tracking-tight leading-tight">
+          Exceptional Service
+        </span>
+        <div className="w-24 h-0.5 bg-[#C94F3D]/60 rounded-full mt-1.5 -rotate-2" />
+      </div>
+
+      {/* RIGHT SIDE: Food plate entering from right edge */}
+      <div className="hidden sm:block absolute right-[-240px] md:right-[-220px] lg:right-[-190px] xl:right-[-150px] bottom-[8%] md:bottom-[10%] w-[420px] md:w-[480px] lg:w-[540px] pointer-events-none select-none z-0">
+        <img 
+          src={rightPlateImg} 
+          alt="Artisanal Entree Dish" 
+          className="w-full h-auto drop-shadow-xl transform rotate-6"
+        />
+      </div>
+
+      {/* Right side: Floating basil garnish */}
+      <div className="hidden md:block absolute right-[230px] lg:right-[280px] bottom-[38%] w-11 h-11 pointer-events-none select-none z-0 transform -rotate-12 opacity-90 drop-shadow-sm">
+        <img src={basilLeaf1} alt="Fresh Basil Leaf" className="w-full h-full object-contain" />
+      </div>
+
+      {/* Right side: Handwritten style decorative brand phrase */}
+      <div className="hidden lg:flex flex-col items-start absolute right-10 xl:right-16 top-24 xl:top-32 pointer-events-none select-none z-0 -rotate-6">
+        <span className="font-serif italic text-2xl xl:text-3xl text-[#7E746A] tracking-tight leading-tight">
+          Team Work
+        </span>
+        <span className="font-serif italic text-2xl xl:text-3xl text-[#7E746A] tracking-tight leading-tight">
+          Shared Success
+        </span>
+        <div className="w-28 h-0.5 bg-[#C94F3D]/60 rounded-full mt-1.5 -rotate-2" />
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. TOP BRANDING HEADER                                                    */}
+      {/* ========================================================================= */}
+      <header className="w-full max-w-6xl mx-auto px-6 py-4 flex items-center justify-between relative z-20">
+        <Link to="/" className="flex items-center space-x-3 group">
+          <div className="w-10 h-10 bg-[#C94F3D] rounded-xl flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+            <span className="text-white font-extrabold text-xl font-display leading-none">R</span>
+          </div>
+          <div>
+            <span className="font-display font-extrabold text-xl tracking-tight text-[#17233D]">
+              Restaurant<span className="text-[#C94F3D]">OS</span>
+            </span>
+            <p className="text-[10px] font-semibold text-[#667085] hidden sm:block leading-none mt-0.5">
+              Smart Dining. Smarter Business.
+            </p>
+          </div>
+        </Link>
+
+        <Link 
+          to="/" 
+          className="inline-flex items-center space-x-1 text-xs font-bold text-[#667085] hover:text-[#17233D] transition-colors py-2 px-3.5 rounded-xl hover:bg-[#F3E8DF]"
+        >
+          <span>← Back to Home</span>
+        </Link>
+      </header>
+
+      {/* ========================================================================= */}
+      {/* 3. MAIN CONTENT: CENTERED CARD WITH STEP INDICATORS                       */}
+      {/* ========================================================================= */}
+      <main className="w-full max-w-6xl mx-auto px-6 py-4 sm:py-6 flex flex-col items-center justify-center flex-1 relative z-10 space-y-4">
+        
+        {/* Brand & Heading */}
+        <div className="flex flex-col items-center text-center space-y-2">
+          <div className="w-12 h-12 bg-[#F8E8E2] rounded-2xl flex items-center justify-center shadow-2xs">
+            <UserCheck className="w-6 h-6 text-[#C94F3D]" />
           </div>
           <div className="space-y-0.5">
-            <p className="text-[11px] font-display font-extrabold text-slate-500 tracking-wider uppercase">RestaurantOS</p>
-            <h1 className="text-xl font-display font-extrabold text-textPearl">Staff Account Activation</h1>
+            <h1 className="text-2xl sm:text-[26px] font-display font-extrabold text-[#17233D] tracking-tight">
+              Staff Account Activation
+            </h1>
+            <p className="text-xs text-[#667085]">
+              Securely set up your credentials to access your staff portal
+            </p>
           </div>
         </div>
 
         {/* Step indicators */}
-        <div className="flex items-center justify-center space-x-2">
+        <div className="flex items-center justify-center space-x-2 pb-1">
           {STEPS.map((s, i) => {
             const isDone = i < stepIndex;
             const isCurrent = i === stepIndex && step !== 'error';
@@ -689,39 +784,46 @@ export const StaffActivate: React.FC = () => {
             return (
               <React.Fragment key={s.label}>
                 <div className="flex flex-col items-center space-y-1">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all duration-300 ${
+                  <div className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center border transition-all duration-300",
                     isDone
-                      ? 'bg-emerald-500 border-emerald-500 shadow-md shadow-emerald-500/30'
+                      ? "bg-[#16866D] border-[#16866D] text-white shadow-xs"
                       : isCurrent
-                      ? 'bg-primary/15 border-primary/50 shadow-sm shadow-primary/20'
-                      : 'bg-slate-900 border-slate-800'
-                  }`}>
-                    <Icon className={`w-3.5 h-3.5 ${isDone ? 'text-white' : isCurrent ? 'text-primary' : 'text-slate-600'}`} />
+                      ? "bg-[#F8E8E2] border-[#C94F3D] text-[#C94F3D] ring-2 ring-[#C94F3D]/20"
+                      : "bg-white border-[#E5E1DC] text-[#667085]"
+                  )}>
+                    <Icon className="w-3.5 h-3.5" />
                   </div>
-                  <span className={`text-[9px] font-bold tracking-wide ${isCurrent ? 'text-textPearl' : isDone ? 'text-emerald-400' : 'text-slate-600'}`}>
+                  <span className={cn(
+                    "text-[10px] font-bold tracking-wide",
+                    isCurrent ? "text-[#17233D]" : isDone ? "text-[#16866D]" : "text-[#667085]"
+                  )}>
                     {s.label}
                   </span>
                 </div>
                 {i < STEPS.length - 1 && (
-                  <div className={`h-px w-10 mb-4 transition-colors duration-300 ${i < stepIndex ? 'bg-emerald-500/60' : 'bg-slate-800'}`} />
+                  <div className={cn(
+                    "h-0.5 w-10 sm:w-14 mb-4 transition-colors duration-300 rounded-full",
+                    i < stepIndex ? "bg-[#16866D]" : "bg-[#E5E1DC]"
+                  )} />
                 )}
               </React.Fragment>
             );
           })}
         </div>
 
-        {/* Card */}
-        <Card className="p-8 border-slate-800/60 bg-slate-900/40 backdrop-blur-md rounded-3xl shadow-2xl">
+        {/* Main White Activation Card */}
+        <div className="max-w-[480px] w-full p-6 sm:p-8 bg-white border border-[#E5E1DC] rounded-[24px] shadow-md relative overflow-hidden text-left">
 
           {/* ── State: Verifying ── */}
           {step === 'verifying' && (
             <div className="flex flex-col items-center text-center space-y-4 py-6">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-lg">
-                <Loader2 className="w-7 h-7 text-emerald-400 animate-spin" />
+              <div className="w-14 h-14 rounded-2xl bg-[#F8E8E2] flex items-center justify-center shadow-2xs">
+                <Loader2 className="w-7 h-7 text-[#C94F3D] animate-spin" />
               </div>
               <div className="space-y-1">
-                <h2 className="text-base font-bold text-textPearl">Verifying Your Invitation</h2>
-                <p className="text-xs text-slate-400">
+                <h2 className="text-base font-bold text-[#17233D]">Verifying Your Invitation</h2>
+                <p className="text-xs text-[#667085]">
                   Checking invitation token and credentials...
                 </p>
               </div>
@@ -731,18 +833,18 @@ export const StaffActivate: React.FC = () => {
           {/* ── State: Error ── */}
           {step === 'error' && (
             <div className="space-y-5 text-center py-2">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shadow-lg">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-[#F8E8E2] flex items-center justify-center shadow-2xs">
                 {errorCode === 'ALREADY_ACTIVATED' || errorCode === 'PERMISSION_DENIED' ? (
-                  <ShieldAlert className="w-7 h-7 text-amber-400" />
+                  <ShieldAlert className="w-7 h-7 text-[#C94F3D]" />
                 ) : errorCode === 'EXPIRED' ? (
-                  <Clock className="w-7 h-7 text-amber-400" />
+                  <Clock className="w-7 h-7 text-[#C94F3D]" />
                 ) : (
-                  <AlertTriangle className="w-7 h-7 text-red-400" />
+                  <AlertTriangle className="w-7 h-7 text-red-500" />
                 )}
               </div>
 
               <div className="space-y-1.5">
-                <h2 className="text-base font-bold text-textPearl">
+                <h2 className="text-base font-bold text-[#17233D]">
                   {errorCode === 'ALREADY_ACTIVATED'
                     ? 'Account Already Activated'
                     : errorCode === 'EXPIRED'
@@ -757,7 +859,7 @@ export const StaffActivate: React.FC = () => {
                     ? 'Invitation Not Accessible'
                     : 'Invalid Invitation'}
                 </h2>
-                <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
+                <p className="text-xs text-[#667085] leading-relaxed max-w-xs mx-auto">
                   {errorMessage || 'This invitation link could not be verified.'}
                 </p>
               </div>
@@ -765,15 +867,14 @@ export const StaffActivate: React.FC = () => {
               <div className="pt-2 space-y-2.5">
                 {errorCode === 'ALREADY_ACTIVATED' || errorCode === 'PERMISSION_DENIED' ? (
                   <Link to="/staff/login" className="block w-full">
-                    <Button variant="primary" className="w-full">
+                    <button className="w-full h-12 bg-[#C94F3D] hover:bg-[#A93E30] text-white font-bold text-sm rounded-xl transition-colors cursor-pointer">
                       Proceed to Staff Login
-                    </Button>
+                    </button>
                   </Link>
                 ) : (
-                  <Button
+                  <button
                     type="button"
-                    variant="secondary"
-                    className="w-full"
+                    className="w-full h-12 bg-[#FCFAF7] hover:bg-[#F3E8DF] border border-[#E5E1DC] text-[#17233D] font-bold text-sm rounded-xl transition-colors cursor-pointer"
                     onClick={() => {
                       setStep('email');
                       setErrorCode(null);
@@ -781,12 +882,12 @@ export const StaffActivate: React.FC = () => {
                     }}
                   >
                     Enter Link or ID Manually
-                  </Button>
+                  </button>
                 )}
 
                 <Link
                   to="/"
-                  className="block text-center text-xs font-semibold text-slate-500 hover:text-slate-300 transition-colors pt-1"
+                  className="block text-center text-xs font-semibold text-[#667085] hover:text-[#17233D] transition-colors pt-1"
                 >
                   Return to Home
                 </Link>
@@ -796,45 +897,69 @@ export const StaffActivate: React.FC = () => {
 
           {/* ── State: Manual Link / ID Fallback ── */}
           {step === 'email' && (
-            <form onSubmit={handleManualInputSubmit} className="space-y-5">
+            <form onSubmit={handleManualInputSubmit} className="space-y-4">
               <div className="space-y-1 text-center pb-1">
-                <h2 className="text-base font-bold text-textPearl">Activate Staff Account</h2>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
+                <h2 className="text-xl font-display font-extrabold text-[#17233D]">Activate Staff Account</h2>
+                <p className="text-xs text-[#667085] leading-relaxed max-w-xs mx-auto">
                   Enter the secure activation link sent to you by your restaurant manager or in your invitation email.
                 </p>
               </div>
 
               {tokenParam && emailParam && !idParam && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-left space-y-1">
-                  <p className="text-xs font-bold text-amber-400">Missing Invitation ID Parameter</p>
-                  <p className="text-[11px] text-slate-300 leading-relaxed">
-                    This link has your token and email but is missing the document ID (<code>&id=...</code>). Ask your restaurant manager to click <strong>"Copy Link"</strong> or <strong>"Resend Invite"</strong> in the Staff Manager to copy the complete link, or enter your Invitation ID below.
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-left space-y-1">
+                  <p className="text-xs font-bold text-amber-800">Missing Invitation ID Parameter</p>
+                  <p className="text-[11px] text-amber-700 leading-relaxed">
+                    This link has your token and email but is missing the document ID (<code>&id=...</code>). Ask your restaurant manager to click <strong>"Copy Link"</strong> or <strong>"Resend Invite"</strong> in the Staff Manager, or enter your Invitation ID below.
                   </p>
                 </div>
               )}
 
-              <Input
-                label="Activation Link or Invitation ID"
-                type="text"
-                placeholder="https://.../staff/activate?token=...&id=..."
-                value={pastedInput}
-                onChange={(e) => setPastedInput(e.target.value)}
-                error={errors.input}
+              <div className="w-full flex flex-col space-y-1.5 text-left">
+                <label htmlFor="pasted-input" className="text-xs font-bold text-[#17233D] select-none">
+                  Activation Link or Invitation ID
+                </label>
+                <div className="relative flex items-center">
+                  <Link2 className="w-4 h-4 text-[#667085] absolute left-3.5 pointer-events-none" />
+                  <input
+                    id="pasted-input"
+                    type="text"
+                    placeholder="https://.../staff/activate?token=...&id=..."
+                    value={pastedInput}
+                    onChange={(e) => setPastedInput(e.target.value)}
+                    disabled={isLoading}
+                    required
+                    className={cn(
+                      "w-full pl-10 pr-4 py-2.5 sm:py-3 bg-white border border-[#E5E1DC] text-[#17233D] rounded-xl text-sm placeholder-[#98A2B3] transition-all focus:outline-none focus:border-[#C94F3D] focus:ring-2 focus:ring-[#C94F3D]/20 disabled:opacity-60 disabled:bg-[#F3E8DF]",
+                      errors.input ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""
+                    )}
+                  />
+                </div>
+                {errors.input && (
+                  <span className="text-xs font-semibold text-red-600 pl-1">{errors.input}</span>
+                )}
+              </div>
+
+              <button 
+                type="submit" 
                 disabled={isLoading}
-                required
-              />
+                className="w-full h-12 bg-[#C94F3D] hover:bg-[#A93E30] active:bg-[#923326] text-white font-bold text-sm rounded-xl flex items-center justify-center space-x-2 shadow-xs hover:shadow transition-all disabled:opacity-60 disabled:cursor-not-allowed group cursor-pointer"
+              >
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>Verify & Continue</span>
+                    <span className="transition-transform group-hover:translate-x-1 font-bold">→</span>
+                  </>
+                )}
+              </button>
 
-              <Button type="submit" className="w-full flex items-center justify-center space-x-2" isLoading={isLoading}>
-                <span>Verify & Continue</span>
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-
-              <div className="pt-1 text-center">
+              <div className="pt-2 text-center border-t border-[#E5E1DC]/60 mt-4">
                 <Link
                   to="/staff/login"
-                  className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                  className="text-xs text-[#667085] hover:text-[#17233D] transition-colors"
                 >
-                  Already activated? <strong className="text-primary">Staff Login</strong>
+                  Already activated? <strong className="text-[#C94F3D] hover:underline font-bold">Staff Login</strong>
                 </Link>
               </div>
             </form>
@@ -842,86 +967,109 @@ export const StaffActivate: React.FC = () => {
 
           {/* ── State: Password Creation ── */}
           {step === 'password' && invite && (
-            <form onSubmit={handleActivation} noValidate className="space-y-5">
+            <form onSubmit={handleActivation} noValidate className="space-y-4">
               <div className="space-y-1 text-center pb-1">
-                <h2 className="text-base font-bold text-emerald-400">Welcome, {invite.fullName}!</h2>
-                <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
-                  You've been invited as <strong className="text-slate-300 capitalize">{invite.role}</strong>. Set a password to activate your account.
+                <h2 className="text-xl font-display font-extrabold text-[#17233D]">Welcome, {invite.fullName}!</h2>
+                <p className="text-xs text-[#667085] leading-relaxed max-w-xs mx-auto">
+                  You've been invited as <strong className="text-[#17233D] capitalize">{invite.role}</strong>. Set a secure password to activate your account.
                 </p>
               </div>
 
               {/* Invite summary chip */}
-              <div className="bg-emerald-500/8 border border-emerald-500/20 rounded-xl p-3 space-y-1.5">
+              <div className="bg-[#E7F5EF] border border-[#16866D]/20 rounded-xl p-3 space-y-1.5">
                 <div className="flex items-center space-x-2">
-                  <Mail className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span className="text-[11px] font-semibold text-emerald-300 truncate">{invite.email}</span>
+                  <Mail className="w-3.5 h-3.5 text-[#16866D] shrink-0" />
+                  <span className="text-xs font-semibold text-[#16866D] truncate">{invite.email}</span>
                 </div>
                 {invite.restaurantName && (
-                  <div className="flex items-center space-x-2 pt-1 border-t border-emerald-500/10">
-                    <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="text-[10px] text-slate-400 truncate">{invite.restaurantName}</span>
+                  <div className="flex items-center space-x-2 pt-1 border-t border-[#16866D]/15">
+                    <Building className="w-3.5 h-3.5 text-[#667085] shrink-0" />
+                    <span className="text-xs text-[#667085] truncate">{invite.restaurantName}</span>
                   </div>
                 )}
               </div>
 
-              {/* Password */}
-              <div className="relative">
-                <Input
-                  ref={passwordInputRef}
-                  label="Choose a Password *"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="At least 6 characters"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  error={errors.password}
-                  disabled={isActivating || isLoading}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-8 text-slate-500 hover:text-slate-300 transition-colors"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+              {/* Password Field */}
+              <div className="w-full flex flex-col space-y-1 text-left">
+                <label htmlFor="staff-create-password" className="text-xs font-bold text-[#17233D] select-none">
+                  Choose a Password *
+                </label>
+                <div className="relative flex items-center">
+                  <Lock className="w-4 h-4 text-[#667085] absolute left-3.5 pointer-events-none" />
+                  <input
+                    ref={passwordInputRef}
+                    id="staff-create-password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="At least 6 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isActivating || isLoading}
+                    required
+                    className={cn(
+                      "w-full pl-10 pr-12 py-2.5 sm:py-3 bg-white border border-[#E5E1DC] text-[#17233D] rounded-xl text-sm placeholder-[#98A2B3] transition-all focus:outline-none focus:border-[#C94F3D] focus:ring-2 focus:ring-[#C94F3D]/20 disabled:opacity-60 disabled:bg-[#F3E8DF]",
+                      errors.password ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""
+                    )}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-[#667085] hover:text-[#17233D] focus:outline-none focus:ring-2 focus:ring-[#C94F3D]/40 rounded-lg transition-colors cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <span className="text-xs font-semibold text-red-600 pl-1">{errors.password}</span>
+                )}
               </div>
 
-              {/* Confirm */}
-              <div className="relative">
-                <Input
-                  ref={confirmInputRef}
-                  label="Confirm Password *"
-                  type={showConfirm ? 'text' : 'password'}
-                  placeholder="Re-enter your password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  error={errors.confirm}
-                  disabled={isActivating || isLoading}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute right-3 top-8 text-slate-500 hover:text-slate-300 transition-colors"
-                  tabIndex={-1}
-                >
-                  {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+              {/* Confirm Password Field */}
+              <div className="w-full flex flex-col space-y-1 text-left">
+                <label htmlFor="staff-confirm-password" className="text-xs font-bold text-[#17233D] select-none">
+                  Confirm Password *
+                </label>
+                <div className="relative flex items-center">
+                  <Lock className="w-4 h-4 text-[#667085] absolute left-3.5 pointer-events-none" />
+                  <input
+                    ref={confirmInputRef}
+                    id="staff-confirm-password"
+                    type={showConfirm ? 'text' : 'password'}
+                    placeholder="Re-enter your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={isActivating || isLoading}
+                    required
+                    className={cn(
+                      "w-full pl-10 pr-12 py-2.5 sm:py-3 bg-white border border-[#E5E1DC] text-[#17233D] rounded-xl text-sm placeholder-[#98A2B3] transition-all focus:outline-none focus:border-[#C94F3D] focus:ring-2 focus:ring-[#C94F3D]/20 disabled:opacity-60 disabled:bg-[#F3E8DF]",
+                      errors.confirm ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""
+                    )}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm(!showConfirm)}
+                    aria-label={showConfirm ? "Hide password" : "Show password"}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-[#667085] hover:text-[#17233D] focus:outline-none focus:ring-2 focus:ring-[#C94F3D]/40 rounded-lg transition-colors cursor-pointer"
+                  >
+                    {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {errors.confirm && (
+                  <span className="text-xs font-semibold text-red-600 pl-1">{errors.confirm}</span>
+                )}
               </div>
 
               {errorMessage && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-left">
-                  <p className="text-xs font-semibold text-red-400">{errorMessage}</p>
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-left">
+                  <p className="text-xs font-semibold text-red-600">{errorMessage}</p>
                 </div>
               )}
 
-              <Button
+              <button
                 id="staff-activate-submit-button"
                 type="submit"
-                className="w-full flex items-center justify-center space-x-2"
-                isLoading={isActivating || isLoading}
                 disabled={isActivating || isLoading}
+                className="w-full h-12 mt-2 bg-[#C94F3D] hover:bg-[#A93E30] active:bg-[#923326] text-white font-bold text-sm rounded-xl flex items-center justify-center space-x-2 shadow-xs hover:shadow transition-all disabled:opacity-60 disabled:cursor-not-allowed group cursor-pointer"
               >
                 {isActivating ? (
                   <>
@@ -934,11 +1082,11 @@ export const StaffActivate: React.FC = () => {
                     <span>Activate Account &amp; Join</span>
                   </>
                 )}
-              </Button>
+              </button>
 
               {isActivating && stage !== 'idle' && (
-                <div className="flex items-center justify-center space-x-2 text-xs text-emerald-400 font-medium animate-pulse py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                <div className="flex items-center justify-center space-x-2 text-xs text-[#16866D] font-medium animate-pulse py-1.5 bg-[#E7F5EF] border border-[#16866D]/20 rounded-xl">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#16866D]" />
                   <span>{getStageLabel(stage)}</span>
                 </div>
               )}
@@ -953,51 +1101,71 @@ export const StaffActivate: React.FC = () => {
                   setErrorMessage('');
                   setErrors({});
                 }}
-                className="w-full text-center text-[10px] font-bold text-slate-500 hover:text-textPearl transition-colors pt-1"
+                className="w-full text-center text-xs font-semibold text-[#667085] hover:text-[#17233D] transition-colors pt-1 cursor-pointer"
               >
-                ← Use a Different Email
+                ← Use a Different Link or ID
               </button>
             </form>
           )}
 
           {/* ── State: Success ── */}
           {step === 'success' && invite && (
-            <div className="flex flex-col items-center text-center space-y-5 py-2">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shadow-xl shadow-emerald-500/20 animate-bounce">
-                <CheckCircle className="w-8 h-8 text-emerald-400" />
+            <div className="flex flex-col items-center text-center space-y-5 py-4">
+              <div className="w-16 h-16 rounded-full bg-[#E7F5EF] border border-[#16866D]/30 flex items-center justify-center shadow-md animate-bounce">
+                <CheckCircle className="w-8 h-8 text-[#16866D]" />
               </div>
               <div className="space-y-1.5">
-                <h2 className="text-lg font-display font-extrabold text-emerald-400">Account Activated!</h2>
-                <p className="text-[11px] text-slate-400 font-semibold leading-relaxed">
-                  Welcome to the team, <span className="text-textPearl">{invite.fullName}</span>.<br />
-                  Redirecting you to your <span className="text-primary capitalize">{invite.role}</span> dashboard...
+                <h2 className="text-xl font-display font-extrabold text-[#16866D]">Account Activated!</h2>
+                <p className="text-xs text-[#667085] leading-relaxed">
+                  Welcome to the team, <span className="font-bold text-[#17233D]">{invite.fullName}</span>.<br />
+                  Redirecting you to your <span className="font-bold text-[#C94F3D] capitalize">{invite.role}</span> dashboard...
                 </p>
               </div>
-              <div className="w-full bg-slate-800/40 rounded-full h-1 overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full animate-pulse" />
+              <div className="w-full bg-[#F3E8DF] rounded-full h-1.5 overflow-hidden">
+                <div className="h-full bg-[#16866D] rounded-full animate-pulse" />
               </div>
             </div>
           )}
-        </Card>
+        </div>
 
-        {/* Footer links */}
+        {/* Footer links below card */}
         {step !== 'success' && (
-          <div className="text-center space-y-2">
-            <p className="text-[10px] text-slate-600 font-semibold">
+          <div className="text-center space-y-1.5 pt-1">
+            <p className="text-xs text-[#667085] font-medium">
               Already have an account?{' '}
-              <Link to="/staff/login" className="text-primary hover:underline font-bold">
+              <Link to="/staff/login" className="text-[#C94F3D] hover:text-[#A93E30] hover:underline font-bold">
                 Sign In
               </Link>
             </p>
             <Link
               to="/"
-              className="block text-[10px] text-slate-600 hover:text-textPearl transition-colors font-bold uppercase tracking-wider"
+              className="block text-[11px] text-[#667085] hover:text-[#17233D] transition-colors font-semibold"
             >
               ← Back to Home
             </Link>
           </div>
         )}
-      </div>
+      </main>
+
+      {/* ========================================================================= */}
+      {/* 4. MINIMALIST FOOTER                                                      */}
+      {/* ========================================================================= */}
+      <footer className="w-full border-t border-[#E5E1DC] bg-[#F3E8DF]/60 relative z-20">
+        <div className="max-w-6xl mx-auto px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-medium text-[#667085]">
+          <div>
+            <span>&copy; {new Date().getFullYear()} RestaurantOS. All rights reserved.</span>
+          </div>
+          <div className="flex space-x-6">
+            <a href="#" className="hover:text-[#17233D] transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-[#17233D] transition-colors">Terms of Service</a>
+            <a href="#" className="hover:text-[#17233D] transition-colors">Support Desk</a>
+            <a href="#" className="hover:text-[#17233D] transition-colors">Contact Us</a>
+          </div>
+          <div>
+            <span className="text-[11px] text-[#667085]">Staff Activation • Secure Portal</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
