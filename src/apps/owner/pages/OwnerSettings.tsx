@@ -671,10 +671,10 @@ export const OwnerSettings: React.FC = () => {
 
   return (
     <div className="space-y-6 text-left select-none pb-24">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-850">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E5E0D9]">
         <div>
-          <h1 className="text-2xl font-display font-extrabold text-textPearl">Restaurant Profile & Settings</h1>
-          <p className="text-xs text-mutedAsh font-semibold">Update brand assets, hours of operation, and financial configs.</p>
+          <h1 className="text-2xl font-display font-extrabold text-[#17202A]">Restaurant Profile & Settings</h1>
+          <p className="text-xs text-[#52606D] font-semibold">Update brand assets, hours of operation, and financial configs.</p>
         </div>
 
         <div className="flex items-center space-x-2 text-xs font-semibold">

@@ -1,0 +1,463 @@
+/* ==========================================================================
+   RestaurantOS Owner Portal Light Design System
+   Visual redesign tokens, high-contrast typography, and surface remapping
+   ========================================================================== */
+
+.owner-theme {
+  /* Core HSL Tokens */
+  --color-background: 40 24% 96%;     /* #F8F6F2 warm cream workspace */
+  --color-surface: 0 0% 100%;         /* #FFFFFF pure white card */
+  --color-border: 34 17% 88%;         /* #E5E0D9 subtle warm border */
+  --color-primary: 10 56% 51%;        /* #C9533B terracotta brand */
+  --color-primary-hover: 9 54% 43%;   /* #A94332 deep terracotta */
+  --color-text: 212 29% 13%;          /* #17202A text primary */
+  --color-muted: 209 14% 37%;         /* #52606D text secondary */
+  --color-success: 158 71% 30%;       /* #16845B success */
+  --color-warning: 38 100% 43%;       /* #D98B00 warning */
+  --color-danger: 0 64% 56%;          /* #D64545 danger */
+  --color-info: 212 69% 49%;          /* #2878D4 info */
+  --glass-bg: #FFFFFF;
+  --glass-border: #E5E0D9;
+
+  background-color: #F8F6F2;
+  color: #17202A;
+}
+
+/* ==========================================================================
+   Surfaces: Cards, Panels, Modals, Dialogs
+   ========================================================================== */
+
+.owner-theme .card,
+.owner-theme .kds-card,
+.owner-theme .glass-panel {
+  background-color: #FFFFFF !important;
+  border-color: #E5E0D9 !important;
+  color: #17202A;
+  box-shadow: 0 1px 3px rgba(23, 32, 42, 0.05), 0 1px 2px rgba(23, 32, 42, 0.03) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 16px;
+}
+
+/* Remap dark slate backgrounds inside Owner Theme to clean surfaces */
+.owner-theme [class*="bg-slate-900/"],
+.owner-theme [class*="bg-slate-900\\/"],
+.owner-theme [class*="bg-slate-950/"],
+.owner-theme [class*="bg-slate-950\\/"] {
+  background-color: #FFFFFF !important;
+  border-color: #E5E0D9 !important;
+  color: #17202A;
+}
+
+/* Inner callout boxes, stat chips, and subtle secondary boxes */
+.owner-theme [class*="bg-slate-955"],
+.owner-theme [class*="bg-slate-900/10"],
+.owner-theme [class*="bg-slate-900/15"],
+.owner-theme [class*="bg-slate-900/20"],
+.owner-theme [class*="bg-slate-900/30"],
+.owner-theme [class*="bg-slate-950/20"],
+.owner-theme [class*="bg-slate-950/30"],
+.owner-theme [class*="bg-slate-950/40"],
+.owner-theme [class*="bg-slate-950/60"] {
+  background-color: #F8F6F2 !important;
+  border-color: #E5E0D9 !important;
+  color: #17202A;
+}
+
+/* ==========================================================================
+   Typography & Text High-Contrast Rules
+   ========================================================================== */
+
+/* Headings */
+.owner-theme h1,
+.owner-theme h2,
+.owner-theme h3,
+.owner-theme h4,
+.owner-theme h5,
+.owner-theme h6 {
+  color: #17202A !important;
+}
+
+/* Primary text remapping */
+.owner-theme .text-textPearl,
+.owner-theme .text-slate-100,
+.owner-theme .text-slate-200,
+.owner-theme .text-slate-300,
+.owner-theme .text-slate-350 {
+  color: #17202A !important;
+}
+
+/* Secondary descriptions & metadata */
+.owner-theme .text-mutedAsh,
+.owner-theme .text-slate-400,
+.owner-theme .text-slate-450,
+.owner-theme .text-slate-455 {
+  color: #52606D !important;
+}
+
+/* Muted secondary labels */
+.owner-theme .text-slate-500,
+.owner-theme .text-slate-505,
+.owner-theme .text-slate-550,
+.owner-theme .text-slate-600,
+.owner-theme .text-slate-700 {
+  color: #7B8794 !important;
+}
+
+/* Prevent white text on light surfaces while preserving text on dark containers */
+.owner-theme .text-white:not(.bg-primary *):not([class*="bg-[#12352D]"] *):not([class*="bg-[#C9533B]"] *):not([class*="bg-emerald-600"] *):not([class*="bg-red-600"] *):not([class*="bg-[#1A473C]"] *) {
+  color: #17202A;
+}
+
+/* High contrast metrics */
+.owner-theme .font-mono.text-textPearl,
+.owner-theme strong.text-textPearl,
+.owner-theme .font-black.text-textPearl {
+  color: #17202A !important;
+}
+
+/* ==========================================================================
+   Borders & Separators
+   ========================================================================== */
+
+.owner-theme .border-slate-700,
+.owner-theme .border-slate-750,
+.owner-theme .border-slate-800,
+.owner-theme .border-slate-850,
+.owner-theme .border-slate-855,
+.owner-theme .border-slate-900,
+.owner-theme [class*="border-slate-800/"],
+.owner-theme [class*="border-slate-850/"] {
+  border-color: #E5E0D9 !important;
+}
+
+.owner-theme hr {
+  border-color: #E5E0D9 !important;
+}
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+
+/* Primary buttons: terracotta */
+.owner-theme .btn-primary,
+.owner-theme button.bg-primary,
+.owner-theme a.bg-primary {
+  background-color: #C9533B !important;
+  color: #FFFFFF !important;
+  border-color: transparent !important;
+  box-shadow: 0 1px 3px rgba(201, 83, 59, 0.2) !important;
+}
+
+.owner-theme .btn-primary:hover,
+.owner-theme button.bg-primary:hover,
+.owner-theme a.bg-primary:hover {
+  background-color: #A94332 !important;
+}
+
+/* Secondary / Outline buttons */
+.owner-theme .btn-secondary,
+.owner-theme button[class*="bg-slate-800"],
+.owner-theme button[class*="border-slate-8"] {
+  background-color: #FFFFFF !important;
+  color: #17202A !important;
+  border-color: #E5E0D9 !important;
+}
+
+.owner-theme .btn-secondary:hover,
+.owner-theme button[class*="bg-slate-800"]:hover,
+.owner-theme button[class*="border-slate-8"]:hover {
+  background-color: #F8F6F2 !important;
+  border-color: #C9533B !important;
+  color: #C9533B !important;
+}
+
+/* Ghost buttons */
+.owner-theme button[class*="hover:bg-slate-900"] {
+  color: #52606D !important;
+}
+
+.owner-theme button[class*="hover:bg-slate-900"]:hover {
+  color: #17202A !important;
+  background-color: #F8F6F2 !important;
+}
+
+/* ==========================================================================
+   Form Controls: Inputs, Selects, Textareas, Options
+   ========================================================================== */
+
+.owner-theme input,
+.owner-theme select,
+.owner-theme textarea {
+  color: #17202A !important;
+  background-color: #FFFFFF !important;
+  border-color: #E5E0D9 !important;
+  border-radius: 10px;
+}
+
+.owner-theme input:focus,
+.owner-theme select:focus,
+.owner-theme textarea:focus {
+  border-color: #C9533B !important;
+  box-shadow: 0 0 0 2px rgba(201, 83, 59, 0.2) !important;
+  outline: none !important;
+}
+
+.owner-theme input::placeholder,
+.owner-theme textarea::placeholder {
+  color: #7B8794 !important;
+}
+
+.owner-theme option {
+  background-color: #FFFFFF !important;
+  color: #17202A !important;
+}
+
+/* ==========================================================================
+   Tables
+   ========================================================================== */
+
+.owner-theme table {
+  background-color: #FFFFFF !important;
+}
+
+.owner-theme thead,
+.owner-theme thead tr {
+  background-color: #FAF8F5 !important;
+  border-bottom: 1px solid #E5E0D9 !important;
+}
+
+.owner-theme th {
+  color: #52606D !important;
+  font-weight: 700 !important;
+  background-color: #FAF8F5 !important;
+}
+
+.owner-theme tbody tr {
+  background-color: #FFFFFF !important;
+  border-bottom: 1px solid #E5E0D9 !important;
+  transition: background-color 0.15s ease;
+}
+
+.owner-theme tbody tr:hover {
+  background-color: #F8F6F2 !important;
+}
+
+.owner-theme td {
+  color: #17202A !important;
+}
+
+/* ==========================================================================
+   Navigation Tabs
+   ========================================================================== */
+
+.owner-theme [class*="p-1"][class*="border"][class*="bg-slate-95"] {
+  background-color: #F8F6F2 !important;
+  border-color: #E5E0D9 !important;
+  border-radius: 12px;
+}
+
+.owner-theme button[class*="bg-slate-900"][class*="text-primary"],
+.owner-theme button[class*="bg-primary"][class*="text-background"] {
+  background-color: #FFFFFF !important;
+  color: #C9533B !important;
+  border-color: #E5E0D9 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  font-weight: 700 !important;
+}
+
+.owner-theme button[class*="text-slate-450"],
+.owner-theme button[class*="text-slate-400"] {
+  color: #52606D !important;
+}
+
+.owner-theme button[class*="text-slate-450"]:hover,
+.owner-theme button[class*="text-slate-400"]:hover {
+  color: #17202A !important;
+}
+
+/* ==========================================================================
+   Badges & Status Elements (High Contrast + Soft Backgrounds)
+   ========================================================================== */
+
+/* Success: Completed / Active / Available / Healthy */
+.owner-theme .text-emerald-400,
+.owner-theme .text-emerald-450,
+.owner-theme .text-emerald-500,
+.owner-theme .text-emerald-455 {
+  color: #16845B !important;
+}
+
+.owner-theme [class*="bg-emerald-500/10"],
+.owner-theme [class*="bg-emerald-950/10"] {
+  background-color: #E8F5EF !important;
+  border-color: #C6E7D8 !important;
+  color: #16845B !important;
+}
+
+/* Warning: Pending / Preparing / Low Stock / Reserved */
+.owner-theme .text-amber-400,
+.owner-theme .text-amber-500,
+.owner-theme .text-yellow-400,
+.owner-theme .text-yellow-500 {
+  color: #9A6200 !important;
+}
+
+.owner-theme [class*="bg-amber-500/10"],
+.owner-theme [class*="bg-yellow-950/10"],
+.owner-theme [class*="bg-yellow-500/10"] {
+  background-color: #FFF4DC !important;
+  border-color: #FDE6B0 !important;
+  color: #9A6200 !important;
+}
+
+/* Danger: Cancelled / Suspended / Occupied / Critical */
+.owner-theme .text-red-400,
+.owner-theme .text-red-500,
+.owner-theme .text-rose-455,
+.owner-theme .text-rose-500 {
+  color: #B92E2E !important;
+}
+
+.owner-theme [class*="bg-red-500/10"],
+.owner-theme [class*="bg-red-950/10"],
+.owner-theme [class*="bg-rose-500/10"] {
+  background-color: #FBEAE5 !important;
+  border-color: #F5CBC4 !important;
+  color: #B92E2E !important;
+}
+
+/* Info: Ready / Cleaning / Blue Indicators */
+.owner-theme .text-sky-400,
+.owner-theme .text-sky-500,
+.owner-theme .text-blue-400,
+.owner-theme .text-blue-500,
+.owner-theme .text-indigo-400 {
+  color: #1D5D9B !important;
+}
+
+.owner-theme [class*="bg-sky-500/10"],
+.owner-theme [class*="bg-blue-950/10"],
+.owner-theme [class*="bg-indigo-500/10"] {
+  background-color: #EAF2FB !important;
+  border-color: #CBE0F7 !important;
+  color: #1D5D9B !important;
+}
+
+/* Muted Badges */
+.owner-theme [class*="bg-slate-800"][class*="text-slate-400"],
+.owner-theme [class*="bg-slate-700/30"] {
+  background-color: #F0EDE8 !important;
+  color: #52606D !important;
+  border-color: #E5E0D9 !important;
+}
+
+/* ==========================================================================
+   Modals, Dialogs & Overlays
+   ========================================================================== */
+
+.owner-theme [class*="bg-slate-900"][class*="border-slate-800"][class*="backdrop-blur"] {
+  background-color: #FFFFFF !important;
+  border-color: #E5E0D9 !important;
+  color: #17202A !important;
+  box-shadow: 0 10px 25px -5px rgba(18, 53, 45, 0.15), 0 8px 10px -6px rgba(18, 53, 45, 0.1) !important;
+}
+
+/* Empty States */
+.owner-theme [class*="border-dashed"] {
+  background-color: #FFFFFF !important;
+  border-color: #E5E0D9 !important;
+}
+
+/* Modal overlays & dialog containers */
+.owner-theme [class*="bg-slate-950/70"],
+.owner-theme [class*="bg-slate-950\\/70"] {
+  background-color: rgba(18, 53, 45, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+/* Modal text and close buttons */
+.owner-theme .fixed.z-50 [class*="text-mutedAsh"] {
+  color: #52606D !important;
+}
+
+.owner-theme .fixed.z-50 button[aria-label="Close dialog"] {
+  color: #52606D !important;
+}
+
+.owner-theme .fixed.z-50 button[aria-label="Close dialog"]:hover {
+  color: #17202A !important;
+  background-color: #F8F6F2 !important;
+}
+
+/* Tabs containers */
+.owner-theme .flex.items-center.p-1.rounded-xl,
+.owner-theme [class*="p-1"][class*="rounded-xl"][class*="border-slate-800"] {
+  background-color: #FFFFFF !important;
+  border-color: #E5E0D9 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+.owner-theme .flex.items-center.p-1.rounded-xl button.bg-slate-900,
+.owner-theme .flex.items-center.p-1.rounded-xl button.text-primary,
+.owner-theme [class*="p-1"][class*="rounded-xl"] button.bg-slate-900,
+.owner-theme [class*="p-1"][class*="rounded-xl"] button.text-primary {
+  background-color: #C9533B !important;
+  color: #FFFFFF !important;
+  border-color: #C9533B !important;
+  box-shadow: 0 1px 3px rgba(201, 83, 59, 0.25) !important;
+}
+
+.owner-theme .flex.items-center.p-1.rounded-xl button.bg-slate-900 svg,
+.owner-theme .flex.items-center.p-1.rounded-xl button.text-primary svg,
+.owner-theme [class*="p-1"][class*="rounded-xl"] button.bg-slate-900 svg,
+.owner-theme [class*="p-1"][class*="rounded-xl"] button.text-primary svg {
+  color: #FFFFFF !important;
+}
+
+/* Badges variant mapping */
+.owner-theme span[class*="rounded-full"][class*="bg-primary/10"],
+.owner-theme span[class*="rounded-full"][class*="bg-primary\\/10"] {
+  background-color: #FBEAE5 !important;
+  color: #C9533B !important;
+  border-color: #F5CBC4 !important;
+}
+
+.owner-theme span[class*="rounded-full"][class*="bg-emerald-500/10"],
+.owner-theme span[class*="rounded-full"][class*="bg-emerald-500\\/10"] {
+  background-color: #E8F5EF !important;
+  color: #16845B !important;
+  border-color: #C6E7D8 !important;
+}
+
+.owner-theme span[class*="rounded-full"][class*="bg-yellow-500/10"],
+.owner-theme span[class*="rounded-full"][class*="bg-yellow-500\\/10"],
+.owner-theme span[class*="rounded-full"][class*="bg-amber-500/10"],
+.owner-theme span[class*="rounded-full"][class*="bg-amber-500\\/10"] {
+  background-color: #FFF4DC !important;
+  color: #9A6200 !important;
+  border-color: #FDE6B0 !important;
+}
+
+.owner-theme span[class*="rounded-full"][class*="bg-red-500/10"],
+.owner-theme span[class*="rounded-full"][class*="bg-red-500\\/10"] {
+  background-color: #FBEAE5 !important;
+  color: #B92E2E !important;
+  border-color: #F5CBC4 !important;
+}
+
+.owner-theme span[class*="rounded-full"][class*="bg-sky-500/10"],
+.owner-theme span[class*="rounded-full"][class*="bg-sky-500\\/10"] {
+  background-color: #EAF2FB !important;
+  color: #1D5D9B !important;
+  border-color: #CBE0F7 !important;
+}
+
+/* Hide dark glow orbs */
+.owner-theme [class*="blur-[120px]"],
+.owner-theme [class*="blur-[100px]"],
+.owner-theme [class*="blur-[80px]"],
+.owner-theme [class*="blur-[60px]"] {
+  display: none !important;
+}
+

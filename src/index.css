@@ -1,4 +1,5 @@
 @import './shared/design-system/styles.css';
+@import './shared/design-system/owner-theme.css';
 
 @tailwind base;
 @tailwind components;

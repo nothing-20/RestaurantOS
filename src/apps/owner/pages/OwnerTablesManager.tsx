@@ -506,12 +506,12 @@ export const OwnerTablesManager: React.FC = () => {
 
   const getStatusColorHex = (status: ITableItem['status']) => {
     switch (status) {
-      case 'Available': return 'border-emerald-500/50 bg-emerald-950/20 text-emerald-400 shadow-emerald-500/5';
-      case 'Occupied': return 'border-red-500/50 bg-red-950/20 text-red-400 shadow-red-500/5';
-      case 'Reserved': return 'border-yellow-500/50 bg-yellow-950/20 text-yellow-400 shadow-yellow-500/5';
-      case 'Cleaning': return 'border-blue-500/50 bg-blue-950/20 text-blue-400 shadow-blue-500/5';
-      case 'Disabled': return 'border-slate-800 bg-slate-900/30 text-slate-500 shadow-slate-900/5';
-      default: return 'border-cyan-500/50 bg-cyan-950/20 text-cyan-400 shadow-cyan-500/5';
+      case 'Available': return 'border-[#C6E7D8] bg-[#E8F5EF] text-[#16845B] shadow-sm';
+      case 'Occupied': return 'border-[#F5CBC4] bg-[#FBEAE5] text-[#C9533B] shadow-sm';
+      case 'Reserved': return 'border-[#FDE6B0] bg-[#FFF4DC] text-[#9A6200] shadow-sm';
+      case 'Cleaning': return 'border-[#CBE0F7] bg-[#EAF2FB] text-[#1D5D9B] shadow-sm';
+      case 'Disabled': return 'border-[#E5E0D9] bg-[#F8F6F2] text-[#7B8794] shadow-sm';
+      default: return 'border-[#CBE0F7] bg-[#EAF2FB] text-[#1D5D9B] shadow-sm';
     }
   };
 
@@ -685,28 +685,28 @@ export const OwnerTablesManager: React.FC = () => {
       {/* Seating Stats Widgets */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
-          { label: 'Total Tables', count: tables.length, color: 'text-slate-200 bg-slate-950/20 border-slate-850' },
-          { label: 'Available', count: tables.filter(t => t.status === 'Available').length, color: 'text-emerald-400 bg-emerald-950/10 border-emerald-900/30' },
-          { label: 'Occupied', count: tables.filter(t => t.status === 'Occupied').length, color: 'text-red-400 bg-red-950/10 border-red-900/30' },
-          { label: 'Reserved', count: tables.filter(t => t.status === 'Reserved').length, color: 'text-yellow-400 bg-yellow-950/10 border-yellow-900/30' },
-          { label: 'Cleaning', count: tables.filter(t => t.status === 'Cleaning').length, color: 'text-blue-400 bg-blue-950/10 border-blue-900/30' }
+          { label: 'Total Tables', count: tables.length, color: 'text-[#17202A] bg-white border-[#E5E0D9]' },
+          { label: 'Available', count: tables.filter(t => t.status === 'Available').length, color: 'text-[#16845B] bg-[#E8F5EF] border-[#C6E7D8]' },
+          { label: 'Occupied', count: tables.filter(t => t.status === 'Occupied').length, color: 'text-[#C9533B] bg-[#FBEAE5] border-[#F5CBC4]' },
+          { label: 'Reserved', count: tables.filter(t => t.status === 'Reserved').length, color: 'text-[#9A6200] bg-[#FFF4DC] border-[#FDE6B0]' },
+          { label: 'Cleaning', count: tables.filter(t => t.status === 'Cleaning').length, color: 'text-[#1D5D9B] bg-[#EAF2FB] border-[#CBE0F7]' }
         ].map((stat, idx) => (
-          <Card key={idx} className={`p-4 border ${stat.color} flex flex-col justify-between rounded-2xl`}>
-            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{stat.label}</span>
+          <Card key={idx} className={`p-4 border ${stat.color} flex flex-col justify-between rounded-2xl shadow-xs`}>
+            <span className="text-[10px] uppercase font-bold tracking-wider opacity-75">{stat.label}</span>
             <span className="text-2xl font-extrabold mt-1">{stat.count}</span>
           </Card>
         ))}
       </div>
 
       {/* Tabs list & View Configs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-800/60 pb-px gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-[#E5E0D9] pb-px gap-4">
         <div className="flex gap-2">
           <button
             onClick={() => { setActiveTab('visual'); setIsDesignMode(false); }}
             className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border outline-none ${
               activeTab === 'visual'
-                ? 'bg-primary text-background border-primary shadow-lg shadow-primary/10'
-                : 'bg-slate-900/40 text-slate-450 border-slate-850/80 hover:text-textPearl hover:bg-slate-900/65'
+                ? 'bg-[#C9533B] text-white border-[#C9533B] shadow-sm'
+                : 'bg-white text-[#52606D] border-[#E5E0D9] hover:text-[#17202A] hover:bg-[#F8F6F2]'
             }`}
           >
             <Compass className="w-3.5 h-3.5" />
@@ -716,8 +716,8 @@ export const OwnerTablesManager: React.FC = () => {
             onClick={() => { setActiveTab('list'); setIsDesignMode(false); }}
             className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border outline-none ${
               activeTab === 'list'
-                ? 'bg-primary text-background border-primary shadow-lg shadow-primary/10'
-                : 'bg-slate-900/40 text-slate-450 border-slate-850/80 hover:text-textPearl hover:bg-slate-900/65'
+                ? 'bg-[#C9533B] text-white border-[#C9533B] shadow-sm'
+                : 'bg-white text-[#52606D] border-[#E5E0D9] hover:text-[#17202A] hover:bg-[#F8F6F2]'
             }`}
           >
             <Grid className="w-3.5 h-3.5" />
@@ -844,8 +844,8 @@ export const OwnerTablesManager: React.FC = () => {
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
-                className={`w-full h-[600px] border border-slate-850/80 rounded-2xl relative overflow-hidden bg-slate-950/40 pattern-grid select-none ${
-                  isDesignMode ? 'cursor-crosshair border-dashed border-primary/45' : ''
+                className={`w-full h-[600px] border border-[#E5E0D9] rounded-2xl relative overflow-hidden bg-white pattern-grid select-none shadow-xs ${
+                  isDesignMode ? 'cursor-crosshair border-dashed border-[#C9533B]' : ''
                 }`}
               >
                 {tables.length === 0 ? (

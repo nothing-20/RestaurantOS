@@ -1294,12 +1294,12 @@ export const MenuManagement: React.FC = () => {
     <div className="space-y-6 select-none text-left">
       {/* Title */}
       <div>
-        <h1 className="text-2xl font-display font-extrabold text-textPearl">Menu Engine</h1>
-        <p className="text-xs text-mutedAsh">Setup categories, configure recipes, define prices, and verify live menus.</p>
+        <h1 className="text-2xl font-display font-extrabold text-[#17202A]">Menu Engine</h1>
+        <p className="text-xs text-[#52606D]">Setup categories, configure recipes, define prices, and verify live menus.</p>
       </div>
 
       {/* Tabs list */}
-      <div className="flex border-b border-slate-800/60 pb-px gap-2 flex-wrap">
+      <div className="flex border-b border-[#E5E0D9] pb-px gap-2 flex-wrap">
         {[
           { id: 'categories', label: 'Categories', icon: Layers },
           { id: 'items', label: 'Menu Items', icon: Grid },
@@ -1315,8 +1315,8 @@ export const MenuManagement: React.FC = () => {
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border outline-none ${
                 activeTab === tab.id
-                  ? 'bg-primary text-background border-primary shadow-lg shadow-primary/10'
-                  : 'bg-slate-900/40 text-slate-450 border-slate-850/80 hover:text-textPearl hover:bg-slate-900/65'
+                  ? 'bg-[#C9533B] text-white border-[#C9533B] shadow-sm'
+                  : 'bg-white text-[#52606D] border-[#E5E0D9] hover:text-[#17202A] hover:bg-[#F8F6F2]'
               }`}
             >
               {tab.id === 'availability' ? (

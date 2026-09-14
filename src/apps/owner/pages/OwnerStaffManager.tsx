@@ -492,8 +492,8 @@ export const OwnerStaffManager: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-display font-extrabold text-textPearl text-left">Staff Roster</h1>
-          <p className="text-xs text-mutedAsh text-left">
+          <h1 className="text-2xl font-display font-extrabold text-[#17202A] text-left">Staff Roster</h1>
+          <p className="text-xs text-[#52606D] text-left">
             Invite team members, manage access, and monitor activation status.
           </p>
         </div>
@@ -502,12 +502,12 @@ export const OwnerStaffManager: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={fetchEmployees}
-            className="border border-slate-800 text-slate-400 hover:text-textPearl"
+            className="border border-[#E5E0D9] bg-white text-[#52606D] hover:text-[#17202A] hover:bg-[#F8F6F2]"
             title="Refresh roster"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </Button>
-          <Button onClick={() => { setForm(BLANK_FORM); setFormErrors({}); setIsInviteOpen(true); }} className="flex items-center space-x-1.5">
+          <Button onClick={() => { setForm(BLANK_FORM); setFormErrors({}); setIsInviteOpen(true); }} className="flex items-center space-x-1.5 bg-[#C9533B] hover:bg-[#A94332] text-white">
             <Plus className="w-4 h-4" />
             <span>Invite Employee</span>
           </Button>
@@ -534,14 +534,14 @@ export const OwnerStaffManager: React.FC = () => {
               <button
                 key={s}
                 onClick={() => setFilterStatus(s)}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${
                   filterStatus === s
-                    ? 'bg-primary/15 text-primary border border-primary/30'
-                    : 'bg-slate-900/50 text-slate-500 border border-slate-800/50 hover:text-textPearl'
+                    ? 'bg-[#C9533B] text-white border-[#C9533B] shadow-xs'
+                    : 'bg-white text-[#52606D] border-[#E5E0D9] hover:text-[#17202A] hover:bg-[#F8F6F2]'
                 }`}
               >
                 {s === 'all' ? 'All' : STATUS_CONFIG[s]?.label ?? s}
-                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-slate-800/60 text-[9px]">{count}</span>
+                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] ${filterStatus === s ? 'bg-white/20 text-white' : 'bg-[#F8F6F2] text-[#7B8794]'}`}>{count}</span>
               </button>
             );
           })}

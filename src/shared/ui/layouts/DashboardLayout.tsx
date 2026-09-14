@@ -157,13 +157,26 @@ export const DashboardLayout: React.FC = () => {
   const isKitchen = location.pathname.startsWith('/dashboard/kitchen') || role === 'kitchen';
   const isWaiter = location.pathname.startsWith('/dashboard/waiter') || role === 'waiter';
   const isRestaurantTheme = isKitchen || isWaiter;
+  const isOwner = location.pathname.startsWith('/owner') || location.pathname.startsWith('/dashboard/owner') || (role === 'owner' && !isKitchen && !isWaiter);
 
   return (
-    <div className={`flex h-screen overflow-hidden ${isRestaurantTheme ? 'kds-theme bg-[#F7F4EE] text-[#18201D]' : 'bg-background'}`}>
+    <div className={`flex h-screen overflow-hidden ${
+      isOwner 
+        ? 'owner-theme bg-[#F8F6F2] text-[#17202A]' 
+        : isRestaurantTheme 
+        ? 'kds-theme bg-[#F7F4EE] text-[#18201D]' 
+        : 'bg-background'
+    }`}>
       {/* Sidebar Backdrop Overlay on Mobile/Tablet */}
       {isSidebarOpen && (
         <div 
-          className={`fixed inset-0 z-30 lg:hidden ${isRestaurantTheme ? 'bg-[#13241F]/60 backdrop-blur-sm' : 'bg-slate-950/80 backdrop-blur-sm'}`}
+          className={`fixed inset-0 z-30 lg:hidden ${
+            isOwner
+              ? 'bg-[#12352D]/60 backdrop-blur-sm'
+              : isRestaurantTheme 
+              ? 'bg-[#13241F]/60 backdrop-blur-sm' 
+              : 'bg-slate-950/80 backdrop-blur-sm'
+          }`}
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
@@ -172,7 +185,7 @@ export const DashboardLayout: React.FC = () => {
       <div className={`
         fixed inset-y-0 left-0 w-64 z-40 flex flex-col transition-transform duration-300 ease-in-out
         lg:static lg:translate-x-0
-        ${isRestaurantTheme ? 'bg-[#13241F] border-r border-[#1E3B33]' : 'bg-slate-950 border-r border-slate-900'}
+        ${isOwner ? 'bg-[#12352D] border-r border-[#1A473C]' : isRestaurantTheme ? 'bg-[#13241F] border-r border-[#1E3B33]' : 'bg-slate-950 border-r border-slate-900'}
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <Sidebar onClose={() => setIsSidebarOpen(false)} />
@@ -180,8 +193,8 @@ export const DashboardLayout: React.FC = () => {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <Navbar onMenuClick={() => setIsSidebarOpen(true)} />
-        <main className={`flex-1 overflow-x-hidden overflow-y-auto p-6 relative ${isRestaurantTheme ? 'bg-[#F7F4EE]' : 'bg-background'}`}>
-          {!isRestaurantTheme && (
+        <main className={`flex-1 overflow-x-hidden overflow-y-auto p-6 relative ${isOwner ? 'bg-[#F8F6F2]' : isRestaurantTheme ? 'bg-[#F7F4EE]' : 'bg-background'}`}>
+          {!isRestaurantTheme && !isOwner && (
             <>
               <div className="absolute top-[10%] right-[5%] w-[400px] h-[400px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
               <div className="absolute bottom-[10%] left-[5%] w-[300px] h-[300px] rounded-full bg-accent/5 blur-[100px] pointer-events-none" />

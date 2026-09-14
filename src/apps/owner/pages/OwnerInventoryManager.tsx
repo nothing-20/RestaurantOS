@@ -1053,7 +1053,7 @@ export const OwnerInventoryManager: React.FC = () => {
             <Trash className="w-3.5 h-3.5" />
             <span>Record Waste</span>
           </Button>
-          <Button onClick={handleOpenAddIngredient} className="flex items-center gap-1.5 text-xs font-bold py-2 px-3 bg-gradient-to-r from-primary to-amber-600 hover:from-primary-hover hover:to-amber-700 text-background">
+          <Button onClick={handleOpenAddIngredient} className="flex items-center gap-1.5 text-xs font-bold py-2 px-3 bg-[#C9533B] hover:bg-[#A94332] text-white">
             <Plus className="w-3.5 h-3.5" />
             <span>Add Stock Ingredient</span>
           </Button>
@@ -1070,42 +1070,42 @@ export const OwnerInventoryManager: React.FC = () => {
       {activeTab === 'overview' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="p-5 border-slate-850 bg-slate-900/30 flex items-center justify-between">
+            <Card className="p-5 border-[#E5E0D9] bg-white shadow-xs flex items-center justify-between">
               <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Kitchen Stock Value</span>
-                <strong className="text-xl font-mono text-textPearl font-extrabold">{formatPrice(stockMetrics.value)}</strong>
+                <span className="text-[10px] text-[#7B8794] font-bold uppercase tracking-wider block">Kitchen Stock Value</span>
+                <strong className="text-xl font-mono text-[#17202A] font-extrabold">{formatPrice(stockMetrics.value)}</strong>
               </div>
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/25 rounded-2xl text-emerald-400">
+              <div className="p-3 bg-[#E8F5EF] border border-[#C6E7D8] rounded-2xl text-[#16845B]">
                 <TrendingUp className="w-6 h-6" />
               </div>
             </Card>
 
-            <Card className="p-5 border-slate-850 bg-slate-900/30 flex items-center justify-between">
+            <Card className="p-5 border-[#E5E0D9] bg-white shadow-xs flex items-center justify-between">
               <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Low Stock Warnings</span>
-                <strong className="text-xl font-mono text-amber-500 font-extrabold">{stockMetrics.low + stockMetrics.critical}</strong>
+                <span className="text-[10px] text-[#7B8794] font-bold uppercase tracking-wider block">Low Stock Warnings</span>
+                <strong className="text-xl font-mono text-[#9A6200] font-extrabold">{stockMetrics.low + stockMetrics.critical}</strong>
               </div>
-              <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-2xl text-amber-400">
+              <div className="p-3 bg-[#FFF4DC] border border-[#FDE6B0] rounded-2xl text-[#D98B00]">
                 <AlertTriangle className="w-6 h-6" />
               </div>
             </Card>
 
-            <Card className="p-5 border-slate-850 bg-slate-900/30 flex items-center justify-between">
+            <Card className="p-5 border-[#E5E0D9] bg-white shadow-xs flex items-center justify-between">
               <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Out of Stock</span>
-                <strong className="text-xl font-mono text-red-500 font-extrabold">{stockMetrics.out}</strong>
+                <span className="text-[10px] text-[#7B8794] font-bold uppercase tracking-wider block">Out of Stock</span>
+                <strong className="text-xl font-mono text-[#B92E2E] font-extrabold">{stockMetrics.out}</strong>
               </div>
-              <div className="p-3 bg-red-500/10 border border-red-500/25 rounded-2xl text-red-400">
+              <div className="p-3 bg-[#FBEAE5] border border-[#F5CBC4] rounded-2xl text-[#D64545]">
                 <AlertOctagon className="w-6 h-6 animate-pulse" />
               </div>
             </Card>
 
-            <Card className="p-5 border-slate-850 bg-slate-900/30 flex items-center justify-between">
+            <Card className="p-5 border-[#E5E0D9] bg-white shadow-xs flex items-center justify-between">
               <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Spoilage & Waste Lost</span>
-                <strong className="text-xl font-mono text-slate-400 font-extrabold">{formatPrice(stockMetrics.wasteCost)}</strong>
+                <span className="text-[10px] text-[#7B8794] font-bold uppercase tracking-wider block">Spoilage & Waste Lost</span>
+                <strong className="text-xl font-mono text-[#52606D] font-extrabold">{formatPrice(stockMetrics.wasteCost)}</strong>
               </div>
-              <div className="p-3 bg-slate-800 border border-slate-750 rounded-2xl text-slate-400">
+              <div className="p-3 bg-[#F8F6F2] border border-[#E5E0D9] rounded-2xl text-[#7B8794]">
                 <Trash className="w-6 h-6" />
               </div>
             </Card>

@@ -999,43 +999,43 @@ export const OwnerAnalytics: React.FC = () => {
       {activeTab === 'overview' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="p-5 border-slate-850 bg-slate-900/30">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Today's Revenue</span>
-              <h2 className="text-2xl font-display font-extrabold text-textPearl mt-1">{formatPrice(biOverview.totalRev)}</h2>
-              <span className="text-[9px] text-slate-550 block font-semibold mt-1.5">AOV: {formatPrice(biOverview.aov)}</span>
+            <Card className="p-5 border-[#E5E0D9] bg-white shadow-xs">
+              <span className="text-[10px] text-[#7B8794] font-bold uppercase tracking-wider block">Today's Revenue</span>
+              <h2 className="text-2xl font-display font-extrabold text-[#16845B] mt-1">{formatPrice(biOverview.totalRev)}</h2>
+              <span className="text-[9px] text-[#52606D] block font-semibold mt-1.5">AOV: {formatPrice(biOverview.aov)}</span>
             </Card>
 
-            <Card className="p-5 border-slate-850 bg-slate-900/30">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Kitchen Turnaround</span>
-              <h2 className="text-2xl font-display font-extrabold text-textPearl mt-1">{biOverview.avgPrep} mins</h2>
-              <span className="text-[9px] text-slate-550 block font-semibold mt-1.5">Average ticket cooking speed</span>
+            <Card className="p-5 border-[#E5E0D9] bg-white shadow-xs">
+              <span className="text-[10px] text-[#7B8794] font-bold uppercase tracking-wider block">Kitchen Turnaround</span>
+              <h2 className="text-2xl font-display font-extrabold text-[#17202A] mt-1">{biOverview.avgPrep} mins</h2>
+              <span className="text-[9px] text-[#52606D] block font-semibold mt-1.5">Average ticket cooking speed</span>
             </Card>
 
-            <Card className="p-5 border-slate-850 bg-slate-900/30">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Customer Satisfaction</span>
-              <h2 className="text-2xl font-display font-extrabold text-textPearl mt-1 flex items-center gap-1">
+            <Card className="p-5 border-[#E5E0D9] bg-white shadow-xs">
+              <span className="text-[10px] text-[#7B8794] font-bold uppercase tracking-wider block">Customer Satisfaction</span>
+              <h2 className="text-2xl font-display font-extrabold text-[#17202A] mt-1 flex items-center gap-1">
                 <span>{biOverview.avgRating.toFixed(1)}</span>
                 <Star className="w-5 h-5 text-amber-500 fill-current shrink-0" />
               </h2>
-              <span className="text-[9px] text-slate-550 block font-semibold mt-1.5">{filteredData.ratings.length} reviews submitted</span>
+              <span className="text-[9px] text-[#52606D] block font-semibold mt-1.5">{filteredData.ratings.length} reviews submitted</span>
             </Card>
 
-            <Card className="p-5 border-slate-850 bg-slate-900/30">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Safety Stock alerts</span>
-              <h2 className="text-2xl font-display font-extrabold text-amber-550 mt-1">{biOverview.lowStockCount} items</h2>
-              <span className="text-[9px] text-slate-550 block font-semibold mt-1.5">Ingredients below threshold levels</span>
+            <Card className="p-5 border-[#E5E0D9] bg-white shadow-xs">
+              <span className="text-[10px] text-[#7B8794] font-bold uppercase tracking-wider block">Safety Stock alerts</span>
+              <h2 className="text-2xl font-display font-extrabold text-[#D98B00] mt-1">{biOverview.lowStockCount} items</h2>
+              <span className="text-[9px] text-[#52606D] block font-semibold mt-1.5">Ingredients below threshold levels</span>
             </Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Health dial panel */}
-            <Card className="p-5 border-slate-850 bg-slate-900/30 flex flex-col items-center justify-center text-center space-y-4">
-              <h3 className="text-xs font-bold text-textPearl uppercase tracking-wider block w-full text-left">
+            <Card className="p-5 border-[#E5E0D9] bg-white shadow-xs flex flex-col items-center justify-center text-center space-y-4">
+              <h3 className="text-xs font-bold text-[#17202A] uppercase tracking-wider block w-full text-left">
                 Business Health score
               </h3>
               <div className="relative w-36 h-36 flex items-center justify-center">
                 <svg className="w-full h-full transform -rotate-95" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="40" stroke="#1e293b" strokeWidth="8" fill="transparent" />
+                  <circle cx="50" cy="50" r="40" stroke="#E5E0D9" strokeWidth="8" fill="transparent" />
                   <circle cx="50" cy="50" r="40" stroke="#f59e0b" strokeWidth="8" fill="transparent"
                     strokeDasharray={251.2}
                     strokeDashoffset={251.2 - (251.2 * healthScore.score) / 100}
@@ -1043,8 +1043,8 @@ export const OwnerAnalytics: React.FC = () => {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center space-y-0.5">
-                  <span className="text-3xl font-display font-extrabold text-textPearl">{healthScore.score}</span>
-                  <span className="text-[9px] text-slate-500 font-bold block uppercase tracking-widest">Score</span>
+                  <span className="text-3xl font-display font-extrabold text-[#17202A]">{healthScore.score}</span>
+                  <span className="text-[9px] text-[#7B8794] font-bold block uppercase tracking-widest">Score</span>
                 </div>
               </div>
               <div className={`px-4.5 py-1.5 border rounded-2xl text-[11px] font-extrabold uppercase tracking-widest ${healthScore.color}`}>

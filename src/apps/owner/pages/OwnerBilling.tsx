@@ -1012,18 +1012,16 @@ export const OwnerBilling: React.FC = () => {
 
   return (
     <div className="space-y-6 text-left select-none relative">
-      <div className="absolute top-[-10%] left-[-15%] w-[600px] h-[600px] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
-
       {/* Cash Drawer Control Strip */}
-      <div className="relative z-10 bg-slate-950/60 border border-slate-850 rounded-2xl p-4 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div className="relative z-10 bg-white border border-[#E5E0D9] shadow-xs rounded-2xl p-4 flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center space-x-3">
-          <div className={`w-3.5 h-3.5 rounded-full ${activeShift ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+          <div className={`w-3.5 h-3.5 rounded-full ${activeShift ? 'bg-[#16845B] animate-pulse' : 'bg-[#D64545]'}`} />
           <div>
-            <span className="text-xs font-bold text-textPearl">
+            <span className="text-xs font-bold text-[#17202A]">
               Drawer Status: {activeShift ? `Shift Open (Operator: ${activeShift.operator})` : 'Closed'}
             </span>
             {activeShift && (
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[10px] text-[#52606D]">
                 Opened at: {formatTimestamp(activeShift.openingTime)} | Expected Cash: {formatVal(shiftCalculations.expectedClosingCash)}
               </p>
             )}
@@ -1037,7 +1035,7 @@ export const OwnerBilling: React.FC = () => {
                 variant="outline" 
                 size="sm" 
                 onClick={() => setIsClosingShiftOpen(true)}
-                className="border-red-500/20 hover:border-red-500 bg-red-500/5 hover:bg-red-500/10 text-red-400 font-bold"
+                className="border-[#F5CBC4] hover:border-[#D64545] bg-[#FBEAE5] text-[#B92E2E] font-bold"
               >
                 <Pause className="w-3.5 h-3.5 mr-1" />
                 Close Drawer Shift
@@ -1047,7 +1045,7 @@ export const OwnerBilling: React.FC = () => {
                 variant="primary" 
                 size="sm" 
                 onClick={() => setIsOpeningShiftOpen(true)}
-                className="font-bold bg-emerald-500 hover:bg-emerald-600 text-slate-950"
+                className="font-bold bg-[#16845B] hover:bg-[#126b4a] text-white"
               >
                 <Play className="w-3.5 h-3.5 mr-1" />
                 Open Drawer Shift
@@ -1062,29 +1060,29 @@ export const OwnerBilling: React.FC = () => {
       {/* Title */}
       <div className="flex flex-col xl:flex-row justify-between xl:items-center gap-6 relative z-10">
         <div>
-          <h1 className="text-2xl font-display font-extrabold text-textPearl flex items-center gap-2">
-            <Receipt className="w-6 h-6 text-primary" />
+          <h1 className="text-2xl font-display font-extrabold text-[#17202A] flex items-center gap-2">
+            <Receipt className="w-6 h-6 text-[#C9533B]" />
             POS & Billing Desk
           </h1>
-          <p className="text-xs text-mutedAsh font-semibold">Central financial desk: generate invoices, manage discount rates, process cash drawers and refunds.</p>
+          <p className="text-xs text-[#52606D] font-semibold">Central financial desk: generate invoices, manage discount rates, process cash drawers and refunds.</p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1 max-w-4xl">
-          <Card className="p-3 border-slate-855 bg-slate-900/30 flex flex-col">
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Today's Revenue</span>
-            <span className="text-base font-extrabold text-emerald-455 mt-0.5">{formatVal(stats.revenue)}</span>
+          <Card className="p-3 border-[#E5E0D9] bg-white flex flex-col shadow-xs">
+            <span className="text-[10px] text-[#7B8794] font-bold uppercase tracking-wider">Today's Revenue</span>
+            <span className="text-base font-extrabold text-[#16845B] mt-0.5">{formatVal(stats.revenue)}</span>
           </Card>
-          <Card className="p-3 border-slate-855 bg-slate-900/30 flex flex-col">
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Tax Collected</span>
-            <span className="text-base font-extrabold text-textPearl mt-0.5">{formatVal(stats.tax)}</span>
+          <Card className="p-3 border-[#E5E0D9] bg-white flex flex-col shadow-xs">
+            <span className="text-[10px] text-[#7B8794] font-bold uppercase tracking-wider">Tax Collected</span>
+            <span className="text-base font-extrabold text-[#17202A] mt-0.5">{formatVal(stats.tax)}</span>
           </Card>
-          <Card className="p-3 border-slate-855 bg-slate-900/30 flex flex-col">
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Discounts Applied</span>
-            <span className="text-base font-extrabold text-red-400 mt-0.5">{formatVal(stats.discount)}</span>
+          <Card className="p-3 border-[#E5E0D9] bg-white flex flex-col shadow-xs">
+            <span className="text-[10px] text-[#7B8794] font-bold uppercase tracking-wider">Discounts Applied</span>
+            <span className="text-base font-extrabold text-[#C9533B] mt-0.5">{formatVal(stats.discount)}</span>
           </Card>
-          <Card className="p-3 border-slate-855 bg-slate-900/30 flex flex-col">
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Avg Bill Value</span>
-            <span className="text-base font-extrabold text-primary mt-0.5">{formatVal(stats.avgBill)}</span>
+          <Card className="p-3 border-[#E5E0D9] bg-white flex flex-col shadow-xs">
+            <span className="text-[10px] text-[#7B8794] font-bold uppercase tracking-wider">Avg Bill Value</span>
+            <span className="text-base font-extrabold text-[#17202A] mt-0.5">{formatVal(stats.avgBill)}</span>
           </Card>
         </div>
       </div>

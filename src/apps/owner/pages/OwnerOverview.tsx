@@ -752,11 +752,11 @@ export const OwnerOverview: React.FC = () => {
     }).join(' ');
 
     return (
-      <svg className="w-28 h-8 text-amber-500 overflow-visible" viewBox={`0 0 ${w} ${h}`}>
+      <svg className="w-28 h-8 text-[#16845B] overflow-visible" viewBox={`0 0 ${w} ${h}`}>
         <polyline
           fill="none"
           stroke="currentColor"
-          strokeWidth="1.5"
+          strokeWidth="1.75"
           points={points}
         />
       </svg>
@@ -1012,22 +1012,22 @@ export const OwnerOverview: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 text-left select-none text-textPearl">
+    <div className="space-y-6 text-left select-none text-[#17202A]">
       
       {/* Breadcrumb Navigation */}
       {view !== 'dashboard' && (
-        <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500 mb-6 bg-slate-900/30 p-3.5 border border-slate-850 rounded-2xl">
-          <button onClick={() => setView('dashboard')} className="hover:text-primary transition-colors text-slate-400">Owner Dashboard</button>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+        <div className="flex items-center space-x-2 text-xs font-semibold text-[#52606D] mb-6 bg-white p-3.5 border border-[#E5E0D9] rounded-2xl shadow-sm">
+          <button onClick={() => setView('dashboard')} className="hover:text-[#C9533B] transition-colors text-[#52606D]">Owner Dashboard</button>
+          <ChevronRight className="w-3.5 h-3.5 text-[#7B8794]" />
           {view === 'annual' ? (
-            <span className="text-textPearl font-bold">Annual Revenue</span>
+            <span className="text-[#17202A] font-bold">Annual Revenue</span>
           ) : view === 'reservations' ? (
-            <span className="text-textPearl font-bold">Reservation Management</span>
+            <span className="text-[#17202A] font-bold">Reservation Management</span>
           ) : (
             <>
-              <button onClick={() => setView('annual')} className="hover:text-primary transition-colors text-slate-400">Annual Revenue</button>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-              <span className="text-textPearl font-bold">{selectedMonthData.label}</span>
+              <button onClick={() => setView('annual')} className="hover:text-[#C9533B] transition-colors text-[#52606D]">Annual Revenue</button>
+              <ChevronRight className="w-3.5 h-3.5 text-[#7B8794]" />
+              <span className="text-[#17202A] font-bold">{selectedMonthData.label}</span>
             </>
           )}
         </div>
@@ -1037,17 +1037,17 @@ export const OwnerOverview: React.FC = () => {
         <>
       
       {/* 1. Header & Greetings Insight (Executive Greetings Card) */}
-      <div className="glass-panel p-6 rounded-3xl border border-slate-800/40 relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div className="bg-white p-6 rounded-2xl border border-[#E5E0D9] shadow-sm relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="space-y-2 max-w-3xl">
           <div className="flex items-center space-x-2.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Live Executive Feed</span>
+            <div className="w-2.5 h-2.5 rounded-full bg-[#16845B] animate-pulse" />
+            <span className="text-[10px] uppercase font-bold tracking-widest text-[#7B8794]">Live Executive Feed</span>
           </div>
-          <h1 className="text-3xl font-display font-extrabold text-textPearl flex items-center gap-2">
-            <Sparkles className="w-7 h-7 text-amber-500" />
+          <h1 className="text-2xl md:text-3xl font-display font-extrabold text-[#17202A] flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-[#C9533B]" />
             <span>{greeting.title}</span>
           </h1>
-          <p className="text-xs text-mutedAsh leading-relaxed font-semibold">
+          <p className="text-xs text-[#52606D] leading-relaxed font-semibold">
             {greeting.desc}
           </p>
         </div>
@@ -1058,9 +1058,9 @@ export const OwnerOverview: React.FC = () => {
             size="sm" 
             variant="outline" 
             onClick={() => setView('reservations')}
-            className="border-slate-800 text-xs font-semibold text-slate-300 hover:border-primary hover:text-primary flex items-center space-x-1.5"
+            className="border-[#E5E0D9] text-xs font-semibold text-[#17202A] hover:border-[#C9533B] hover:text-[#C9533B] flex items-center space-x-1.5"
           >
-            <Calendar className="w-4 h-4 text-amber-500" />
+            <Calendar className="w-4 h-4 text-[#D98B00]" />
             <span>Reservation Manager</span>
           </Button>
           {featureFlags.strategy && (
@@ -1068,9 +1068,9 @@ export const OwnerOverview: React.FC = () => {
               size="sm" 
               variant="outline" 
               onClick={() => navigate('/dashboard/owner/strategy')}
-              className="border-slate-800 text-xs font-semibold text-slate-300 hover:border-primary hover:text-primary flex items-center space-x-1.5"
+              className="border-[#E5E0D9] text-xs font-semibold text-[#17202A] hover:border-[#C9533B] hover:text-[#C9533B] flex items-center space-x-1.5"
             >
-              <Compass className="w-4 h-4" />
+              <Compass className="w-4 h-4 text-[#2878D4]" />
               <span>Strategy Center</span>
             </Button>
           )}
@@ -1083,7 +1083,7 @@ export const OwnerOverview: React.FC = () => {
                   .then(() => toast.success('Executive Intelligence sync complete.', { id: 'force-compile' }))
                   .catch(() => toast.error('Failed to sync intelligence.', { id: 'force-compile' }));
               }}
-              className="text-xs font-semibold flex items-center space-x-1.5"
+              className="text-xs font-semibold flex items-center space-x-1.5 bg-[#C9533B] text-white hover:bg-[#A94332]"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Audit System</span>
@@ -1096,66 +1096,66 @@ export const OwnerOverview: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         
         {/* KPI 1: Business Health Score */}
-        <Card className="p-5 border-slate-850 bg-slate-900/40 relative overflow-hidden flex flex-col justify-between h-44 hover:border-emerald-500/20 transition-all duration-300">
+        <Card className="p-5 border-[#E5E0D9] bg-white relative overflow-hidden flex flex-col justify-between h-44 hover:border-[#16845B]/40 transition-all duration-300 shadow-sm rounded-2xl">
           <div className="flex justify-between items-start">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-455">Business Health</span>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-500/10 border border-emerald-500/20`}>
-              <Award className="w-4 h-4 text-emerald-500" />
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[#52606D]">Business Health</span>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#E8F5EF] border border-[#C6E7D8]">
+              <Award className="w-4 h-4 text-[#16845B]" />
             </div>
           </div>
           <div className="my-2 flex items-baseline space-x-2">
-            <span className="text-4xl font-display font-black text-textPearl">{compiledHealth.score}</span>
-            <span className="text-[10px] text-slate-505">/ 100</span>
+            <span className="text-4xl font-display font-black text-[#17202A]">{compiledHealth.score}</span>
+            <span className="text-[10px] text-[#7B8794]">/ 100</span>
           </div>
-          <div className="flex justify-between items-center text-[10px] font-bold border-t border-slate-850/65 pt-2.5">
-            <span className="text-emerald-400 uppercase tracking-widest">{compiledHealth.label}</span>
-            <span className="text-slate-455">+3% vs last week</span>
+          <div className="flex justify-between items-center text-[10px] font-bold border-t border-[#E5E0D9] pt-2.5">
+            <span className="text-[#16845B] uppercase tracking-widest">{compiledHealth.label}</span>
+            <span className="text-[#52606D]">+3% vs last week</span>
           </div>
         </Card>
 
         {/* KPI 2: Revenue Summary */}
-        <Card className="p-5 border-slate-850 bg-slate-900/40 relative overflow-hidden flex flex-col justify-between h-44 hover:border-amber-500/20 transition-all duration-300">
+        <Card className="p-5 border-[#E5E0D9] bg-white relative overflow-hidden flex flex-col justify-between h-44 hover:border-[#16845B]/40 transition-all duration-300 shadow-sm rounded-2xl">
           <div className="flex justify-between items-start">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-455">Today's Revenue</span>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-amber-500/10 border border-amber-500/20">
-              <DollarSign className="w-4 h-4 text-amber-500" />
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[#52606D]">Today's Revenue</span>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#E8F5EF] border border-[#C6E7D8]">
+              <DollarSign className="w-4 h-4 text-[#16845B]" />
             </div>
           </div>
           <div className="my-2 flex items-center justify-between">
-            <h2 className="text-3xl font-display font-extrabold text-textPearl">{formatPrice(todaySales)}</h2>
+            <h2 className="text-2xl xl:text-3xl font-display font-extrabold text-[#17202A]">{formatPrice(todaySales)}</h2>
             <div className="shrink-0">{renderSparkline()}</div>
           </div>
-          <div className="flex justify-between items-center text-[10px] font-bold border-t border-slate-850/65 pt-2.5">
-            <span className={revenueChangePercent >= 0 ? 'text-emerald-450' : 'text-rose-455'}>
+          <div className="flex justify-between items-center text-[10px] font-bold border-t border-[#E5E0D9] pt-2.5">
+            <span className={revenueChangePercent >= 0 ? 'text-[#16845B]' : 'text-[#D64545]'}>
               {revenueChangePercent >= 0 ? `+${revenueChangePercent}%` : `${revenueChangePercent}%`} vs yesterday
             </span>
-            <span className="text-slate-455">AOV: {formatPrice(averageOrderValue)}</span>
+            <span className="text-[#52606D]">AOV: {formatPrice(averageOrderValue)}</span>
           </div>
         </Card>
 
         {/* KPI 5: Annual Revenue Analysis */}
-        <Card className="p-5 border-slate-850 bg-slate-900/40 relative overflow-hidden flex flex-col justify-between h-44 hover:border-emerald-500/20 transition-all duration-300">
+        <Card className="p-5 border-[#E5E0D9] bg-white relative overflow-hidden flex flex-col justify-between h-44 hover:border-[#2878D4]/40 transition-all duration-300 shadow-sm rounded-2xl">
           <div className="flex justify-between items-start">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-455">Annual Revenue Analysis</span>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-500/10 border border-emerald-500/20">
-              <Calendar className="w-4 h-4 text-emerald-500" />
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[#52606D]">Annual Revenue Analysis</span>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#EAF2FB] border border-[#CBE0F7]">
+              <Calendar className="w-4 h-4 text-[#2878D4]" />
             </div>
           </div>
           <div className="my-1.5 space-y-1">
-            <div className="flex justify-between text-xs font-semibold text-slate-400">
+            <div className="flex justify-between text-xs font-semibold text-[#52606D]">
               <span>FY {currentFY}</span>
-              <strong className="text-textPearl">{formatPrice(currentFYMetrics.net)}</strong>
+              <strong className="text-[#17202A]">{formatPrice(currentFYMetrics.net)}</strong>
             </div>
-            <div className="flex justify-between text-[10px] text-slate-500 font-semibold">
+            <div className="flex justify-between text-[10px] text-[#7B8794] font-semibold">
               <span>Orders: {currentFYMetrics.count}</span>
               <span>Avg: {formatPrice(currentFYMetrics.avgMonthly)}/mo</span>
             </div>
           </div>
-          <div className="border-t border-slate-850/65 pt-2 flex justify-end">
+          <div className="border-t border-[#E5E0D9] pt-2 flex justify-end">
             <Button
               size="sm"
               onClick={() => setView('annual')}
-              className="bg-emerald-500 text-slate-950 font-black hover:bg-emerald-600 rounded-lg text-[9px] px-2.5 py-1.5 flex items-center space-x-1"
+              className="bg-[#EAF2FB] text-[#1D5D9B] hover:bg-[#1D5D9B] hover:text-white border border-[#CBE0F7] font-bold rounded-lg text-[9px] px-2.5 py-1.5 flex items-center space-x-1 transition-colors"
             >
               <span>View Annual Analysis</span>
               <ChevronRight className="w-3 h-3" />
@@ -1164,38 +1164,38 @@ export const OwnerOverview: React.FC = () => {
         </Card>
 
         {/* KPI 3: Live Operations */}
-        <Card className="p-5 border-slate-850 bg-slate-900/40 relative overflow-hidden flex flex-col justify-between h-44 hover:border-primary/20 transition-all duration-300">
+        <Card className="p-5 border-[#E5E0D9] bg-white relative overflow-hidden flex flex-col justify-between h-44 hover:border-[#C9533B]/40 transition-all duration-300 shadow-sm rounded-2xl">
           <div className="flex justify-between items-start">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-455">Live Operations</span>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10 border border-primary/20">
-              <Activity className="w-4 h-4 text-primary" />
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[#52606D]">Live Operations</span>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#FBEAE5] border border-[#F5CBC4]">
+              <Activity className="w-4 h-4 text-[#C9533B]" />
             </div>
           </div>
           <div className="my-2 flex items-baseline space-x-2">
-            <span className="text-4xl font-display font-black text-textPearl">{activeOrdersCount}</span>
-            <span className="text-xs text-slate-505 font-semibold">Active Orders</span>
+            <span className="text-4xl font-display font-black text-[#17202A]">{activeOrdersCount}</span>
+            <span className="text-xs text-[#52606D] font-semibold">Active Orders</span>
           </div>
-          <div className="flex justify-between items-center text-[10px] font-bold border-t border-slate-850/65 pt-2.5">
+          <div className="flex justify-between items-center text-[10px] font-bold border-t border-[#E5E0D9] pt-2.5">
             <span className={`${kitchenLoadStatus.color}`}>{kitchenLoadStatus.label}</span>
-            <span className="text-slate-455">{activeOccupiedTables} Occupied Tables</span>
+            <span className="text-[#52606D]">{activeOccupiedTables} Occupied Tables</span>
           </div>
         </Card>
 
         {/* KPI 4: Customer Experience */}
-        <Card className="p-5 border-slate-850 bg-slate-900/40 relative overflow-hidden flex flex-col justify-between h-44 hover:border-sky-500/20 transition-all duration-300">
+        <Card className="p-5 border-[#E5E0D9] bg-white relative overflow-hidden flex flex-col justify-between h-44 hover:border-[#D98B00]/40 transition-all duration-300 shadow-sm rounded-2xl">
           <div className="flex justify-between items-start">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-455">Customer Experience</span>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-sky-500/10 border border-sky-500/20">
-              <ThumbsUp className="w-4 h-4 text-sky-500" />
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[#52606D]">Customer Experience</span>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#FFF4DC] border border-[#FDE6B0]">
+              <ThumbsUp className="w-4 h-4 text-[#D98B00]" />
             </div>
           </div>
           <div className="my-2 flex items-baseline space-x-2">
-            <span className="text-4xl font-display font-black text-textPearl">{csatMetrics.avg.toFixed(1)}</span>
-            <span className="text-xs text-slate-505 font-bold">/ 5.0 Rating</span>
+            <span className="text-4xl font-display font-black text-[#17202A]">{csatMetrics.avg.toFixed(1)}</span>
+            <span className="text-xs text-[#52606D] font-bold">/ 5.0 Rating</span>
           </div>
-          <div className="flex justify-between items-center text-[10px] font-bold border-t border-slate-850/65 pt-2.5">
-            <span className="text-sky-400">{csatMetrics.repeatRate}% Repeat Rate</span>
-            <span className="text-red-400 font-extrabold">{csatMetrics.pendingFeedback} Pending Reviews</span>
+          <div className="flex justify-between items-center text-[10px] font-bold border-t border-[#E5E0D9] pt-2.5">
+            <span className="text-[#1D5D9B] font-semibold">{csatMetrics.repeatRate}% Repeat Rate</span>
+            <span className="text-[#D64545] font-extrabold">{csatMetrics.pendingFeedback} Pending Reviews</span>
           </div>
         </Card>
       </div>
@@ -1654,8 +1654,8 @@ export const OwnerOverview: React.FC = () => {
       </div>
 
       {/* 5. Quick Actions Toolbar (Floating action cards footer) */}
-      <Card className="p-5 border-slate-850 bg-slate-900/40 space-y-3">
-        <span className="text-[10px] uppercase font-bold text-slate-500 block tracking-wider">Executive Workspace Command Header</span>
+      <Card className="p-5 border-[#E5E0D9] bg-white space-y-3 shadow-sm rounded-2xl">
+        <span className="text-[10px] uppercase font-bold text-[#7B8794] block tracking-wider">Executive Workspace Command Center</span>
         <div className="flex flex-wrap gap-3">
           <Button 
             size="sm" 
@@ -1670,36 +1670,36 @@ export const OwnerOverview: React.FC = () => {
               }
               navigate('/dashboard/owner/inventory/purchase-orders');
             }}
-            className="border-slate-800 text-[10px] font-black text-slate-300 hover:border-amber-500 hover:text-amber-500 flex items-center space-x-1.5 py-2 px-3.5"
+            className="border-[#E5E0D9] text-xs font-bold text-[#17202A] hover:border-[#D98B00] hover:text-[#D98B00] hover:bg-[#FFF4DC]/40 flex items-center space-x-1.5 py-2 px-3.5 bg-white transition-colors"
           >
-            <Plus className="w-3.5 h-3.5 mr-0.5 text-amber-500" />
+            <Plus className="w-3.5 h-3.5 mr-0.5 text-[#D98B00]" />
             <span>Create Purchase Order</span>
           </Button>
           <Button 
             size="sm" 
             variant="outline" 
             onClick={() => navigate('/dashboard/owner/staff?action=invite')}
-            className="border-slate-800 text-[10px] font-black text-slate-300 hover:border-emerald-500 hover:text-emerald-500 flex items-center space-x-1.5 py-2 px-3.5"
+            className="border-[#E5E0D9] text-xs font-bold text-[#17202A] hover:border-[#16845B] hover:text-[#16845B] hover:bg-[#E8F5EF]/40 flex items-center space-x-1.5 py-2 px-3.5 bg-white transition-colors"
           >
-            <Plus className="w-3.5 h-3.5 mr-0.5 text-emerald-500" />
-            <span>Add Employee profile</span>
+            <Plus className="w-3.5 h-3.5 mr-0.5 text-[#16845B]" />
+            <span>Add Employee Profile</span>
           </Button>
           {featureFlags.strategy && (
             <Button 
               size="sm" 
               variant="outline" 
               onClick={() => navigate('/dashboard/owner/strategy?tab=marketing')}
-              className="border-slate-800 text-[10px] font-black text-slate-300 hover:border-primary hover:text-primary flex items-center space-x-1.5 py-2 px-3.5"
+              className="border-[#E5E0D9] text-xs font-bold text-[#17202A] hover:border-[#C9533B] hover:text-[#C9533B] hover:bg-[#FBEAE5]/40 flex items-center space-x-1.5 py-2 px-3.5 bg-white transition-colors"
             >
-              <Plus className="w-3.5 h-3.5 mr-0.5 text-primary" />
-              <span>Create Promotion deal</span>
+              <Plus className="w-3.5 h-3.5 mr-0.5 text-[#C9533B]" />
+              <span>Create Promotion Deal</span>
             </Button>
           )}
           <Button 
             size="sm" 
             variant="outline" 
             onClick={() => navigate('/dashboard/owner/inventory')}
-            className="border-slate-800 text-[10px] font-black text-slate-400 hover:text-textPearl py-2 px-3.5"
+            className="border-[#E5E0D9] text-xs font-bold text-[#52606D] hover:text-[#17202A] hover:border-[#C9533B] py-2 px-3.5 bg-white transition-colors"
           >
             Open Inventory
           </Button>
@@ -1707,17 +1707,17 @@ export const OwnerOverview: React.FC = () => {
             size="sm" 
             variant="outline" 
             onClick={() => navigate('/dashboard/owner/billing')}
-            className="border-slate-800 text-[10px] font-black text-slate-400 hover:text-textPearl py-2 px-3.5"
+            className="border-[#E5E0D9] text-xs font-bold text-[#52606D] hover:text-[#17202A] hover:border-[#C9533B] py-2 px-3.5 bg-white transition-colors"
           >
-            Open Billing desk
+            Open Billing Desk
           </Button>
           <Button 
             size="sm" 
             variant="outline" 
             onClick={() => navigate('/dashboard/owner/analytics')}
-            className="border-slate-800 text-[10px] font-black text-slate-400 hover:text-textPearl py-2 px-3.5"
+            className="border-[#E5E0D9] text-xs font-bold text-[#52606D] hover:text-[#17202A] hover:border-[#C9533B] py-2 px-3.5 bg-white transition-colors"
           >
-            View Analytics
+            View Reports
           </Button>
         </div>
       </Card>
@@ -1784,28 +1784,28 @@ export const OwnerOverview: React.FC = () => {
                             {res.status}
                           </Badge>
                         </div>
-                        <p className="text-[10px] text-slate-500">Ref: {res.id} · {res.guests} dinersparty</p>
-                        <div className="text-slate-400 mt-2 space-y-1">
+                        <p className="text-[10px] text-[#7B8794]">Ref: {res.id} · {res.guests} dinersparty</p>
+                        <div className="text-[#52606D] mt-2 space-y-1">
                           <div className="flex gap-2">
-                            <span className="text-slate-550">Date & Time:</span>
-                            <span className="font-bold text-white">{res.date} @ {res.time}</span>
+                            <span className="text-[#7B8794]">Date & Time:</span>
+                            <span className="font-bold text-[#17202A]">{res.date} @ {res.time}</span>
                           </div>
                           {res.seatingPreference && (
                             <div className="flex gap-2">
-                              <span className="text-slate-550">Zone Req:</span>
-                              <span className="font-semibold text-primary">{res.seatingPreference}</span>
+                              <span className="text-[#7B8794]">Zone Req:</span>
+                              <span className="font-semibold text-[#C9533B]">{res.seatingPreference}</span>
                             </div>
                           )}
                           <div className="flex gap-2">
-                            <span className="text-slate-500">Table:</span>
-                            <span className="font-bold text-slate-300">{res.assignedTableNumber ? `Table ${res.assignedTableNumber}` : 'Unassigned'}</span>
+                            <span className="text-[#7B8794]">Table:</span>
+                            <span className="font-bold text-[#17202A]">{res.assignedTableNumber ? `Table ${res.assignedTableNumber}` : 'Unassigned'}</span>
                           </div>
                           <div className="flex gap-2">
-                            <span className="text-slate-500">Staff Waiter:</span>
-                            <span className="font-semibold text-slate-300">{res.assignedWaiterName || 'Unassigned'}</span>
+                            <span className="text-[#7B8794]">Staff Waiter:</span>
+                            <span className="font-semibold text-[#17202A]">{res.assignedWaiterName || 'Unassigned'}</span>
                           </div>
                           {res.specialNotes && (
-                            <p className="text-[10.5px] italic text-slate-400 mt-1">"{res.specialNotes}"</p>
+                            <p className="text-[10.5px] italic text-[#52606D] mt-1">"{res.specialNotes}"</p>
                           )}
                         </div>
                       </div>
@@ -1816,13 +1816,13 @@ export const OwnerOverview: React.FC = () => {
                           <>
                             <button
                               onClick={() => { setSelectedRes(res); setResActionType('Accept'); }}
-                              className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-450 hover:bg-emerald-500 hover:text-slate-950 font-bold rounded-lg transition-all"
+                              className="px-3 py-1.5 bg-[#E8F5EF] border border-[#C6E7D8] text-[#16845B] hover:bg-[#16845B] hover:text-white font-bold rounded-lg transition-all"
                             >
                               Accept
                             </button>
                             <button
                               onClick={() => { setSelectedRes(res); setResActionType('Reject'); }}
-                              className="px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white font-bold rounded-lg transition-all"
+                              className="px-3 py-1.5 bg-[#FBEAE5] border border-[#F5CBC4] text-[#D64545] hover:bg-[#D64545] hover:text-white font-bold rounded-lg transition-all"
                             >
                               Reject
                             </button>
@@ -1831,7 +1831,7 @@ export const OwnerOverview: React.FC = () => {
                         {res.status === 'Confirmed' && (
                           <button
                             onClick={() => handleMarkArrived(res)}
-                            className="px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-slate-950 font-bold rounded-lg transition-all"
+                            className="px-3 py-1.5 bg-[#EAF2FB] border border-[#CBE0F7] text-[#2878D4] hover:bg-[#2878D4] hover:text-white font-bold rounded-lg transition-all"
                           >
                             Mark Arrived
                           </button>
@@ -1844,7 +1844,7 @@ export const OwnerOverview: React.FC = () => {
                                 setResActionType('Seat');
                                 setResTableInput(tables.find(t => t.status === 'Available')?.id || '');
                               }}
-                              className="px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary hover:bg-primary hover:text-slate-950 font-bold rounded-lg transition-all"
+                              className="px-3 py-1.5 bg-[#FBEAE5] border border-[#F5CBC4] text-[#C9533B] hover:bg-[#C9533B] hover:text-white font-bold rounded-lg transition-all"
                             >
                               Seat Party
                             </button>
@@ -1854,7 +1854,7 @@ export const OwnerOverview: React.FC = () => {
                                 setResActionType('AssignTable');
                                 setResTableInput(res.assignedTableId || '');
                               }}
-                              className="px-2.5 py-1.5 border border-slate-800 text-slate-400 hover:text-white font-semibold rounded-lg hover:bg-slate-900"
+                              className="px-2.5 py-1.5 border border-[#E5E0D9] text-[#52606D] hover:text-[#17202A] font-semibold rounded-lg hover:bg-[#F8F6F2] transition-colors"
                             >
                               Set Table
                             </button>

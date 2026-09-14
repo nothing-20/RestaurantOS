@@ -224,12 +224,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   const location = useLocation();
   const isKitchen = location.pathname.startsWith('/dashboard/kitchen') || role === 'kitchen';
   const isWaiter = location.pathname.startsWith('/dashboard/waiter') || role === 'waiter';
+  const isOwner = location.pathname.startsWith('/owner') || location.pathname.startsWith('/dashboard/owner') || (role === 'owner' && !isKitchen && !isWaiter);
   const isLightService = isKitchen || isWaiter;
+  const isLightHeader = isLightService || isOwner;
 
   return (
     <header className={`h-16 flex items-center justify-between px-6 z-20 transition-colors ${
-      isLightService 
-        ? 'border-b border-[#E3DED5] bg-white text-[#18201D]' 
+      isLightHeader 
+        ? 'border-b border-[#E5E0D9] bg-white text-[#17202A]' 
         : 'border-b border-slate-800/40 bg-slate-950/40 backdrop-blur-md text-textPearl'
     }`}>
       
@@ -249,19 +251,27 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
           </button>
         )}
 
-        {isLightService ? (
+        {isLightHeader ? (
           <button 
             onClick={() => {
               loadSearchData();
               setIsOpen(true);
             }}
-            className="w-full flex items-center justify-between px-3.5 py-2 rounded-lg border border-[#E3DED5] bg-white hover:bg-[#FBF9F5] hover:border-[#D1C9BC] text-[#5F6762] hover:text-[#18201D] text-xs transition-all duration-150 text-left select-none group shadow-none"
+            className={`w-full flex items-center justify-between px-3.5 py-2 rounded-lg border text-xs transition-all duration-150 text-left select-none group shadow-none ${
+              isOwner 
+                ? 'border-[#E5E0D9] bg-[#F8F6F2] hover:bg-white hover:border-[#C9533B] text-[#52606D] hover:text-[#17202A]' 
+                : 'border-[#E3DED5] bg-white hover:bg-[#FBF9F5] hover:border-[#D1C9BC] text-[#5F6762] hover:text-[#18201D]'
+            }`}
           >
             <div className="flex items-center space-x-2.5">
-              <Search className="w-4 h-4 text-[#5F6762] group-hover:text-[#18201D] transition-colors" />
-              <span className="text-[12px] font-medium">Search by table, order ID, item or customer name...</span>
+              <Search className={`w-4 h-4 transition-colors ${isOwner ? 'text-[#7B8794] group-hover:text-[#C9533B]' : 'text-[#5F6762] group-hover:text-[#18201D]'}`} />
+              <span className="text-[12px] font-medium truncate">
+                {isOwner ? 'Search menu, tables, staff, inventory or type action...' : 'Search by table, order ID, item or customer name...'}
+              </span>
             </div>
-            <kbd className="bg-[#F7F4EE] border border-[#E3DED5] text-[#5F6762] px-1.5 py-0.5 rounded text-[10px] font-mono leading-none tracking-normal shadow-none font-semibold">
+            <kbd className={`border px-1.5 py-0.5 rounded text-[10px] font-mono leading-none tracking-normal shadow-none font-semibold ${
+              isOwner ? 'bg-white border-[#E5E0D9] text-[#52606D]' : 'bg-[#F7F4EE] border-[#E3DED5] text-[#5F6762]'
+            }`}>
               {typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.userAgent || navigator.platform) ? '⌘ K' : 'Ctrl + K'}
             </kbd>
           </button>
@@ -291,36 +301,36 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
           <button 
             onClick={() => setShowNotifications(!showNotifications)}
             className={`p-2 transition-colors relative rounded-lg ${
-              isLightService 
-                ? 'text-[#5F6762] hover:text-[#18201D] hover:bg-[#F7F4EE]' 
+              isLightHeader 
+                ? 'text-[#52606D] hover:text-[#17202A] hover:bg-[#F8F6F2]' 
                 : 'text-mutedAsh hover:text-primary hover:bg-slate-900/60'
             }`}
           >
             <Bell className="w-4 h-4" />
             {alerts.length > 0 && (
               <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${
-                isLightService ? 'bg-[#C84A38]' : 'bg-primary animate-pulse'
+                isOwner ? 'bg-[#C9533B]' : isLightService ? 'bg-[#C84A38]' : 'bg-primary animate-pulse'
               }`} />
             )}
           </button>
 
           {showNotifications && (
             <div className={`absolute right-0 mt-2.5 w-80 rounded-xl shadow-xl p-4 space-y-3 z-50 text-left ${
-              isLightService 
-                ? 'border border-[#E3DED5] bg-white text-[#18201D]' 
+              isLightHeader 
+                ? 'border border-[#E5E0D9] bg-white text-[#17202A]' 
                 : 'border border-slate-855 bg-slate-955/95 shadow-2xl backdrop-blur-lg text-textPearl'
             }`}>
               <div className={`flex items-center justify-between pb-2 border-b ${
-                isLightService ? 'border-[#E3DED5]' : 'border-slate-855'
+                isLightHeader ? 'border-[#E5E0D9]' : 'border-slate-855'
               }`}>
                 <span className={`text-xs font-bold flex items-center gap-1.5 ${
-                  isLightService ? 'text-[#18201D]' : 'text-textPearl'
+                  isLightHeader ? 'text-[#17202A]' : 'text-textPearl'
                 }`}>
-                  <Bell className={`w-4 h-4 ${isLightService ? 'text-[#C84A38]' : 'text-primary'}`} />
+                  <Bell className={`w-4 h-4 ${isOwner ? 'text-[#C9533B]' : isLightService ? 'text-[#C84A38]' : 'text-primary'}`} />
                   <span>Unread Notifications</span>
                 </span>
                 <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono font-bold ${
-                  isLightService ? 'bg-[#C84A38]/10 text-[#C84A38]' : 'bg-slate-900 border border-slate-800 text-slate-400'
+                  isLightHeader ? 'bg-[#FBEAE5] text-[#C9533B]' : 'bg-slate-900 border border-slate-800 text-slate-400'
                 }`}>
                   {alerts.length} New
                 </span>
@@ -329,8 +339,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
               <div className="max-h-64 overflow-y-auto space-y-2.5 scrollbar-thin">
                 {alerts.map((a) => (
                   <div key={a.id} className={`p-2.5 rounded-lg space-y-2 text-xs border ${
-                    isLightService 
-                      ? 'bg-[#F7F4EE]/80 border-[#E3DED5]' 
+                    isLightHeader 
+                      ? 'bg-[#F8F6F2] border-[#E5E0D9]' 
                       : 'bg-slate-950/40 border border-slate-855'
                   }`}>
                     <div className="flex justify-between items-start">
@@ -346,12 +356,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <p className={`text-[10px] font-semibold ${isLightService ? 'text-[#5F6762]' : 'text-slate-400'}`}>{a.message}</p>
+                    <p className={`text-[10px] font-semibold ${isLightHeader ? 'text-[#52606D]' : 'text-slate-400'}`}>{a.message}</p>
                     <div className="flex justify-end pt-1">
                       <button
                         onClick={() => handleResolveAlert(a)}
                         className={`text-[9px] font-black uppercase tracking-wider hover:underline ${
-                          isLightService ? 'text-[#C84A38]' : 'text-primary'
+                          isOwner ? 'text-[#C9533B]' : isLightService ? 'text-[#C84A38]' : 'text-primary'
                         }`}
                       >
                         Resolve Issue
@@ -361,7 +371,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                 ))}
 
                 {alerts.length === 0 && (
-                  <div className={`text-center py-6 italic text-xs font-semibold ${isLightService ? 'text-[#5F6762]' : 'text-slate-500'}`}>
+                  <div className={`text-center py-6 italic text-xs font-semibold ${isLightHeader ? 'text-[#52606D]' : 'text-slate-500'}`}>
                     No active unread notifications.
                   </div>
                 )}
@@ -372,27 +382,29 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
 
         {/* User profile details */}
         <div className={`flex items-center space-x-3 pl-3 border-l ${
-          isLightService ? 'border-[#E3DED5]' : 'border-slate-800/60'
+          isLightHeader ? 'border-[#E5E0D9]' : 'border-slate-800/60'
         }`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-            isLightService 
+            isOwner 
+              ? 'bg-[#12352D] text-white border border-[#12352D]' 
+              : isLightService 
               ? 'bg-[#13241F] text-white border border-[#13241F]' 
               : 'bg-slate-900 border border-slate-800 text-slate-350'
           }`}>
             {user?.displayName 
               ? user.displayName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() 
-              : (user?.email ? user.email.slice(0, 2).toUpperCase() : (isKitchen ? 'KS' : (isWaiter ? 'WT' : <User className="w-4 h-4" />)))}
+              : (user?.email ? user.email.slice(0, 2).toUpperCase() : (isOwner ? 'OW' : isKitchen ? 'KS' : (isWaiter ? 'WT' : <User className="w-4 h-4" />)))}
           </div>
           <div className="hidden md:flex flex-col text-left">
             <span className={`text-xs font-bold truncate max-w-[120px] ${
-              isLightService ? 'text-[#18201D]' : 'text-textPearl'
+              isLightHeader ? 'text-[#17202A]' : 'text-textPearl'
             }`}>
-              {user?.displayName || user?.email?.split('@')[0] || (isKitchen ? 'Kitchen Staff' : (isWaiter ? 'Waiter' : 'User'))}
+              {user?.displayName || user?.email?.split('@')[0] || (isOwner ? 'Owner' : isKitchen ? 'Kitchen Staff' : (isWaiter ? 'Waiter' : 'User'))}
             </span>
             <span className={`text-[9px] uppercase font-extrabold tracking-widest ${
-              isLightService ? 'text-[#5F6762]' : 'text-primary'
+              isOwner ? 'text-[#C9533B]' : isLightService ? 'text-[#5F6762]' : 'text-primary'
             }`}>
-              {role === 'kitchen' ? 'Head Chef' : (role === 'waiter' ? 'Waiter' : (role ? (role.charAt(0).toUpperCase() + role.slice(1)) : 'Staff'))}
+              {role === 'owner' ? 'Owner' : role === 'kitchen' ? 'Head Chef' : (role === 'waiter' ? 'Waiter' : (role ? (role.charAt(0).toUpperCase() + role.slice(1)) : 'Staff'))}
             </span>
           </div>
         </div>
@@ -401,7 +413,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
         <button 
           onClick={logout} 
           className={`p-2 rounded-lg transition-all ${
-            isLightService 
+            isOwner 
+              ? 'text-[#52606D] hover:text-[#D64545] hover:bg-[#FBEAE5]' 
+              : isLightService 
               ? 'text-[#5F6762] hover:text-[#C7463A] hover:bg-[#F9E8E4]' 
               : 'text-mutedAsh hover:text-red-500 hover:bg-red-500/10'
           }`}
@@ -417,14 +431,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
           <div 
             ref={paletteRef}
             className={`w-full max-w-xl rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[420px] ${
-              isKitchen 
-                ? 'bg-white border border-[#E3DED5] text-[#18201D]' 
+              isLightHeader 
+                ? 'bg-white border border-[#E5E0D9] text-[#17202A]' 
                 : 'bg-slate-955 border border-slate-850 text-textPearl'
             }`}
           >
             {/* Header Input */}
-            <div className="p-4 border-b border-slate-850 flex items-center space-x-3 bg-slate-950/40">
-              <Search className="w-4 h-4 text-slate-400" />
+            <div className={`p-4 border-b flex items-center space-x-3 ${isLightHeader ? 'bg-[#F8F6F2] border-[#E5E0D9]' : 'border-slate-850 bg-slate-950/40'}`}>
+              <Search className={`w-4 h-4 ${isLightHeader ? 'text-[#7B8794]' : 'text-slate-400'}`} />
               <input
                 ref={searchInputRef}
                 type="text"
@@ -435,11 +449,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                   setSelectedIdx(0);
                 }}
                 onKeyDown={handleNavKeys}
-                className="w-full bg-transparent outline-none border-none text-xs text-textPearl placeholder-slate-500"
+                className={`w-full bg-transparent outline-none border-none text-xs ${isLightHeader ? 'text-[#17202A] placeholder-[#7B8794]' : 'text-textPearl placeholder-slate-500'}`}
               />
               <button 
                 onClick={() => setIsOpen(false)}
-                className="p-1 rounded bg-slate-900 border border-slate-800 text-slate-500 hover:text-slate-300"
+                className={`p-1 rounded ${isLightHeader ? 'bg-white border border-[#E5E0D9] text-[#52606D] hover:text-[#17202A]' : 'bg-slate-900 border border-slate-800 text-slate-500 hover:text-slate-300'}`}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -447,24 +461,28 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
 
             {/* Results body */}
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5 scrollbar-thin">
-              <span className="text-[9px] font-bold text-slate-550 uppercase tracking-widest px-3 py-1.5 block">
+              <span className={`text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 block ${isLightHeader ? 'text-[#7B8794]' : 'text-slate-550'}`}>
                 {searchQuery ? 'Matching entries' : 'Recommended actions'}
               </span>
 
               {filteredResults.map((item, idx) => {
                 const isSelected = idx === selectedIdx;
-                let badgeColor = 'bg-slate-900 border-slate-800 text-slate-400';
-                if (item.type === 'Quick Action') badgeColor = 'bg-primary/10 border-primary/20 text-primary';
-                if (item.type === 'Demo Reset') badgeColor = 'bg-amber-500/10 border-amber-500/20 text-amber-500';
+                let badgeColor = isLightHeader ? 'bg-[#F8F6F2] border-[#E5E0D9] text-[#52606D]' : 'bg-slate-900 border-slate-800 text-slate-400';
+                if (item.type === 'Quick Action') badgeColor = isLightHeader ? 'bg-[#FBEAE5] border-[#F5CBC4] text-[#C9533B]' : 'bg-primary/10 border-primary/20 text-primary';
+                if (item.type === 'Demo Reset') badgeColor = isLightHeader ? 'bg-[#FFF4DC] border-[#FDE6B0] text-[#9A6200]' : 'bg-amber-500/10 border-amber-500/20 text-amber-500';
 
                 return (
                   <div
                     key={item.id}
                     onClick={() => executeResult(item)}
-                    className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer select-none border transition-all ${isSelected ? 'border-primary/40 bg-primary/5 text-textPearl' : 'border-transparent text-slate-450 hover:bg-slate-950/30'}`}
+                    className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer select-none border transition-all ${
+                      isSelected 
+                        ? isLightHeader ? 'border-[#C9533B] bg-[#FBEAE5] text-[#17202A]' : 'border-primary/40 bg-primary/5 text-textPearl'
+                        : isLightHeader ? 'border-transparent text-[#52606D] hover:bg-[#F8F6F2]' : 'border-transparent text-slate-450 hover:bg-slate-950/30'
+                    }`}
                   >
                     <div className="flex items-center space-x-3 min-w-0">
-                      <Terminal className={`w-3.5 h-3.5 ${isSelected ? 'text-primary' : 'text-slate-500'}`} />
+                      <Terminal className={`w-3.5 h-3.5 ${isSelected ? (isLightHeader ? 'text-[#C9533B]' : 'text-primary') : 'text-slate-400'}`} />
                       <span className="text-xs font-semibold truncate">{item.label}</span>
                     </div>
                     
@@ -472,21 +490,21 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                       <span className={`text-[9px] px-2 py-0.5 rounded-full border font-mono ${badgeColor}`}>
                         {item.type}
                       </span>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-650" />
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                     </div>
                   </div>
                 );
               })}
 
               {filteredResults.length === 0 && (
-                <div className="text-center py-8 text-slate-500 italic text-xs font-semibold">
+                <div className={`text-center py-8 italic text-xs font-semibold ${isLightHeader ? 'text-[#7B8794]' : 'text-slate-500'}`}>
                   No matching items or actions found.
                 </div>
               )}
             </div>
 
             {/* Palette Footer */}
-            <div className="p-3 border-t border-slate-850 bg-slate-950/20 flex justify-between items-center text-[10px] text-slate-550 font-bold font-mono">
+            <div className={`p-3 border-t flex justify-between items-center text-[10px] font-bold font-mono ${isLightHeader ? 'border-[#E5E0D9] bg-[#F8F6F2] text-[#52606D]' : 'border-slate-850 bg-slate-950/20 text-slate-550'}`}>
               <span className="flex items-center gap-1.5">
                 <span>↑↓ Navigate</span>
                 <span>•</span>
