@@ -3,9 +3,12 @@ import { Outlet, useLocation } from 'react-router-dom';
 
 export const AuthLayout: React.FC = () => {
   const location = useLocation();
-  const isOwnerLogin = location.pathname === '/owner/login' || location.pathname === '/login';
+  const isCustomAuthLayout = 
+    location.pathname === '/owner/login' || 
+    location.pathname === '/login' || 
+    location.pathname === '/register';
 
-  if (isOwnerLogin) {
+  if (isCustomAuthLayout) {
     return <Outlet />;
   }
 
